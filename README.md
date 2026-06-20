@@ -46,6 +46,53 @@ A missing or malformed value aborts boot with a clear, itemised error. See
 when the app is up and Postgres is reachable, and **503** when the database
 connectivity check fails.
 
+## Authentication
+
+Email + password authentication built on **Auth.js (NextAuth v5)** with the
+Prisma adapter and a **database session strategy**.
+
+- **Models** ([prisma/schema.prisma](prisma/schema.prisma)): `User`, `Account`,
+  `Session`, `VerificationToken` per the Auth.js adapter spec, plus
+  `User.passwordHash` (argon2id — plaintext is never stored).
+- **Endpoints**: `POST /api/auth/signup`, `POST /api/auth/login`,
+  `POST /api/auth/logout`. Auth.js's own handlers live at `/api/auth/[...nextauth]`.
+- **Sessions**: secure, `httpOnly`, `sameSite=lax` cookie (`Secure` in
+  production). The session token is stored in the `Session` table; `auth()`
+  validates it. `signOut` deletes the row server-side.
+- **Protected routes**: [`src/proxy.ts`](src/proxy.ts) gates `/dashboard` on the
+  session cookie (cheap, no DB), and the page re-validates with `auth()` and
+  redirects unauthenticated users to `/login`.
+
+> **Why a custom login route?** Auth.js's Credentials provider only supports JWT
+> sessions. To get credentials login _with_ database sessions, the login route
+> validates the password and creates the session row directly in the adapter's
+> `Session` table using the Auth.js cookie — so `auth()`/`signOut()` work
+> unchanged and OAuth providers can be added later.
+
+**Security properties:** no user enumeration (identical responses + constant-time
+hashing for "wrong password" vs "no such user"), generic error messages,
+per-IP-per-minute rate limiting on login/sign-up (in-memory — back with Redis for
+multi-instance deployments), and CSRF protection (Sec-Fetch-Site / Origin checks
+plus sameSite cookies).
+
+## Training plan domain
+
+Models live in [prisma/schema.prisma](prisma/schema.prisma): `TrainingPlan`
+(scoped to a user via `userId`), `PlanDiscipline`, `WeeklyTarget`, `WeeklyActual`,
+plus the `Discipline` (SWIM/BIKE/RUN) and `ActualSource` (MANUAL/STRAVA) enums.
+Deleting a user cascades to their plans; deleting a plan cascades to all of its
+children. Indexes cover `TrainingPlan(userId)`, `PlanDiscipline(planId, discipline)`
+(unique), and `Weekly{Target,Actual}(planId, weekStartDate)`.
+
+**User scoping (important):** all access goes through
+[src/lib/training-plan.ts](src/lib/training-plan.ts), which derives the user id
+from the session (`auth()`) and filters every query by it. A client-supplied
+`userId` is never trusted — child records are gated by a `plan: { userId }`
+relation filter or an explicit ownership assertion before any write.
+
+Migrations live in [prisma/migrations](prisma/migrations). Use `npm run db:migrate`
+to create/apply a migration in development. Inspect data with `npx prisma studio`.
+
 ## Security headers
 
 [`next.config.ts`](next.config.ts) applies the following to every route:

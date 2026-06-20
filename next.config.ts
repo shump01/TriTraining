@@ -37,6 +37,10 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // Keep native / driver packages out of the server bundle so they load as real
+  // Node modules at runtime (argon2 native addon, Prisma pg driver adapter).
+  serverExternalPackages: ["@node-rs/argon2", "@prisma/adapter-pg", "pg"],
+
   // Apply the security headers to every route.
   async headers() {
     return [

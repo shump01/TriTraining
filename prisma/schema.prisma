@@ -15,12 +15,135 @@ datasource db {
   // Migrate) and is supplied to PrismaClient via the driver adapter at runtime.
 }
 
-/// Example model so the generated client has a table to work with.
-/// Replace / extend with the real TriTrainer domain models.
+// ─────────────────────────────────────────────────────────────────────────────
+// Auth.js (NextAuth v5) models — per the @auth/prisma-adapter spec.
+// `User.passwordHash` is our addition for email + password credentials login
+// (nullable so OAuth-only users are also supported). Never stores plaintext.
+// ─────────────────────────────────────────────────────────────────────────────
+
 model User {
+  id            String         @id @default(cuid())
+  name          String?
+  email         String         @unique
+  emailVerified DateTime?
+  image         String?
+  passwordHash  String? // argon2id hash; null for users without a password
+  accounts      Account[]
+  sessions      Session[]
+  trainingPlans TrainingPlan[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Training plan domain.
+//
+// Every record is scoped to a user: TrainingPlan.userId is the FK, and all child
+// records hang off a TrainingPlan (so they are transitively user-scoped). Deleting
+// a user cascades to their plans; deleting a plan cascades to all of its children.
+//
+// IMPORTANT: application code must always filter by the *authenticated* user id
+// (from the session), never a client-supplied one — see src/lib/training-plan.ts.
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum Discipline {
+  SWIM
+  BIKE
+  RUN
+}
+
+enum ActualSource {
+  MANUAL
+  STRAVA
+}
+
+model TrainingPlan {
   id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
+  userId    String
+  name      String
+  eventDate DateTime @db.Date
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  disciplines   PlanDiscipline[]
+  weeklyTargets WeeklyTarget[]
+  weeklyActuals WeeklyActual[]
+
+  @@index([userId])
+}
+
+model PlanDiscipline {
+  id                   String     @id @default(cuid())
+  planId               String
+  discipline           Discipline
+  eventDistanceMeters  Int
+  startingWeeklyMeters Int
+
+  plan TrainingPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  // One row per discipline per plan. The unique index also serves planId lookups.
+  @@unique([planId, discipline])
+}
+
+model WeeklyTarget {
+  id            String     @id @default(cuid())
+  planId        String
+  discipline    Discipline
+  weekStartDate DateTime   @db.Date
+  targetMeters  Int
+
+  plan TrainingPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@index([planId, weekStartDate])
+}
+
+model WeeklyActual {
+  id            String       @id @default(cuid())
+  planId        String
+  discipline    Discipline
+  weekStartDate DateTime     @db.Date
+  actualMeters  Int
+  source        ActualSource
+
+  plan TrainingPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@index([planId, weekStartDate])
 }

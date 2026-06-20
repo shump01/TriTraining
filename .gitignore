@@ -30,6 +30,10 @@ yarn-error.log*
 # prisma — generated client (recreated by `prisma generate`)
 /src/generated
 
+# test / tooling artifacts
+/.playwright-mcp
+*.tsbuildinfo
+
 # os / editor
 .DS_Store
 *.pem
