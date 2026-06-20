@@ -1,0 +1,26 @@
+// Prisma 7 schema. Docs: https://pris.ly/d/prisma-schema
+//
+// The new `prisma-client` generator is used (the legacy `prisma-client-js`
+// provider is deprecated in v7). The generated client is written to a custom
+// `output` path (required in v7) and imported from there in application code.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  // In Prisma 7 the connection URL lives in prisma.config.ts (for the CLI /
+  // Migrate) and is supplied to PrismaClient via the driver adapter at runtime.
+}
+
+/// Example model so the generated client has a table to work with.
+/// Replace / extend with the real TriTrainer domain models.
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
