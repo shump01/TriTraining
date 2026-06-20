@@ -6,6 +6,7 @@ import {
   MAX_WEEKLY_INCREASE,
   computeWeeklyTargets,
   firstMondayOnOrAfter,
+  startOfWeekMonday,
   type WeeklyTargetInput,
 } from "./weekly-targets";
 
@@ -49,6 +50,19 @@ describe("firstMondayOnOrAfter", () => {
 
   it("throws on an invalid Date", () => {
     expect(() => firstMondayOnOrAfter(new Date("nope"))).toThrow(/valid Date/);
+  });
+});
+
+describe("startOfWeekMonday", () => {
+  it.each([
+    ["2026-01-05", "2026-01-05"], // Monday -> itself
+    ["2026-01-06", "2026-01-05"], // Tuesday -> back to Monday
+    ["2026-01-11", "2026-01-05"], // Sunday -> back to Monday
+    ["2026-01-12", "2026-01-12"], // next Monday
+  ])("maps %s to week-start %s", (input, expected) => {
+    const result = startOfWeekMonday(new Date(`${input}T12:00:00.000Z`));
+    expect(result.toISOString()).toBe(`${expected}T00:00:00.000Z`);
+    expect(result.getUTCDay()).toBe(1);
   });
 });
 

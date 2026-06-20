@@ -27,12 +27,32 @@ model User {
   email         String         @unique
   emailVerified DateTime?
   image         String?
-  passwordHash  String? // argon2id hash; null for users without a password
-  accounts      Account[]
-  sessions      Session[]
-  trainingPlans TrainingPlan[]
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  passwordHash     String? // argon2id hash; null for users without a password
+  accounts         Account[]
+  sessions         Session[]
+  trainingPlans    TrainingPlan[]
+  stravaConnection StravaConnection?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+}
+
+// Strava OAuth account link (separate from login). access/refresh tokens are
+// stored ENCRYPTED at rest (AES-256-GCM) — never plaintext. One per user.
+model StravaConnection {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  athleteId    String // Strava athlete id (stored as string to avoid bigint issues)
+  accessToken  String // AES-256-GCM ciphertext
+  refreshToken String // AES-256-GCM ciphertext
+  expiresAt    DateTime // access-token expiry
+  scope        String
+  lastSyncedAt DateTime? // last successful activity sync
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([athleteId])
 }
 
 model Account {
@@ -145,5 +165,7 @@ model WeeklyActual {
 
   plan TrainingPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
 
+  // One actual per plan/discipline/week/source — the idempotency key for sync.
+  @@unique([planId, discipline, weekStartDate, source])
   @@index([planId, weekStartDate])
 }

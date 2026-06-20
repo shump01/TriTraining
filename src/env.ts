@@ -18,6 +18,17 @@ const envSchema = z.object({
   STRAVA_CLIENT_ID: z.string().min(1, "STRAVA_CLIENT_ID is required"),
   STRAVA_CLIENT_SECRET: z.string().min(1, "STRAVA_CLIENT_SECRET is required"),
   NEXTAUTH_URL: z.url({ message: "NEXTAUTH_URL must be a valid URL, e.g. http://localhost:3000" }),
+  // Symmetric key for encrypting Strava tokens at rest (AES-256-GCM).
+  // Must be base64-encoded 32 bytes. Generate with: openssl rand -base64 32
+  ENCRYPTION_KEY: z.string().refine((v) => {
+    try {
+      return Buffer.from(v, "base64").length === 32;
+    } catch {
+      return false;
+    }
+  }, "ENCRYPTION_KEY must be base64-encoded 32 bytes (generate: openssl rand -base64 32)"),
+  // Optional: token used to validate the Strava webhook subscription handshake.
+  STRAVA_WEBHOOK_VERIFY_TOKEN: z.string().optional(),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
 });
 

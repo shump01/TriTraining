@@ -61,6 +61,22 @@ export function firstMondayOnOrAfter(date: Date): Date {
 }
 
 /**
+ * The Monday (UTC midnight) of the week that contains `date` — i.e. the start of
+ * `date`'s training week. Used to bucket activities into weeks.
+ *
+ * @throws RangeError on an invalid Date.
+ */
+export function startOfWeekMonday(date: Date): Date {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+    throw new RangeError("date must be a valid Date");
+  }
+  const midnight = utcMidnightMs(date);
+  const day = new Date(midnight).getUTCDay(); // 0=Sun..6=Sat
+  const offsetDays = day === 0 ? -6 : 1 - day; // back to Monday
+  return new Date(midnight + offsetDays * 24 * 60 * 60 * 1000);
+}
+
+/**
  * Produce one target per week from `startDate` up to and including the week that
  * contains `eventDate` (weeks start Monday).
  *

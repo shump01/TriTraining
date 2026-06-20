@@ -269,7 +269,20 @@ export async function recordWeeklyActual(input: {
 }) {
   const userId = await requireUserId();
   await assertPlanOwned(input.planId, userId);
-  return prisma.weeklyActual.create({ data: input });
+  // Upsert on the (plan, discipline, week, source) key so re-recording the same
+  // week replaces rather than duplicates.
+  return prisma.weeklyActual.upsert({
+    where: {
+      planId_discipline_weekStartDate_source: {
+        planId: input.planId,
+        discipline: input.discipline,
+        weekStartDate: input.weekStartDate,
+        source: input.source,
+      },
+    },
+    create: input,
+    update: { actualMeters: input.actualMeters },
+  });
 }
 
 /** Throws unless the plan exists AND belongs to `userId`. */

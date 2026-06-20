@@ -36,9 +36,39 @@ All variables are **required** and validated at startup by [`src/env.ts`](src/en
 A missing or malformed value aborts boot with a clear, itemised error. See
 [`.env.example`](.env.example) for the full list:
 
-`DATABASE_URL`, `AUTH_SECRET`, `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, `NEXTAUTH_URL`
+`DATABASE_URL`, `AUTH_SECRET`, `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`,
+`NEXTAUTH_URL`, `ENCRYPTION_KEY` (base64 32 bytes — encrypts Strava tokens at
+rest). Optional: `DIRECT_URL` (migrations behind a pooler),
+`STRAVA_WEBHOOK_VERIFY_TOKEN`.
 
 > `.env` is git-ignored — never commit real secrets.
+
+## Strava account linking
+
+OAuth 2.0 link to Strava, **separate from login** (see [src/lib/strava](src/lib/strava)).
+
+- **Model**: `StravaConnection` (one per user). Access/refresh tokens are
+  **encrypted at rest with AES-256-GCM** (`ENCRYPTION_KEY`) — never plaintext.
+- **Flow**: `GET /api/strava/connect` redirects to Strava (`scope=read,activity:read`)
+  with a **signed, session-bound `state`** (HMAC over `userId.nonce.issuedAt`,
+  nonce mirrored in an httpOnly cookie). `GET /api/strava/callback` verifies the
+  state, exchanges the code, and upserts the connection.
+- **Auto-refresh**: `getValidStravaAccessToken(userId)` refreshes via Strava's
+  token endpoint when expired and persists rotated tokens. It never throws —
+  returns `null` on transient failure and **drops the connection on a revoked
+  token**, so the app can't crash on a bad token.
+- **Disconnect**: `POST /api/strava/disconnect` best-effort revokes on Strava,
+  then deletes the row. A **"Connect/Disconnect" card** lives on the dashboard.
+- **Webhook**: `GET /api/strava/webhook` answers the subscription handshake;
+  `POST` handles athlete **de-authorization** (deletes the connection) and always
+  returns 200.
+- **Activity sync** — `POST /api/strava/sync` ("Sync now" on the dashboard):
+  fetches recent activities (paginated, **429 backoff**), maps types
+  (Swim→SWIM, Ride/VirtualRide→BIKE, Run/VirtualRun→RUN), buckets distance into
+  Monday-start weeks, and writes STRAVA-sourced `WeeklyActual` rows for each
+  covering plan. **Idempotent**: it replaces STRAVA actuals in a transaction
+  (MANUAL ones untouched), keyed on `(planId, discipline, weekStartDate, source)`.
+  `StravaConnection.lastSyncedAt` records the last run.
 
 ## Health check
 
