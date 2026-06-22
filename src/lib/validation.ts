@@ -46,6 +46,10 @@ const eventDateSchema = z.coerce
     "Event date must be at least 1 week away",
   );
 
+// The plan's start (week 1). May be in the past — a plan can be back-dated to
+// when training actually began. Only constrained relative to the event date.
+const startDateSchema = z.coerce.date({ message: "Enter a valid start date" });
+
 const disciplineMetricsSchema = z.object({
   eventDistanceMeters: metersSchema,
   startingWeeklyMeters: metersSchema,
@@ -55,36 +59,45 @@ const disciplineMetricsSchema = z.object({
  * Server-side schema for creating a plan. Note there is deliberately NO `userId`
  * field — the user is always derived from the session, never the request body.
  */
-export const createPlanSchema = z.object({
-  name: z.string().trim().min(1, "Name is required").max(120, "Name is too long"),
-  eventDate: eventDateSchema,
-  disciplines: z.object({
-    SWIM: disciplineMetricsSchema,
-    BIKE: disciplineMetricsSchema,
-    RUN: disciplineMetricsSchema,
-  }),
-});
+export const createPlanSchema = z
+  .object({
+    name: z.string().trim().min(1, "Name is required").max(120, "Name is too long"),
+    eventDate: eventDateSchema,
+    // Optional: defaults to the current week server-side when omitted.
+    startDate: startDateSchema.optional(),
+    // Each sport is optional, but at least one must be included (e.g. a
+    // run-only plan omits SWIM and BIKE).
+    disciplines: z
+      .object({
+        SWIM: disciplineMetricsSchema.optional(),
+        BIKE: disciplineMetricsSchema.optional(),
+        RUN: disciplineMetricsSchema.optional(),
+      })
+      .refine((d) => Boolean(d.SWIM || d.BIKE || d.RUN), {
+        message: "Select at least one sport",
+      }),
+  })
+  .refine((v) => !v.startDate || v.startDate.getTime() < v.eventDate.getTime(), {
+    path: ["startDate"],
+    message: "Start date must be before the event date",
+  });
 
 export type CreatePlanInput = z.infer<typeof createPlanSchema>;
 
-/**
- * Server-side schema for recompute. Every field is optional: omitted values keep
- * the plan's current stored values, so an empty body simply regenerates targets.
- */
-const recomputeDisciplineSchema = z.object({
-  startingWeeklyMeters: metersSchema.optional(),
-  eventDistanceMeters: metersSchema.optional(),
+// Editing a plan uses the same shape as creating one (full replace), so the
+// create schema is reused by PUT /api/plans/[id].
+
+// ── Manual weekly actual entry ───────────────────────────────────────────────
+
+/** A manually-entered actual for one (discipline, week). Distance is non-negative. */
+export const actualEntrySchema = z.object({
+  discipline: z.enum(["SWIM", "BIKE", "RUN"]),
+  weekStartDate: z.coerce.date({ message: "Enter a valid date" }),
+  actualMeters: z.coerce
+    .number({ message: "Enter a number" })
+    .int("Must be a whole number of meters")
+    .nonnegative("Must be 0 or more")
+    .max(MAX_METERS, "Value is too large"),
 });
 
-export const recomputePlanSchema = z.object({
-  eventDate: eventDateSchema.optional(),
-  disciplines: z
-    .object({
-      SWIM: recomputeDisciplineSchema.optional(),
-      BIKE: recomputeDisciplineSchema.optional(),
-      RUN: recomputeDisciplineSchema.optional(),
-    })
-    .optional(),
-});
-
-export type RecomputePlanInput = z.infer<typeof recomputePlanSchema>;
+export type ActualEntryInput = z.infer<typeof actualEntrySchema>;

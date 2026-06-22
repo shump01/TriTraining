@@ -20,7 +20,7 @@ console.log(`  startDate            = ${input.startDate.toISOString().slice(0, 1
 console.log(`  eventDate            = ${input.eventDate.toISOString().slice(0, 10)}`);
 console.log(`  startingWeeklyMeters = ${input.startingWeeklyMeters.toLocaleString()}`);
 console.log(`  eventDistanceMeters  = ${input.eventDistanceMeters.toLocaleString()}`);
-console.log(`  hard cap (3.5x)      = ${cap.toLocaleString()}`);
+console.log(`  hard cap (${CAP_MULTIPLE}x)      = ${cap.toLocaleString()}`);
 console.log("");
 console.log("Week | Start date | Target (m) | Δ% vs prev | Note");
 console.log("-----+------------+------------+------------+--------");

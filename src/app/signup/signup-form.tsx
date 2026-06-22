@@ -1,6 +1,10 @@
 "use client";
 
-import { useState, type CSSProperties, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
+
+const inputClass =
+  "w-full rounded-[11px] border border-border bg-input px-[14px] py-[13px] text-[15px] text-text outline-none focus:border-brand";
+const labelClass = "mb-[7px] block text-[13px] font-semibold text-muted";
 
 export function SignupForm() {
   const [email, setEmail] = useState("");
@@ -36,56 +40,52 @@ export function SignupForm() {
 
   if (success) {
     return (
-      <p role="status" style={{ color: "#0a7d28" }}>
-        Account created. <a href="/login">Log in →</a>
+      <p role="status" className="text-[15px] text-ahead">
+        Account created.{" "}
+        <a href="/login" className="font-bold text-brand">
+          Sign in →
+        </a>
       </p>
     );
   }
 
   return (
-    <form onSubmit={onSubmit} style={formStyle}>
-      <label style={labelStyle}>
-        Email
-        <input
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          autoComplete="email"
-          required
-          style={inputStyle}
-        />
-      </label>
-      <label style={labelStyle}>
-        Password
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          autoComplete="new-password"
-          required
-          minLength={12}
-          style={inputStyle}
-        />
-      </label>
-      <p style={hintStyle}>
+    <form onSubmit={onSubmit}>
+      <label className={labelClass}>Email</label>
+      <input
+        type="email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        autoComplete="email"
+        required
+        className={`${inputClass} mb-[18px]`}
+      />
+      <label className={labelClass}>Password</label>
+      <input
+        type="password"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        autoComplete="new-password"
+        required
+        minLength={12}
+        className={`${inputClass} mb-2`}
+      />
+      <p className="mt-0 mb-5 text-[12px] text-faint">
         At least 12 characters, including an uppercase letter, a lowercase letter, a number, and a
         symbol.
       </p>
       {error && (
-        <p role="alert" style={errorStyle}>
+        <p role="alert" className="mt-0 mb-4 text-[13.5px] text-behind">
           {error}
         </p>
       )}
-      <button type="submit" disabled={loading} style={submitStyle}>
-        {loading ? "Creating account…" : "Sign up"}
+      <button
+        type="submit"
+        disabled={loading}
+        className="w-full cursor-pointer rounded-[11px] bg-brand py-[14px] font-display text-[16px] font-bold text-white hover:brightness-110 disabled:opacity-70"
+      >
+        {loading ? "Creating account…" : "Create account"}
       </button>
     </form>
   );
 }
-
-const formStyle: CSSProperties = { display: "flex", flexDirection: "column", gap: "0.75rem" };
-const labelStyle: CSSProperties = { display: "flex", flexDirection: "column", gap: "0.25rem" };
-const inputStyle: CSSProperties = { padding: "0.5rem", fontSize: "1rem" };
-const submitStyle: CSSProperties = { padding: "0.5rem 1rem", fontSize: "1rem", cursor: "pointer" };
-const errorStyle: CSSProperties = { color: "#b00020", margin: 0 };
-const hintStyle: CSSProperties = { fontSize: "0.8rem", color: "#666", margin: 0 };

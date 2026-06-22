@@ -9,8 +9,8 @@
 /** Maximum week-over-week increase: 12%. */
 export const MAX_WEEKLY_INCREASE = 0.12;
 
-/** Hard cap multiple: a weekly target never exceeds 3.5× the event distance. */
-export const CAP_MULTIPLE = 3.5;
+/** Hard cap multiple: a weekly target never exceeds 1.5× the event distance. */
+export const CAP_MULTIPLE = 1.5;
 
 /**
  * Training block length, in weeks. The last week of each block is a de-load: it
@@ -58,6 +58,15 @@ export function firstMondayOnOrAfter(date: Date): Date {
   const day = new Date(midnight).getUTCDay(); // 0=Sun..6=Sat
   const offsetDays = day === 1 ? 0 : day === 0 ? 1 : 8 - day;
   return new Date(midnight + offsetDays * 24 * 60 * 60 * 1000);
+}
+
+/**
+ * A plan's week-1 Monday: the explicitly stored `startDate` if present (lets a
+ * plan be back-dated to when training actually began), otherwise the first
+ * Monday on/after the plan's creation date (legacy plans predating that column).
+ */
+export function planStartMonday(plan: { startDate: Date | null; createdAt: Date }): Date {
+  return plan.startDate ?? firstMondayOnOrAfter(plan.createdAt);
 }
 
 /**

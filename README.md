@@ -70,6 +70,37 @@ OAuth 2.0 link to Strava, **separate from login** (see [src/lib/strava](src/lib/
   (MANUAL ones untouched), keyed on `(planId, discipline, weekStartDate, source)`.
   `StravaConnection.lastSyncedAt` records the last run.
 
+## Tracking dashboard (`/plans/:id`)
+
+Server-rendered (scoped to the owner) target-vs-actual tracking, built from the
+pure [computeProgress](src/lib/progress.ts) model:
+
+- **Per discipline + a cross-discipline total**: a combined chart (target line +
+  actual bars, actuals only through the current week) and a per-week table.
+- **Per-week and cumulative** target vs actual, **% of target**, and a **status**
+  (ahead / on track / behind) — both per week and a to-date summary.
+- **Current week is highlighted** (chart marker + amber table row).
+- **Edge states**: past weeks with no activity count as **0 / behind** (missed);
+  future weeks show **target only** ("upcoming"); a not-yet-started plan shows a
+  banner with targets only.
+
+## Weekly actuals (manual + Strava)
+
+Actual weekly distance can come from Strava sync (`source = STRAVA`) or be entered
+by hand on the plan page (`POST /api/plans/:id/actuals`, `source = MANUAL`).
+
+- **Validation**: the user must own the plan, the week must fall within the plan's
+  date range (the date is normalized to its Monday), and distance must be a
+  non-negative integer.
+- **Precedence (documented choice)**: a **MANUAL entry overrides STRAVA** for the
+  same (discipline, week) — they are **not summed** (summing would double-count a
+  session that's both synced and entered by hand). Precedence is resolved at read
+  time ([src/lib/actuals.ts](src/lib/actuals.ts)), so a manual override **survives
+  future syncs** (sync only ever replaces STRAVA-sourced rows).
+- The plan page shows an editable "Actual (m)" field per week (pre-filled with the
+  manual value, labelled with the effective source) and overlays an actual line on
+  the chart.
+
 ## Health check
 
 `GET /api/health` returns **200** with `{ "status": "ok", "database": "connected" }`
@@ -125,9 +156,15 @@ to create/apply a migration in development. Inspect data with `npx prisma studio
 
 ## Security headers
 
-[`next.config.ts`](next.config.ts) applies the following to every route:
-Content-Security-Policy, Strict-Transport-Security, `X-Frame-Options: DENY`,
-`X-Content-Type-Options: nosniff`, and `Referrer-Policy: strict-origin-when-cross-origin`.
+[`next.config.ts`](next.config.ts) applies the static headers to every route:
+Strict-Transport-Security, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`,
+and `Referrer-Policy: strict-origin-when-cross-origin`.
+
+The Content-Security-Policy is set per-request in [`src/proxy.ts`](src/proxy.ts) so it can
+carry a unique `nonce`. The nonce (`script-src 'self' 'nonce-…' 'strict-dynamic'`) is what
+lets Next.js's inline RSC/bootstrap scripts execute under a strict policy — without it,
+hydration is blocked. The root layout reads the nonce from the `x-nonce` request header and
+stamps it onto its inline theme-bootstrap script.
 
 ## Scripts
 

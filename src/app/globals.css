@@ -1,13 +1,115 @@
+@import "tailwindcss";
+
+/* ── Runtime theme variables (dark default; light via [data-theme="light"]) ── */
 :root {
-  color-scheme: light dark;
+  color-scheme: dark;
+  --bg: #0a0c10;
+  --bg2: #0d1016;
+  --card: #14171e;
+  --card2: #1a1e27;
+  --border: #262b35;
+  --text: #f2f4f8;
+  --muted: #98a1b2;
+  --faint: #646d7c;
+  --grid: #222732;
+  --input: #11141a;
+
+  --brand: #5b6cff;
+  --swim: #15b8e6;
+  --bike: #ff7a18;
+  --run: #25c26e;
+
+  --ahead: #22c55e;
+  --on-track: #3aa0ff;
+  --behind: #f5566b;
+  --upcoming: #7c8696;
 }
 
+[data-theme="light"] {
+  color-scheme: light;
+  --bg: #eef1f5;
+  --bg2: #ffffff;
+  --card: #ffffff;
+  --card2: #f5f8fb;
+  --border: #e3e7ee;
+  --text: #0d1016;
+  --muted: #5a6473;
+  --faint: #9aa3b2;
+  --grid: #eaedf2;
+  --input: #ffffff;
+}
+
+/* ── Expose the runtime variables as Tailwind utilities (theme-reactive). ── */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-bg2: var(--bg2);
+  --color-card: var(--card);
+  --color-card2: var(--card2);
+  --color-border: var(--border);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-grid: var(--grid);
+  --color-input: var(--input);
+  --color-brand: var(--brand);
+  --color-swim: var(--swim);
+  --color-bike: var(--bike);
+  --color-run: var(--run);
+  --color-ahead: var(--ahead);
+  --color-ontrack: var(--on-track);
+  --color-behind: var(--behind);
+  --color-upcoming: var(--upcoming);
+
+  --font-display: var(--font-archivo);
+  --font-sans: var(--font-hanken);
+  --font-mono: var(--font-jetbrains);
+}
+
+/* ── Base ── */
 * {
   box-sizing: border-box;
 }
-
 html,
 body {
   margin: 0;
   padding: 0;
+}
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-hanken), system-ui, sans-serif;
+  letter-spacing: -0.01em;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+input::placeholder {
+  color: var(--faint);
+}
+
+@keyframes ttFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes ttGrow {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
 }

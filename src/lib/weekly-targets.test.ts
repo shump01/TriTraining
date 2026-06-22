@@ -6,6 +6,7 @@ import {
   MAX_WEEKLY_INCREASE,
   computeWeeklyTargets,
   firstMondayOnOrAfter,
+  planStartMonday,
   startOfWeekMonday,
   type WeeklyTargetInput,
 } from "./weekly-targets";
@@ -63,6 +64,20 @@ describe("startOfWeekMonday", () => {
     const result = startOfWeekMonday(new Date(`${input}T12:00:00.000Z`));
     expect(result.toISOString()).toBe(`${expected}T00:00:00.000Z`);
     expect(result.getUTCDay()).toBe(1);
+  });
+});
+
+describe("planStartMonday", () => {
+  it("uses the stored startDate when present (a back-dated plan)", () => {
+    const startDate = new Date("2025-12-01T00:00:00.000Z");
+    const createdAt = new Date("2026-01-06T10:00:00.000Z"); // created weeks later
+    expect(planStartMonday({ startDate, createdAt })).toBe(startDate);
+  });
+
+  it("falls back to firstMondayOnOrAfter(createdAt) when startDate is null", () => {
+    const createdAt = new Date("2026-01-06T10:00:00.000Z"); // a Tuesday
+    const result = planStartMonday({ startDate: null, createdAt });
+    expect(result.toISOString()).toBe("2026-01-12T00:00:00.000Z"); // following Monday
   });
 });
 
@@ -225,7 +240,7 @@ describe("computeWeeklyTargets — de-load weeks", () => {
 
   it("matches the example shape within a block (build, build, de-load=2nd)", () => {
     const result = computeWeeklyTargets(
-      baseInput({ eventDate: mondayPlusWeeks(3), startingWeeklyMeters: 100_000 }),
+      baseInput({ eventDate: mondayPlusWeeks(3), startingWeeklyMeters: 10_000 }),
     );
     const [w1, w2, w3, w4] = result.map((t) => t.targetMeters);
     expect(w2!).toBeGreaterThan(w1!); // build
@@ -234,14 +249,14 @@ describe("computeWeeklyTargets — de-load weeks", () => {
   });
 });
 
-describe("computeWeeklyTargets — the 3.5× cap and evened ramp", () => {
-  it("never exceeds 3.5× the event distance", () => {
+describe("computeWeeklyTargets — the 1.5× cap and evened ramp", () => {
+  it("never exceeds 1.5× the event distance", () => {
     const eventDistanceMeters = 3_000;
     const cap = CAP_MULTIPLE * eventDistanceMeters;
     const result = computeWeeklyTargets({
       startDate: MONDAY,
       eventDate: mondayPlusWeeks(52),
-      startingWeeklyMeters: 5_000,
+      startingWeeklyMeters: 2_000,
       eventDistanceMeters,
     });
     for (const t of result) {
@@ -251,11 +266,11 @@ describe("computeWeeklyTargets — the 3.5× cap and evened ramp", () => {
 
   it("builds at an even rate (under 12%) and reaches the cap at the peak", () => {
     const eventDistanceMeters = 20_000;
-    const cap = CAP_MULTIPLE * eventDistanceMeters; // 70,000
+    const cap = CAP_MULTIPLE * eventDistanceMeters; // 30,000
     const result = computeWeeklyTargets({
       startDate: MONDAY,
       eventDate: mondayPlusWeeks(7), // 8 weeks
-      startingWeeklyMeters: 50_000,
+      startingWeeklyMeters: 21_400,
       eventDistanceMeters,
     });
     const rates = buildStepRates(result);
@@ -272,7 +287,7 @@ describe("computeWeeklyTargets — the 3.5× cap and evened ramp", () => {
   });
 
   it("uses a gentler build rate on a longer plan (slower where possible)", () => {
-    const common = { startDate: MONDAY, startingWeeklyMeters: 5_000, eventDistanceMeters: 3_000 };
+    const common = { startDate: MONDAY, startingWeeklyMeters: 2_500, eventDistanceMeters: 3_000 };
     const short = computeWeeklyTargets({ ...common, eventDate: mondayPlusWeeks(11) }); // 12 weeks
     const long = computeWeeklyTargets({ ...common, eventDate: mondayPlusWeeks(51) }); // 52 weeks
 
@@ -288,7 +303,7 @@ describe("computeWeeklyTargets — the 3.5× cap and evened ramp", () => {
 
   it("holds flat at the cap when the starting volume already meets/exceeds it", () => {
     const eventDistanceMeters = 10_000;
-    const cap = CAP_MULTIPLE * eventDistanceMeters; // 35,000
+    const cap = CAP_MULTIPLE * eventDistanceMeters; // 15,000
     const result = computeWeeklyTargets({
       startDate: MONDAY,
       eventDate: mondayPlusWeeks(4),

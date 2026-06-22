@@ -1,9 +1,9 @@
 import { prisma } from "@/lib/prisma";
-import { firstMondayOnOrAfter, startOfWeekMonday } from "@/lib/weekly-targets";
+import { planStartMonday, startOfWeekMonday } from "@/lib/weekly-targets";
 
 import { fetchRecentActivities } from "./client";
 import { getValidStravaAccessToken } from "./connection";
-import { aggregateActivitiesByWeek } from "./sync-core";
+import { activitiesAfterSeconds, aggregateActivitiesByWeek } from "./sync-core";
 
 export interface SyncResult {
   ok: boolean;
@@ -39,14 +39,22 @@ export async function syncStravaActivities(userId: string): Promise<SyncResult> 
 
   const plans = await prisma.trainingPlan.findMany({
     where: { userId },
-    select: { id: true, createdAt: true, eventDate: true },
+    select: {
+      id: true,
+      startDate: true,
+      createdAt: true,
+      eventDate: true,
+      disciplines: { select: { discipline: true } },
+    },
   });
 
-  // Each plan covers weeks [first Monday on/after creation .. Monday of event week].
+  // Each plan covers weeks [week-1 Monday .. Monday of event week], and only the
+  // sports it actually includes (a run-only plan ignores bike/swim activities).
   const planRanges = plans.map((p) => ({
     id: p.id,
-    startMs: firstMondayOnOrAfter(p.createdAt).getTime(),
+    startMs: planStartMonday(p).getTime(),
     endMs: startOfWeekMonday(p.eventDate).getTime(),
+    disciplines: new Set<string>(p.disciplines.map((d) => d.discipline)),
   }));
 
   // Nothing to bucket into — still record that we synced.
@@ -58,7 +66,7 @@ export async function syncStravaActivities(userId: string): Promise<SyncResult> 
   }
 
   const earliestMs = Math.min(...planRanges.map((r) => r.startMs));
-  const afterEpochSeconds = Math.floor(earliestMs / 1000) - 1;
+  const afterEpochSeconds = activitiesAfterSeconds(earliestMs);
 
   const { activities, rateLimited } = await fetchRecentActivities(accessToken, {
     afterEpochSeconds,
@@ -70,7 +78,9 @@ export async function syncStravaActivities(userId: string): Promise<SyncResult> 
   const rows = buckets.flatMap((bucket) => {
     const weekMs = bucket.weekStartDate.getTime();
     return planRanges
-      .filter((r) => weekMs >= r.startMs && weekMs <= r.endMs)
+      .filter(
+        (r) => weekMs >= r.startMs && weekMs <= r.endMs && r.disciplines.has(bucket.discipline),
+      )
       .map((r) => ({
         planId: r.id,
         discipline: bucket.discipline,

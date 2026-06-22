@@ -9,6 +9,16 @@ export const DISCIPLINES = ["SWIM", "BIKE", "RUN"] as const;
 export type Discipline = (typeof DISCIPLINES)[number];
 
 /**
+ * The `after` value (epoch seconds) to pass to Strava's activities endpoint:
+ * just before the earliest plan week, but never in the future. Strava rejects a
+ * future `after` with HTTP 400, and there are no future activities to fetch, so
+ * we clamp to "now" (which yields an empty result for a not-yet-started plan).
+ */
+export function activitiesAfterSeconds(earliestWeekMs: number, nowMs: number = Date.now()): number {
+  return Math.min(Math.floor(earliestWeekMs / 1000) - 1, Math.floor(nowMs / 1000));
+}
+
+/**
  * Map a Strava sport/activity type to our Discipline. Anything we don't track
  * (Walk, Hike, Workout, WeightTraining, …) returns null and is ignored.
  */

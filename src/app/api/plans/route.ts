@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { isCrossSiteRequest } from "@/lib/security";
 import {
+  PlanDateRangeError,
   UnauthorizedError,
   createTrainingPlanWithDisciplines,
   listTrainingPlans,
@@ -58,6 +59,12 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     if (error instanceof UnauthorizedError) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    if (error instanceof PlanDateRangeError) {
+      return NextResponse.json(
+        { error: "Validation failed", issues: [{ path: "startDate", message: error.message }] },
+        { status: 400 },
+      );
     }
     throw error;
   }

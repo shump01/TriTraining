@@ -1,6 +1,24 @@
 import { describe, expect, it } from "vitest";
 
-import { aggregateActivitiesByWeek, mapSportTypeToDiscipline } from "./sync-core";
+import {
+  activitiesAfterSeconds,
+  aggregateActivitiesByWeek,
+  mapSportTypeToDiscipline,
+} from "./sync-core";
+
+describe("activitiesAfterSeconds", () => {
+  const NOW_MS = Date.UTC(2026, 5, 20); // 2026-06-20
+
+  it("returns just before the earliest week for a past/current plan", () => {
+    const earliest = Date.UTC(2026, 5, 1); // 2026-06-01, before now
+    expect(activitiesAfterSeconds(earliest, NOW_MS)).toBe(Math.floor(earliest / 1000) - 1);
+  });
+
+  it("clamps a future plan start to now (Strava 400s on a future `after`)", () => {
+    const earliest = Date.UTC(2026, 5, 22); // 2026-06-22, after now
+    expect(activitiesAfterSeconds(earliest, NOW_MS)).toBe(Math.floor(NOW_MS / 1000));
+  });
+});
 
 describe("mapSportTypeToDiscipline", () => {
   it.each([

@@ -198,7 +198,10 @@ export async function fetchRecentActivities(
       }
 
       if (!res.ok) {
-        throw new StravaApiError(`Strava activities request failed (${res.status})`);
+        const detail = await res.text().catch(() => "");
+        throw new StravaApiError(
+          `Strava activities request failed (${res.status})${detail ? `: ${detail.slice(0, 200)}` : ""}`,
+        );
       }
 
       batch = (await res.json()) as RawActivity[];

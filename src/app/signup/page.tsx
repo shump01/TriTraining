@@ -1,17 +1,25 @@
 import Link from "next/link";
 
+import { AuthShell } from "@/components/auth-shell";
+
 import { SignupForm } from "./signup-form";
 
 export const dynamic = "force-dynamic";
 
 export default function SignupPage() {
   return (
-    <main style={{ fontFamily: "system-ui, sans-serif", padding: "2rem", maxWidth: 400 }}>
-      <h1>Sign up</h1>
+    <AuthShell>
+      <h2 className="m-0 mb-1.5 font-display text-[30px] font-extrabold tracking-[-0.02em]">
+        Create account
+      </h2>
+      <p className="m-0 mb-7 text-[15px] text-muted">Start tracking targets in two minutes.</p>
       <SignupForm />
-      <p style={{ marginTop: "1rem" }}>
-        Already have an account? <Link href="/login">Log in</Link>
+      <p className="mt-[22px] text-center text-[14px] text-muted">
+        Already have an account?{" "}
+        <Link href="/login" className="font-bold text-brand">
+          Sign in
+        </Link>
       </p>
-    </main>
+    </AuthShell>
   );
 }
