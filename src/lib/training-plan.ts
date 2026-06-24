@@ -166,13 +166,6 @@ export async function listRecentActuals(limit = 4) {
   });
 }
 
-export async function createTrainingPlan(input: { name: string; eventDate: Date }) {
-  const userId = await requireUserId();
-  return prisma.trainingPlan.create({
-    data: { userId, name: input.name, eventDate: input.eventDate },
-  });
-}
-
 /**
  * Create a plan together with its three discipline rows AND the generated weekly
  * targets, all in a single transaction. `userId` comes from the session — never
@@ -319,42 +312,6 @@ export async function deleteTrainingPlan(planId: string): Promise<boolean> {
 
 // ── Child records (scoped via the parent plan's ownership) ───────────────────
 
-export async function listWeeklyTargets(planId: string) {
-  const userId = await requireUserId();
-  return prisma.weeklyTarget.findMany({
-    where: { planId, plan: { userId } },
-    orderBy: { weekStartDate: "asc" },
-  });
-}
-
-export async function listWeeklyActuals(planId: string) {
-  const userId = await requireUserId();
-  return prisma.weeklyActual.findMany({
-    where: { planId, plan: { userId } },
-    orderBy: { weekStartDate: "asc" },
-  });
-}
-
-export async function upsertPlanDiscipline(input: {
-  planId: string;
-  discipline: Discipline;
-  eventDistanceMeters: number;
-  startingWeeklyMeters: number;
-}) {
-  const userId = await requireUserId();
-  await assertPlanOwned(input.planId, userId);
-  return prisma.planDiscipline.upsert({
-    where: {
-      planId_discipline: { planId: input.planId, discipline: input.discipline },
-    },
-    create: input,
-    update: {
-      eventDistanceMeters: input.eventDistanceMeters,
-      startingWeeklyMeters: input.startingWeeklyMeters,
-    },
-  });
-}
-
 /**
  * Manually record/override a weekly actual (source = MANUAL).
  *
@@ -406,16 +363,4 @@ export async function recordManualActual(input: {
     },
     update: { actualMeters: input.actualMeters },
   });
-}
-
-/** Throws unless the plan exists AND belongs to `userId`. */
-async function assertPlanOwned(planId: string, userId: string): Promise<void> {
-  const plan = await prisma.trainingPlan.findFirst({
-    where: { id: planId, userId },
-    select: { id: true },
-  });
-  if (!plan) {
-    // Generic — don't reveal whether the plan exists but belongs to someone else.
-    throw new Error("Training plan not found");
-  }
 }

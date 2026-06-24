@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+import { logger } from "@/lib/logger";
+import { enforceRateLimit } from "@/lib/security";
 import { deleteStravaConnectionByAthleteId } from "@/lib/strava/connection";
 
 export const runtime = "nodejs";
@@ -32,8 +34,16 @@ interface StravaWebhookEvent {
  * POST — Strava event push. We only act on athlete de-authorization
  * (`updates.authorized === "false"`), removing the connection. Always returns
  * 200 quickly and never throws, so a bad payload can't crash the app.
+ *
+ * Note: Strava does not sign webhook payloads, so this endpoint is inherently
+ * unauthenticated. The only action it performs is deleting a connection on
+ * de-auth (low blast radius — the user can simply reconnect). A generous
+ * per-IP rate limit guards against abuse.
  */
 export async function POST(req: NextRequest) {
+  const limited = enforceRateLimit(req, "strava:webhook", 120, 60_000);
+  if (limited) return limited;
+
   try {
     const event = (await req.json()) as StravaWebhookEvent;
     if (event.object_type === "athlete" && String(event.updates?.authorized) === "false") {
@@ -42,7 +52,7 @@ export async function POST(req: NextRequest) {
       }
     }
   } catch (error) {
-    console.error("[strava] webhook handling error:", error);
+    logger.error("Strava webhook handling error", { route: "POST /api/strava/webhook", error });
   }
   return NextResponse.json({ received: true }, { status: 200 });
 }

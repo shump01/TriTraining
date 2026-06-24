@@ -23,7 +23,7 @@ git archive --format=tar.gz -o deploy.tar.gz HEAD
 SFTP `deploy.tar.gz` to the app directory and `tar xzf deploy.tar.gz`.
 
 Or copy these directly: `src/`, `prisma/`, `server.js`, `package.json`,
-`package-lock.json`, `next.config.ts`, `tsconfig.json`, `postcss.config.mjs`,
+`package-lock.json`, `next.config.mjs`, `tsconfig.json`, `postcss.config.mjs`,
 `prisma.config.ts`, `eslint.config.mjs`. (There is no `public/` directory.)
 
 **Never copy** `node_modules/` or `.next/` from a dev machine — `@node-rs/argon2` is a
@@ -65,16 +65,16 @@ with a clear message. Set these on the server (a `.env` in the working directory
 by `server.js`; or use the host's environment-variable settings). See
 [`.env.example`](.env.example).
 
-| Variable | Notes |
-|---|---|
-| `DATABASE_URL` | Postgres connection (Supabase pooler) |
-| `DIRECT_URL` | Direct (non-pooled) connection — used by `migrate deploy` |
-| `AUTH_SECRET` | `openssl rand -base64 32` |
-| `NEXTAUTH_URL` | `https://training.richysdev.co.uk` |
-| `ENCRYPTION_KEY` | base64 32 bytes. **Must be the same key** that encrypted existing Strava tokens, or they can't be decrypted |
-| `STRAVA_CLIENT_ID` / `STRAVA_CLIENT_SECRET` | from the Strava API application |
-| `STRAVA_WEBHOOK_VERIFY_TOKEN` | only if using Strava webhooks |
-| `NODE_ENV` | `production` (set the host's "Application mode" to production) |
+| Variable                                    | Notes                                                                                                       |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                              | Postgres connection (Supabase pooler)                                                                       |
+| `DIRECT_URL`                                | Direct (non-pooled) connection — used by `migrate deploy`                                                   |
+| `AUTH_SECRET`                               | `openssl rand -base64 32`                                                                                   |
+| `NEXTAUTH_URL`                              | `https://training.richysdev.co.uk`                                                                          |
+| `ENCRYPTION_KEY`                            | base64 32 bytes. **Must be the same key** that encrypted existing Strava tokens, or they can't be decrypted |
+| `STRAVA_CLIENT_ID` / `STRAVA_CLIENT_SECRET` | from the Strava API application                                                                             |
+| `STRAVA_WEBHOOK_VERIFY_TOKEN`               | only if using Strava webhooks                                                                               |
+| `NODE_ENV`                                  | `production` (set the host's "Application mode" to production)                                              |
 
 ---
 

@@ -1,3 +1,4 @@
+import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 
 import {
@@ -83,7 +84,7 @@ export async function getValidStravaAccessToken(userId: string): Promise<string 
       // Token revoked / deauthorized — drop the unusable connection.
       await prisma.stravaConnection.delete({ where: { userId } }).catch(() => {});
     } else {
-      console.error("[strava] token refresh failed:", error);
+      logger.error("Strava token refresh failed", { error });
     }
     return null;
   }
@@ -97,7 +98,7 @@ export async function disconnectStrava(userId: string): Promise<void> {
   try {
     await deauthorizeStrava(decryptSecret(connection.accessToken));
   } catch (error) {
-    console.error("[strava] deauthorize failed (continuing with local delete):", error);
+    logger.warn("Strava deauthorize failed; continuing with local delete", { error });
   }
 
   await prisma.stravaConnection.delete({ where: { userId } }).catch(() => {});

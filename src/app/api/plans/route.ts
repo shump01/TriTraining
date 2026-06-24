@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { isCrossSiteRequest } from "@/lib/security";
+import { handleApiError } from "@/lib/api";
+import { enforceRateLimit, isCrossSiteRequest } from "@/lib/security";
 import {
   PlanDateRangeError,
   UnauthorizedError,
@@ -21,7 +22,7 @@ export async function GET() {
     if (error instanceof UnauthorizedError) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    throw error;
+    return handleApiError(error, { route: "GET /api/plans" });
   }
 }
 
@@ -31,6 +32,9 @@ export async function POST(req: NextRequest) {
   if (isCrossSiteRequest(req)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
+
+  const limited = enforceRateLimit(req, "plans:write", 30, 60_000);
+  if (limited) return limited;
 
   let body: unknown;
   try {
@@ -66,6 +70,6 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       );
     }
-    throw error;
+    return handleApiError(error, { route: "POST /api/plans" });
   }
 }

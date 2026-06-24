@@ -1,7 +1,10 @@
 # TriTrainer
 
-Next.js 16 (App Router) + TypeScript starter with Prisma/PostgreSQL, validated
-environment configuration, and hardened HTTP security headers.
+A triathlon training planner: build progressive weekly swim/bike/run targets up to
+race day, sync actuals from Strava, and track target-vs-actual progress week by week.
+Next.js 16 (App Router) + TypeScript + Prisma/PostgreSQL, with database-backed auth,
+zod-validated environment config, structured logging, rate limiting, and hardened
+security headers.
 
 ## Stack
 
@@ -69,6 +72,22 @@ OAuth 2.0 link to Strava, **separate from login** (see [src/lib/strava](src/lib/
   covering plan. **Idempotent**: it replaces STRAVA actuals in a transaction
   (MANUAL ones untouched), keyed on `(planId, discipline, weekStartDate, source)`.
   `StravaConnection.lastSyncedAt` records the last run.
+
+### Configuring the Strava API application
+
+Create an app at <https://www.strava.com/settings/api> and copy its **Client ID**
+and **Client Secret** into `STRAVA_CLIENT_ID` / `STRAVA_CLIENT_SECRET`.
+
+- **Authorization Callback Domain**: your bare host — `training.richysdev.co.uk`
+  in production, or `localhost` for local dev. Strava validates the redirect URI
+  against this domain.
+- **OAuth redirect URI** (where Strava sends the user back): `${NEXTAUTH_URL}/api/strava/callback`
+  — e.g. `https://training.richysdev.co.uk/api/strava/callback`. It is derived from
+  `NEXTAUTH_URL`, so set that to your public origin.
+- **Scopes**: the connect flow requests `read,activity:read`.
+- **Webhook (optional)**: point a Strava push subscription at
+  `${NEXTAUTH_URL}/api/strava/webhook` and set `STRAVA_WEBHOOK_VERIFY_TOKEN` to the
+  verify token you register — the `GET` handshake echoes Strava's challenge.
 
 ## Tracking dashboard (`/plans/:id`)
 
@@ -151,12 +170,37 @@ from the session (`auth()`) and filters every query by it. A client-supplied
 `userId` is never trusted — child records are gated by a `plan: { userId }`
 relation filter or an explicit ownership assertion before any write.
 
-Migrations live in [prisma/migrations](prisma/migrations). Use `npm run db:migrate`
-to create/apply a migration in development. Inspect data with `npx prisma studio`.
+See [Database](#database) below for migrations, integrity constraints, and backups.
+
+## Database
+
+Postgres via Prisma 7. For quick local iteration `npm run db:push` is fine; for any
+shared or production database use **migrations** ([prisma/migrations](prisma/migrations)):
+
+- **Develop**: `npm run db:migrate` — create + apply a migration.
+- **Deploy**: `npm run db:deploy` — `prisma migrate deploy` applies pending
+  migrations and **never resets**. Migrations use `DIRECT_URL` when set (a direct,
+  non-pooled connection — required behind a transaction pooler such as Supabase).
+- Inspect data with `npm run db:studio`.
+
+**Integrity** (enforced in [the schema](prisma/schema.prisma)): every child table
+(`PlanDiscipline`, `WeeklyTarget`, `WeeklyActual`, and the Auth.js tables) has a
+foreign key to its parent with `onDelete: Cascade` — deleting a user removes their
+plans and all descendant rows in one transaction. A unique constraint
+**`@@unique([planId, discipline])`** prevents duplicate plan-discipline rows;
+`WeeklyActual` is unique on `(planId, discipline, weekStartDate, source)` (the sync
+idempotency key). Indexes cover `TrainingPlan(userId)`,
+`Weekly{Target,Actual}(planId, weekStartDate)`, and `StravaConnection(athleteId)`.
+
+**Backups**: the database is hosted on **Supabase**, which performs **automated
+daily backups** (with **Point-in-Time Recovery** on Pro/larger compute). Confirm
+the schedule and retention under _Supabase → Project → Database → Backups_ and set
+the PITR window to your recovery target. For a self-hosted Postgres, schedule a
+nightly `pg_dump` to off-box storage instead.
 
 ## Security headers
 
-[`next.config.ts`](next.config.ts) applies the static headers to every route:
+[`next.config.mjs`](next.config.mjs) applies the static headers to every route:
 Strict-Transport-Security, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`,
 and `Referrer-Policy: strict-origin-when-cross-origin`.
 
@@ -166,15 +210,63 @@ lets Next.js's inline RSC/bootstrap scripts execute under a strict policy — wi
 hydration is blocked. The root layout reads the nonce from the `x-nonce` request header and
 stamps it onto its inline theme-bootstrap script.
 
+## Rate limiting
+
+A fixed-window limiter ([src/lib/rate-limit.ts](src/lib/rate-limit.ts), applied via
+`enforceRateLimit` in [src/lib/security.ts](src/lib/security.ts)) guards **every
+mutating and Strava endpoint** — login/sign-up, plan create/edit/delete, manual
+actuals, and Strava connect/callback/sync/disconnect/webhook — keyed by client IP
+(`X-Forwarded-For`; configure your proxy to set it). It is in-memory (per process);
+back it with Redis/Upstash for multi-instance deployments.
+
+## Logging & error handling
+
+- **Structured logs** ([src/lib/logger.ts](src/lib/logger.ts)): one JSON object per
+  line with **recursive redaction** of sensitive keys (passwords, tokens, secrets,
+  cookies, session/auth material, email/PII), so request bodies and error objects
+  can be logged safely. No secrets, tokens, or PII reach the logs.
+- **Centralized API errors** ([src/lib/api.ts](src/lib/api.ts)): each route maps its
+  known errors (auth / not-found / validation) to specific responses and falls
+  through to `handleApiError`, which logs the full error server-side and returns a
+  generic `500 { error: "Internal server error" }` — **never a stack trace or
+  internal detail to the client**.
+- **Error boundaries**: [`src/app/(app)/error.tsx`](<src/app/(app)/error.tsx>) and
+  [`src/app/global-error.tsx`](src/app/global-error.tsx) catch render-time errors and
+  show a friendly message with only a safe `digest` reference.
+
+## Testing & CI
+
+- **Unit tests** (Vitest, `npm test`): the pure domain (progression engine, progress
+  model, actual precedence, plan shaping), **log redaction**, and **authorization
+  scoping** — a foreign plan id resolves to nothing (404) and a missing session is
+  rejected (401), proving one user cannot read or mutate another's plan.
+- **CI** ([.github/workflows/ci.yml](.github/workflows/ci.yml)): every push and PR
+  runs typecheck → lint → format check → tests → build, plus `npm audit` (fails on
+  high/critical). Enable branch protection ("require status checks to pass") on the
+  default branch so a red pipeline blocks merge.
+- **Dependencies**: weekly [Dependabot](.github/dependabot.yml) PRs (npm + GitHub
+  Actions); `npm run audit` runs the same scan locally.
+
+## Deployment
+
+See **[DEPLOY.md](DEPLOY.md)** for production deployment (Hetzner managed Node /
+Phusion Passenger, or any Node host): what to ship, build/run steps, the env-var
+table, HTTPS, and post-deploy checks.
+
 ## Scripts
 
-| Script               | Description                      |
-| -------------------- | -------------------------------- |
-| `npm run dev`        | Start the dev server             |
-| `npm run build`      | Production build                 |
-| `npm run start`      | Start the production server      |
-| `npm run lint`       | ESLint                           |
-| `npm run format`     | Prettier (write)                 |
-| `npm run typecheck`  | `tsc --noEmit`                   |
-| `npm run db:push`    | Push the Prisma schema to the DB |
-| `npm run db:migrate` | Create/apply a dev migration     |
+| Script                 | Description                      |
+| ---------------------- | -------------------------------- |
+| `npm run dev`          | Start the dev server             |
+| `npm run build`        | Production build                 |
+| `npm run start`        | Start the production server      |
+| `npm run lint`         | ESLint                           |
+| `npm run format`       | Prettier (write)                 |
+| `npm run format:check` | Prettier (check only — CI)       |
+| `npm run typecheck`    | `tsc --noEmit`                   |
+| `npm test`             | Run the Vitest suite             |
+| `npm run audit`        | Dependency scan (high/critical)  |
+| `npm run db:push`      | Push the Prisma schema to the DB |
+| `npm run db:migrate`   | Create/apply a dev migration     |
+| `npm run db:deploy`    | Apply pending migrations (prod)  |
+| `npm run db:studio`    | Open Prisma Studio               |

@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { isCrossSiteRequest } from "@/lib/security";
+import { handleApiError } from "@/lib/api";
+import { logger } from "@/lib/logger";
+import { enforceRateLimit, isCrossSiteRequest } from "@/lib/security";
 import { syncStravaActivities } from "@/lib/strava/sync";
 import { UnauthorizedError, requireUserId } from "@/lib/training-plan";
 
@@ -13,6 +15,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  // Sync calls the Strava API and writes many rows — keep it modest.
+  const limited = enforceRateLimit(req, "strava:sync", 10, 60_000);
+  if (limited) return limited;
+
   let userId: string;
   try {
     userId = await requireUserId();
@@ -20,7 +26,7 @@ export async function POST(req: NextRequest) {
     if (error instanceof UnauthorizedError) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    throw error;
+    return handleApiError(error, { route: "POST /api/strava/sync" });
   }
 
   try {
@@ -30,7 +36,7 @@ export async function POST(req: NextRequest) {
     }
     return NextResponse.json(result, { status: 200 });
   } catch (error) {
-    console.error("[strava] sync failed:", error);
+    logger.error("Strava sync failed", { route: "POST /api/strava/sync", error });
     return NextResponse.json({ error: "Sync failed. Please try again later." }, { status: 502 });
   }
 }

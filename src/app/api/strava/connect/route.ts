@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+import { handleApiError } from "@/lib/api";
+import { enforceRateLimit } from "@/lib/security";
 import { buildAuthorizeUrl } from "@/lib/strava/client";
 import { STRAVA_STATE_COOKIE, createOAuthState } from "@/lib/strava/oauth-state";
 import { UnauthorizedError, requireUserId } from "@/lib/training-plan";
@@ -13,6 +15,9 @@ export const dynamic = "force-dynamic";
  * the browser to Strava's authorize screen.
  */
 export async function GET(req: NextRequest) {
+  const limited = enforceRateLimit(req, "strava:connect", 10, 60_000);
+  if (limited) return limited;
+
   let userId: string;
   try {
     userId = await requireUserId();
@@ -20,7 +25,7 @@ export async function GET(req: NextRequest) {
     if (error instanceof UnauthorizedError) {
       return NextResponse.redirect(new URL("/login?callbackUrl=/dashboard", req.url));
     }
-    throw error;
+    return handleApiError(error, { route: "GET /api/strava/connect" });
   }
 
   const { state, nonce } = createOAuthState(userId);

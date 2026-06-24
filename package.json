@@ -12,7 +12,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "demo:targets": "tsx scripts/demo-weekly-targets.ts",
+    "audit": "npm audit --audit-level=high",
     "postinstall": "prisma generate",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
@@ -27,7 +27,6 @@
     "dotenv": "^17.4.2",
     "next": "^16.2.9",
     "next-auth": "^5.0.0-beta.31",
-    "pg": "^8.22.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "zod": "^4.4.3"
@@ -44,7 +43,6 @@
     "prettier": "^3.8.4",
     "prisma": "^7.8.0",
     "tailwindcss": "^4.3.1",
-    "tsx": "^4.22.4",
     "typescript": "^6.0.3",
     "vitest": "^4.1.9"
   }

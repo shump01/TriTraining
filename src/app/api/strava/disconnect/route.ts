@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { isCrossSiteRequest } from "@/lib/security";
+import { handleApiError } from "@/lib/api";
+import { enforceRateLimit, isCrossSiteRequest } from "@/lib/security";
 import { disconnectStrava } from "@/lib/strava/connection";
 import { UnauthorizedError, requireUserId } from "@/lib/training-plan";
 
@@ -13,16 +14,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  let userId: string;
+  const limited = enforceRateLimit(req, "strava:disconnect", 10, 60_000);
+  if (limited) return limited;
+
   try {
-    userId = await requireUserId();
+    const userId = await requireUserId();
+    await disconnectStrava(userId);
+    return NextResponse.json({ ok: true }, { status: 200 });
   } catch (error) {
     if (error instanceof UnauthorizedError) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    throw error;
+    return handleApiError(error, { route: "POST /api/strava/disconnect" });
   }
-
-  await disconnectStrava(userId);
-  return NextResponse.json({ ok: true }, { status: 200 });
 }

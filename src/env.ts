@@ -3,11 +3,11 @@ import { z } from "zod";
 /**
  * Centralised, validated environment configuration.
  *
- * The schema is parsed once, at module load. Because this module is imported
- * from `next.config.ts` (build/start time) and `src/instrumentation.ts`
- * (server boot), a missing or malformed variable causes the process to throw
- * immediately with a clear, actionable message — i.e. we fail fast rather than
- * crashing later with a cryptic runtime error.
+ * The schema is parsed once, at module load. It is imported at server boot via
+ * `src/instrumentation.ts` (and again by `src/lib/prisma.ts` on first use), so a
+ * missing or malformed variable causes the process to throw immediately with a
+ * clear, actionable message — i.e. we fail fast rather than crashing later with
+ * a cryptic runtime error.
  */
 const envSchema = z.object({
   DATABASE_URL: z.url({

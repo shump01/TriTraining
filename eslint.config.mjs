@@ -18,6 +18,8 @@ const eslintConfig = [
       "next-env.d.ts",
       // Generated Prisma client — not ours to lint.
       "src/generated/**",
+      // CommonJS production server entry for Passenger (raw Node, not app source).
+      "server.js",
     ],
   },
   ...nextCoreWebVitals,

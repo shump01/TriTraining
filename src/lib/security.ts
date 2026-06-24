@@ -1,4 +1,6 @@
-import type { NextRequest } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
+
+import { rateLimit } from "@/lib/rate-limit";
 
 /**
  * Best-effort client IP for rate limiting. Reads `x-forwarded-for` (first hop)
@@ -38,4 +40,26 @@ export function isCrossSiteRequest(req: NextRequest): boolean {
   }
 
   return false;
+}
+
+/**
+ * Fixed-window rate limit keyed by `name` + client IP. Returns a ready-to-send
+ * 429 response when the caller is over the limit, or `null` to proceed.
+ *
+ * Usage at the top of a handler:
+ *   const limited = enforceRateLimit(req, "plans:write", 30, 60_000);
+ *   if (limited) return limited;
+ */
+export function enforceRateLimit(
+  req: NextRequest,
+  name: string,
+  limit: number,
+  windowMs: number,
+): NextResponse | null {
+  const result = rateLimit(`${name}:${getClientIp(req)}`, limit, windowMs);
+  if (result.ok) return null;
+  return NextResponse.json(
+    { error: "Too many requests. Please try again later." },
+    { status: 429, headers: { "Retry-After": String(result.retryAfterSeconds) } },
+  );
 }

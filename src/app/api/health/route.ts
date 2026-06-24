@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 
 // Always evaluate at request time — a health check must never be cached.
@@ -29,7 +30,7 @@ export async function GET() {
       { status: 200 },
     );
   } catch (error) {
-    console.error("[health] database connectivity check failed:", error);
+    logger.error("Health check: database connectivity failed", { route: "GET /api/health", error });
 
     return NextResponse.json(
       {

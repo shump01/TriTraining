@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { isCrossSiteRequest } from "@/lib/security";
+import { enforceRateLimit, isCrossSiteRequest } from "@/lib/security";
 import { destroyDatabaseSession } from "@/lib/session";
 import { SESSION_COOKIE_NAME, sessionCookieOptions } from "@/lib/session-cookie";
 
@@ -11,6 +11,9 @@ export async function POST(req: NextRequest) {
   if (isCrossSiteRequest(req)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
+
+  const limited = enforceRateLimit(req, "logout", 20, 60_000);
+  if (limited) return limited;
 
   const token = req.cookies.get(SESSION_COOKIE_NAME)?.value;
   if (token) {

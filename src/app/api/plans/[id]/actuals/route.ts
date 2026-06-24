@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { isCrossSiteRequest } from "@/lib/security";
+import { handleApiError } from "@/lib/api";
+import { enforceRateLimit, isCrossSiteRequest } from "@/lib/security";
 import {
   NotFoundError,
   UnauthorizedError,
@@ -21,6 +22,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (isCrossSiteRequest(req)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
+
+  const limited = enforceRateLimit(req, "actuals:write", 60, 60_000);
+  if (limited) return limited;
 
   const { id } = await params;
 
@@ -67,6 +71,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         { status: 400 },
       );
     }
-    throw error;
+    return handleApiError(error, { route: "POST /api/plans/[id]/actuals" });
   }
 }
