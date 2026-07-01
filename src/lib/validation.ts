@@ -50,6 +50,14 @@ const eventDateSchema = z.coerce
 // when training actually began. Only constrained relative to the event date.
 const startDateSchema = z.coerce.date({ message: "Enter a valid start date" });
 
+// Hard cap on weekly volume, as a multiple of each discipline's event distance
+// (see computeWeeklyTargets). Defaults to 1.5x when omitted.
+const capMultipleSchema = z.coerce
+  .number({ message: "Enter a number" })
+  .min(1, "Must be at least 1×")
+  .max(5, "Must be at most 5×")
+  .default(1.5);
+
 const disciplineMetricsSchema = z.object({
   eventDistanceMeters: metersSchema,
   startingWeeklyMeters: metersSchema,
@@ -65,6 +73,8 @@ export const createPlanSchema = z
     eventDate: eventDateSchema,
     // Optional: defaults to the current week server-side when omitted.
     startDate: startDateSchema.optional(),
+    // Optional: defaults to 1.5x when omitted.
+    capMultiple: capMultipleSchema,
     // Each sport is optional, but at least one must be included (e.g. a
     // run-only plan omits SWIM and BIKE).
     disciplines: z

@@ -54,6 +54,7 @@ function buildWeeklyTargetRows(args: {
   planId: string;
   startDate: Date;
   eventDate: Date;
+  capMultiple: number;
   disciplines: DisciplineVolumes[];
 }) {
   return args.disciplines.flatMap((d) =>
@@ -62,6 +63,7 @@ function buildWeeklyTargetRows(args: {
       eventDate: args.eventDate,
       startingWeeklyMeters: d.startingWeeklyMeters,
       eventDistanceMeters: d.eventDistanceMeters,
+      capMultiple: args.capMultiple,
     }).map((t) => ({
       planId: args.planId,
       discipline: d.discipline,
@@ -184,7 +186,13 @@ export async function createTrainingPlanWithDisciplines(input: CreatePlanInput) 
 
   return prisma.$transaction(async (tx) => {
     const plan = await tx.trainingPlan.create({
-      data: { userId, name: input.name, eventDate: input.eventDate, startDate: startMonday },
+      data: {
+        userId,
+        name: input.name,
+        eventDate: input.eventDate,
+        startDate: startMonday,
+        capMultiple: input.capMultiple,
+      },
     });
 
     const disciplines: DisciplineVolumes[] = DISCIPLINE_ORDER.filter(
@@ -205,6 +213,7 @@ export async function createTrainingPlanWithDisciplines(input: CreatePlanInput) 
         planId: plan.id,
         startDate: startMonday,
         eventDate: plan.eventDate,
+        capMultiple: input.capMultiple,
         disciplines,
       }),
     });
@@ -241,7 +250,12 @@ export async function updateTrainingPlan(planId: string, input: CreatePlanInput)
 
     await tx.trainingPlan.update({
       where: { id: plan.id },
-      data: { name: input.name, eventDate: input.eventDate, startDate: startMonday },
+      data: {
+        name: input.name,
+        eventDate: input.eventDate,
+        startDate: startMonday,
+        capMultiple: input.capMultiple,
+      },
     });
 
     // Reconcile disciplines against the selected set.
@@ -289,6 +303,7 @@ export async function updateTrainingPlan(planId: string, input: CreatePlanInput)
         planId: plan.id,
         startDate: startMonday,
         eventDate: input.eventDate,
+        capMultiple: input.capMultiple,
         disciplines,
       }),
     });

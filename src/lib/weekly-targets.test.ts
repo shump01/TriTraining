@@ -110,6 +110,13 @@ describe("computeWeeklyTargets — input guards", () => {
     },
   );
 
+  it.each([0, -1, -0.5, Number.NaN, Number.POSITIVE_INFINITY])(
+    "throws when capMultiple is %s",
+    (value) => {
+      expect(() => computeWeeklyTargets(baseInput({ capMultiple: value }))).toThrow(/capMultiple/);
+    },
+  );
+
   it("throws on an invalid Date", () => {
     expect(() => computeWeeklyTargets(baseInput({ eventDate: new Date("not-a-date") }))).toThrow(
       /valid Date/,
@@ -313,5 +320,52 @@ describe("computeWeeklyTargets — the 1.5× cap and evened ramp", () => {
     for (const t of result) {
       expect(t.targetMeters).toBe(Math.floor(cap));
     }
+  });
+});
+
+describe("computeWeeklyTargets — configurable capMultiple", () => {
+  it("defaults to CAP_MULTIPLE (1.5×) when capMultiple is omitted", () => {
+    const eventDistanceMeters = 10_000;
+    const result = computeWeeklyTargets({
+      startDate: MONDAY,
+      eventDate: mondayPlusWeeks(4),
+      startingWeeklyMeters: 100_000,
+      eventDistanceMeters,
+    });
+    for (const t of result) {
+      expect(t.targetMeters).toBe(Math.floor(CAP_MULTIPLE * eventDistanceMeters));
+    }
+  });
+
+  it("respects a custom capMultiple instead of the default", () => {
+    const eventDistanceMeters = 10_000;
+    const capMultiple = 3;
+    const result = computeWeeklyTargets({
+      startDate: MONDAY,
+      eventDate: mondayPlusWeeks(4),
+      startingWeeklyMeters: 100_000, // above every candidate cap
+      eventDistanceMeters,
+      capMultiple,
+    });
+    for (const t of result) {
+      expect(t.targetMeters).toBe(Math.floor(capMultiple * eventDistanceMeters));
+    }
+  });
+
+  it("a lower capMultiple yields a lower peak than the default", () => {
+    const common = {
+      startDate: MONDAY,
+      eventDate: mondayPlusWeeks(20),
+      startingWeeklyMeters: 5_000,
+      eventDistanceMeters: 10_000,
+    };
+    const tighter = computeWeeklyTargets({ ...common, capMultiple: 1.1 });
+    const wider = computeWeeklyTargets({ ...common, capMultiple: 3 });
+
+    const tighterPeak = Math.max(...tighter.map((t) => t.targetMeters));
+    const widerPeak = Math.max(...wider.map((t) => t.targetMeters));
+    expect(tighterPeak).toBeLessThan(widerPeak);
+    expect(tighterPeak).toBeLessThanOrEqual(1.1 * common.eventDistanceMeters);
+    expect(widerPeak).toBeLessThanOrEqual(3 * common.eventDistanceMeters);
   });
 });

@@ -1,7 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
+
+import type { DiscKey, PlanFormValues } from "./plan-form-values";
+
+export type { PlanFormValues } from "./plan-form-values";
 
 const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -35,32 +39,10 @@ const DISC = [
   },
 ] as const;
 
-type DiscKey = (typeof DISC)[number]["key"];
 type Field = "event" | "start";
 
 const inputClass =
   "w-full rounded-[10px] border border-border bg-input px-3 py-[10px] text-[14px] text-text outline-none focus:border-brand";
-
-export interface PlanFormValues {
-  name: string;
-  startDate: string; // YYYY-MM-DD ("" => defaults to this week)
-  eventDate: string; // YYYY-MM-DD
-  disciplines: Record<DiscKey, { enabled: boolean; event: string; start: string }>;
-}
-
-/** Sensible defaults for a brand-new plan. */
-export function emptyPlanFormValues(): PlanFormValues {
-  return {
-    name: "",
-    startDate: "",
-    eventDate: "",
-    disciplines: {
-      SWIM: { enabled: true, event: "", start: "" },
-      BIKE: { enabled: true, event: "", start: "" },
-      RUN: { enabled: true, event: "", start: "" },
-    },
-  };
-}
 
 function minEventDate(): string {
   return new Date(Date.now() + ONE_WEEK_MS).toISOString().slice(0, 10);
@@ -74,13 +56,23 @@ function todayIso(): string {
  * otherwise it creates a new one (POST). Distances are shown in each sport's
  * display unit (km for bike/run, m for swim) and converted to meters on submit.
  */
-export function PlanForm({ planId, initial }: { planId?: string; initial: PlanFormValues }) {
+export function PlanForm({
+  planId,
+  initial,
+  stravaConnected = false,
+}: {
+  planId?: string;
+  initial: PlanFormValues;
+  /** Whether the user has a Strava connection — only relevant when creating a new plan. */
+  stravaConnected?: boolean;
+}) {
   const router = useRouter();
   const isEdit = Boolean(planId);
 
   const [name, setName] = useState(initial.name);
   const [eventDate, setEventDate] = useState(initial.eventDate);
   const [startDate, setStartDate] = useState(initial.startDate || todayIso());
+  const [capMultiple, setCapMultiple] = useState(initial.capMultiple || "1.5");
   const [values, setValues] = useState<Record<DiscKey, Record<Field, string>>>(() => ({
     SWIM: { event: initial.disciplines.SWIM.event, start: initial.disciplines.SWIM.start },
     BIKE: { event: initial.disciplines.BIKE.event, start: initial.disciplines.BIKE.start },
@@ -95,8 +87,56 @@ export function PlanForm({ planId, initial }: { planId?: string; initial: PlanFo
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  const [stravaStatus, setStravaStatus] = useState<"idle" | "loading" | "loaded" | "unavailable">(
+    () => (!isEdit && stravaConnected ? "loading" : "idle"),
+  );
+  const [autofilled, setAutofilled] = useState<Partial<Record<DiscKey, boolean>>>({});
+
+  // New plans only: check for recent Strava activity and prefill blank
+  // "starting weekly" fields with the last 4 weeks' average per discipline.
+  useEffect(() => {
+    if (isEdit || !stravaConnected) return;
+    let cancelled = false;
+    fetch("/api/strava/weekly-average")
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error("request failed"))))
+      .then((data: { connected: boolean; averages: Record<DiscKey, number> }) => {
+        if (cancelled) return;
+        if (!data.connected) {
+          setStravaStatus("unavailable");
+          return;
+        }
+        setStravaStatus("loaded");
+        const filled: Partial<Record<DiscKey, boolean>> = {};
+        setValues((prev) => {
+          const next = { ...prev };
+          for (const d of DISC) {
+            const avgMeters = data.averages[d.key];
+            if (avgMeters > 0 && prev[d.key].start.trim() === "") {
+              const display =
+                d.factor === 1 ? String(Math.round(avgMeters)) : (avgMeters / d.factor).toFixed(1);
+              next[d.key] = { ...next[d.key], start: display };
+              filled[d.key] = true;
+            }
+          }
+          return next;
+        });
+        setAutofilled((prev) => ({ ...prev, ...filled }));
+      })
+      .catch(() => {
+        if (!cancelled) setStravaStatus("unavailable");
+      });
+    return () => {
+      cancelled = true;
+    };
+    // Runs once on mount — a new plan's Strava connection state doesn't change mid-form.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function set(key: DiscKey, field: Field, value: string) {
     setValues((prev) => ({ ...prev, [key]: { ...prev[key], [field]: value } }));
+    if (field === "start" && autofilled[key]) {
+      setAutofilled((prev) => ({ ...prev, [key]: false }));
+    }
   }
 
   function validate(): Record<string, string> {
@@ -116,6 +156,12 @@ export function PlanForm({ planId, initial }: { planId?: string; initial: PlanFo
       next.startDate = "Enter a valid date";
     } else if (eventDate && new Date(startDate).getTime() >= new Date(eventDate).getTime()) {
       next.startDate = "Must be before the event date";
+    }
+    if (capMultiple.trim() === "") {
+      next.capMultiple = "Required";
+    } else {
+      const n = Number(capMultiple);
+      if (!(n >= 1 && n <= 5)) next.capMultiple = "Must be between 1× and 5×";
     }
     if (!DISC.some((d) => enabled[d.key])) {
       next.disciplines = "Select at least one sport";
@@ -155,7 +201,13 @@ export function PlanForm({ planId, initial }: { planId?: string; initial: PlanFo
       const res = await fetch(isEdit ? `/api/plans/${planId}` : "/api/plans", {
         method: isEdit ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), eventDate, startDate, disciplines }),
+        body: JSON.stringify({
+          name: name.trim(),
+          eventDate,
+          startDate,
+          capMultiple: Number(capMultiple),
+          disciplines,
+        }),
       });
       if (res.ok) {
         const data = (await res.json().catch(() => ({}))) as { plan?: { id: string } };
@@ -192,6 +244,41 @@ export function PlanForm({ planId, initial }: { planId?: string; initial: PlanFo
       noValidate
       className="rounded-[16px] border border-border bg-card p-6"
     >
+      {!isEdit && !stravaConnected && (
+        <div className="mb-5 flex flex-wrap items-center gap-3 rounded-[13px] border border-border bg-card2 p-4">
+          <div className="grid h-8 w-8 shrink-0 place-items-center rounded-[8px] bg-[#fc4c02] font-display text-[14px] font-black text-white">
+            ≈
+          </div>
+          <p className="m-0 flex-1 text-[13px] leading-[1.4] text-muted">
+            Connect Strava to prefill your starting weekly volume from your last 4 weeks of
+            training.
+          </p>
+          <a
+            href="/api/strava/connect"
+            className="shrink-0 cursor-pointer rounded-[10px] bg-[#fc4c02] px-3.5 py-2 text-[13px] font-bold text-white hover:brightness-110"
+          >
+            Connect Strava
+          </a>
+        </div>
+      )}
+      {!isEdit &&
+        stravaConnected &&
+        stravaStatus === "loaded" &&
+        Object.keys(autofilled).length > 0 && (
+          <p className="m-0 mb-5 text-[13px] text-muted">
+            Prefilled your starting weekly volume from your last 4 weeks on Strava — feel free to
+            adjust it.
+          </p>
+        )}
+      {!isEdit &&
+        stravaConnected &&
+        stravaStatus === "loaded" &&
+        Object.keys(autofilled).length === 0 && (
+          <p className="m-0 mb-5 text-[13px] text-muted">
+            No recent Strava activity found in the last 4 weeks — enter your starting volume
+            manually.
+          </p>
+        )}
       <div className="grid gap-4">
         <div>
           <label className={labelClass}>Plan name</label>
@@ -234,6 +321,25 @@ export function PlanForm({ planId, initial }: { planId?: string; initial: PlanFo
               <p className="mt-1 mb-0 text-[12px] text-behind">{errors.eventDate}</p>
             )}
           </div>
+        </div>
+        <div>
+          <label className={labelClass}>Peak week cap (×)</label>
+          <input
+            type="number"
+            min={1}
+            max={5}
+            step="0.1"
+            value={capMultiple}
+            onChange={(e) => setCapMultiple(e.target.value)}
+            className={`${inputClass} font-mono max-w-[140px]`}
+          />
+          {errors.capMultiple ? (
+            <p className="mt-1 mb-0 text-[12px] text-behind">{errors.capMultiple}</p>
+          ) : (
+            <p className="mt-1 mb-0 text-[12px] text-faint">
+              Weekly volume never exceeds this multiple of each sport&apos;s event distance.
+            </p>
+          )}
         </div>
       </div>
 
@@ -284,7 +390,14 @@ export function PlanForm({ planId, initial }: { planId?: string; initial: PlanFo
                     )}
                   </div>
                   <div>
-                    <label className={subLabelClass}>Starting weekly ({d.unit})</label>
+                    <label className={subLabelClass}>
+                      Starting weekly ({d.unit})
+                      {autofilled[d.key] && (
+                        <span className="ml-1.5 text-[11px] font-normal text-[#fc4c02]">
+                          from Strava
+                        </span>
+                      )}
+                    </label>
                     <input
                       type="number"
                       min={0}

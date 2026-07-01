@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "TrainingPlan" ADD COLUMN     "capMultiple" DOUBLE PRECISION NOT NULL DEFAULT 1.5;

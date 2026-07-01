@@ -189,6 +189,12 @@ function CommandView({
 }) {
   const data = series.find((s) => s.key === active) ?? series[0]!;
   const editable = active !== "TOTAL";
+  // "This build": the current week's own progress, not the plan-to-date total.
+  // Before the plan starts, show week 1 (nothing done yet); once finished, show
+  // the final week.
+  const buildWeekIndex =
+    currentIndex >= 0 ? currentIndex : data.summary.finished ? data.weeks.length - 1 : 0;
+  const buildWeek = data.weeks[buildWeekIndex];
 
   return (
     <>
@@ -250,10 +256,10 @@ function CommandView({
           <div className="mb-3 text-[12px] font-bold tracking-[0.05em] text-muted uppercase">
             This build
           </div>
-          <ProgressRing pct={data.summary.pctOfTarget ?? 0} color={data.color} size={170} />
+          <ProgressRing pct={buildWeek?.pctOfTarget ?? 0} color={data.color} size={170} />
           <div className="mt-3 text-center text-[12.5px] text-muted">
-            {formatDistance(data.summary.cumulativeActual, active)} of{" "}
-            {formatDistance(data.summary.cumulativeTarget, active)}
+            {formatDistance(buildWeek?.actual ?? 0, active)} of{" "}
+            {formatDistance(buildWeek?.target ?? 0, active)}
           </div>
         </div>
       </div>

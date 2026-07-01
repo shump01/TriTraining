@@ -1,10 +1,19 @@
 import Link from "next/link";
 
-import { PlanForm, emptyPlanFormValues } from "../plan-form";
+import { auth } from "@/auth";
+import { getStravaConnectionSummary } from "@/lib/strava/connection";
+
+import { PlanForm } from "../plan-form";
+import { emptyPlanFormValues } from "../plan-form-values";
 
 export const dynamic = "force-dynamic";
 
-export default function NewPlanPage() {
+export default async function NewPlanPage() {
+  const session = await auth();
+  const stravaConnected = session?.user?.id
+    ? Boolean(await getStravaConnectionSummary(session.user.id))
+    : false;
+
   return (
     <div className="max-w-[680px]">
       <Link href="/plans" className="text-[13.5px] text-muted hover:text-text">
@@ -16,7 +25,7 @@ export default function NewPlanPage() {
       <p className="m-0 mb-[26px] text-muted">
         We&apos;ll build progressive weekly targets up to race day.
       </p>
-      <PlanForm initial={emptyPlanFormValues()} />
+      <PlanForm initial={emptyPlanFormValues()} stravaConnected={stravaConnected} />
     </div>
   );
 }

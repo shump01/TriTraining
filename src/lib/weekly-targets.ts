@@ -9,7 +9,10 @@
 /** Maximum week-over-week increase: 12%. */
 export const MAX_WEEKLY_INCREASE = 0.12;
 
-/** Hard cap multiple: a weekly target never exceeds 1.5× the event distance. */
+/**
+ * Default hard cap multiple: a weekly target never exceeds this multiple of
+ * the event distance. Overridable per plan via `WeeklyTargetInput.capMultiple`.
+ */
 export const CAP_MULTIPLE = 1.5;
 
 /**
@@ -29,6 +32,11 @@ export interface WeeklyTargetInput {
   startingWeeklyMeters: number;
   /** The event distance, in meters. Must be positive. Drives the hard cap. */
   eventDistanceMeters: number;
+  /**
+   * Hard cap multiple: a weekly target never exceeds `capMultiple ×
+   * eventDistanceMeters`. Must be positive. Defaults to `CAP_MULTIPLE` (1.5).
+   */
+  capMultiple?: number;
 }
 
 export interface WeeklyTarget {
@@ -108,13 +116,14 @@ export function startOfWeekMonday(date: Date): Date {
  * De-loads are decreases and never count against that ceiling.
  *
  * @throws RangeError on invalid dates, `startDate >= eventDate`, or non-positive
- *   `startingWeeklyMeters` / `eventDistanceMeters`.
+ *   `startingWeeklyMeters` / `eventDistanceMeters` / `capMultiple`.
  */
 export function computeWeeklyTargets({
   startDate,
   eventDate,
   startingWeeklyMeters,
   eventDistanceMeters,
+  capMultiple = CAP_MULTIPLE,
 }: WeeklyTargetInput): WeeklyTarget[] {
   if (!(startDate instanceof Date) || Number.isNaN(startDate.getTime())) {
     throw new RangeError("startDate must be a valid Date");
@@ -131,6 +140,9 @@ export function computeWeeklyTargets({
   if (!Number.isFinite(eventDistanceMeters) || eventDistanceMeters <= 0) {
     throw new RangeError("eventDistanceMeters must be a positive number");
   }
+  if (!Number.isFinite(capMultiple) || capMultiple <= 0) {
+    throw new RangeError("capMultiple must be a positive number");
+  }
 
   const startMs = utcMidnightMs(startDate);
   const eventMs = utcMidnightMs(eventDate);
@@ -138,7 +150,7 @@ export function computeWeeklyTargets({
   // Whole weeks from week 1's Monday to the Monday of the event's week, inclusive.
   const weekCount = Math.floor((eventMs - startMs) / MS_PER_WEEK) + 1;
 
-  const cap = CAP_MULTIPLE * eventDistanceMeters;
+  const cap = capMultiple * eventDistanceMeters;
   const clampedStart = Math.min(startingWeeklyMeters, cap);
 
   const isDeloadWeek = (week: number) => week % BLOCK_WEEKS === BLOCK_WEEKS - 1;

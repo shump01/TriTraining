@@ -22,11 +22,11 @@ datasource db {
 // ─────────────────────────────────────────────────────────────────────────────
 
 model User {
-  id            String         @id @default(cuid())
-  name          String?
-  email         String         @unique
-  emailVerified DateTime?
-  image         String?
+  id               String            @id @default(cuid())
+  name             String?
+  email            String            @unique
+  emailVerified    DateTime?
+  image            String?
   passwordHash     String? // argon2id hash; null for users without a password
   accounts         Account[]
   sessions         Session[]
@@ -39,8 +39,8 @@ model User {
 // Strava OAuth account link (separate from login). access/refresh tokens are
 // stored ENCRYPTED at rest (AES-256-GCM) — never plaintext. One per user.
 model StravaConnection {
-  id           String   @id @default(cuid())
-  userId       String   @unique
+  id           String    @id @default(cuid())
+  userId       String    @unique
   athleteId    String // Strava athlete id (stored as string to avoid bigint issues)
   accessToken  String // AES-256-GCM ciphertext
   refreshToken String // AES-256-GCM ciphertext
@@ -114,15 +114,18 @@ enum ActualSource {
 }
 
 model TrainingPlan {
-  id        String   @id @default(cuid())
-  userId    String
-  name      String
-  eventDate DateTime @db.Date
+  id          String    @id @default(cuid())
+  userId      String
+  name        String
+  eventDate   DateTime  @db.Date
   // Week 1's Monday. Nullable for plans created before this column existed; for
   // those the effective start falls back to firstMondayOnOrAfter(createdAt).
-  startDate DateTime? @db.Date
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  startDate   DateTime? @db.Date
+  // Hard cap on weekly volume, as a multiple of each discipline's event
+  // distance (see computeWeeklyTargets). Defaults to 1.5x.
+  capMultiple Float     @default(1.5)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
