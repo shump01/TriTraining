@@ -4,10 +4,11 @@ import {
   BLOCK_WEEKS,
   CAP_MULTIPLE,
   MAX_WEEKLY_INCREASE,
+  computeAdaptedFutureTargets,
   computeWeeklyTargets,
-  firstMondayOnOrAfter,
-  planStartMonday,
-  startOfWeekMonday,
+  firstWeekStartOnOrAfter,
+  planStartWeek,
+  startOfWeek,
   type WeeklyTargetInput,
 } from "./weekly-targets";
 
@@ -28,9 +29,9 @@ function baseInput(overrides: Partial<WeeklyTargetInput> = {}): WeeklyTargetInpu
   };
 }
 
-describe("firstMondayOnOrAfter", () => {
-  it("returns the same day when given a Monday (at UTC midnight)", () => {
-    const result = firstMondayOnOrAfter(new Date("2026-01-05T00:00:00.000Z"));
+describe("firstWeekStartOnOrAfter", () => {
+  it("defaults to Monday and returns the same day when given a Monday", () => {
+    const result = firstWeekStartOnOrAfter(new Date("2026-01-05T00:00:00.000Z"));
     expect(result.toISOString()).toBe("2026-01-05T00:00:00.000Z");
   });
 
@@ -38,46 +39,81 @@ describe("firstMondayOnOrAfter", () => {
     ["2026-01-04", "2026-01-05"], // Sunday  -> next day
     ["2026-01-06", "2026-01-12"], // Tuesday -> following Monday
     ["2026-01-03", "2026-01-05"], // Saturday -> +2 days
-  ])("maps %s to Monday %s", (input, expected) => {
-    const result = firstMondayOnOrAfter(new Date(`${input}T00:00:00.000Z`));
+  ])("maps %s to Monday %s (default day)", (input, expected) => {
+    const result = firstWeekStartOnOrAfter(new Date(`${input}T00:00:00.000Z`));
     expect(result.toISOString().slice(0, 10)).toBe(expected);
     expect(result.getUTCDay()).toBe(1);
   });
 
-  it("normalizes a date with a time component to UTC-midnight Monday", () => {
-    const result = firstMondayOnOrAfter(new Date("2026-01-06T15:30:00.000Z")); // Tue afternoon
+  it.each([
+    // weekStartDay = 0 (Sunday)
+    [0, "2026-01-05", "2026-01-11"], // Monday -> next Sunday
+    [0, "2026-01-11", "2026-01-11"], // Sunday -> itself
+    // weekStartDay = 4 (Thursday)
+    [4, "2026-01-05", "2026-01-08"], // Monday -> Thursday of that week
+    [4, "2026-01-08", "2026-01-08"], // Thursday -> itself
+    [4, "2026-01-09", "2026-01-15"], // Friday -> next Thursday
+  ])("with weekStartDay=%i maps %s to %s", (day, input, expected) => {
+    const result = firstWeekStartOnOrAfter(new Date(`${input}T00:00:00.000Z`), day);
+    expect(result.toISOString().slice(0, 10)).toBe(expected);
+    expect(result.getUTCDay()).toBe(day);
+  });
+
+  it("normalizes a date with a time component to UTC midnight", () => {
+    const result = firstWeekStartOnOrAfter(new Date("2026-01-06T15:30:00.000Z")); // Tue afternoon
     expect(result.toISOString()).toBe("2026-01-12T00:00:00.000Z");
   });
 
   it("throws on an invalid Date", () => {
-    expect(() => firstMondayOnOrAfter(new Date("nope"))).toThrow(/valid Date/);
+    expect(() => firstWeekStartOnOrAfter(new Date("nope"))).toThrow(/valid Date/);
   });
 });
 
-describe("startOfWeekMonday", () => {
+describe("startOfWeek", () => {
   it.each([
     ["2026-01-05", "2026-01-05"], // Monday -> itself
     ["2026-01-06", "2026-01-05"], // Tuesday -> back to Monday
     ["2026-01-11", "2026-01-05"], // Sunday -> back to Monday
     ["2026-01-12", "2026-01-12"], // next Monday
-  ])("maps %s to week-start %s", (input, expected) => {
-    const result = startOfWeekMonday(new Date(`${input}T12:00:00.000Z`));
+  ])("defaults to Monday: maps %s to week-start %s", (input, expected) => {
+    const result = startOfWeek(new Date(`${input}T12:00:00.000Z`));
     expect(result.toISOString()).toBe(`${expected}T00:00:00.000Z`);
     expect(result.getUTCDay()).toBe(1);
   });
+
+  it.each([
+    // weekStartDay = 0 (Sunday): weeks run Sun..Sat
+    [0, "2026-01-11", "2026-01-11"], // Sunday -> itself
+    [0, "2026-01-12", "2026-01-11"], // Monday -> back to Sunday
+    [0, "2026-01-17", "2026-01-11"], // Saturday -> back to Sunday
+    // weekStartDay = 4 (Thursday): weeks run Thu..Wed
+    [4, "2026-01-08", "2026-01-08"], // Thursday -> itself
+    [4, "2026-01-07", "2026-01-01"], // Wednesday -> back to prior Thursday
+    [4, "2026-01-10", "2026-01-08"], // Saturday -> back to Thursday
+  ])("with weekStartDay=%i maps %s to %s", (day, input, expected) => {
+    const result = startOfWeek(new Date(`${input}T12:00:00.000Z`), day);
+    expect(result.toISOString()).toBe(`${expected}T00:00:00.000Z`);
+    expect(result.getUTCDay()).toBe(day);
+  });
 });
 
-describe("planStartMonday", () => {
+describe("planStartWeek", () => {
   it("uses the stored startDate when present (a back-dated plan)", () => {
     const startDate = new Date("2025-12-01T00:00:00.000Z");
     const createdAt = new Date("2026-01-06T10:00:00.000Z"); // created weeks later
-    expect(planStartMonday({ startDate, createdAt })).toBe(startDate);
+    expect(planStartWeek({ startDate, createdAt })).toBe(startDate);
   });
 
-  it("falls back to firstMondayOnOrAfter(createdAt) when startDate is null", () => {
+  it("falls back to the first Monday on/after createdAt when startDate is null (default day)", () => {
     const createdAt = new Date("2026-01-06T10:00:00.000Z"); // a Tuesday
-    const result = planStartMonday({ startDate: null, createdAt });
+    const result = planStartWeek({ startDate: null, createdAt });
     expect(result.toISOString()).toBe("2026-01-12T00:00:00.000Z"); // following Monday
+  });
+
+  it("honours a non-default weekStartDay in the createdAt fallback", () => {
+    const createdAt = new Date("2026-01-06T10:00:00.000Z"); // a Tuesday
+    const result = planStartWeek({ startDate: null, createdAt, weekStartDay: 0 });
+    expect(result.toISOString()).toBe("2026-01-11T00:00:00.000Z"); // following Sunday
   });
 });
 
@@ -367,5 +403,123 @@ describe("computeWeeklyTargets — configurable capMultiple", () => {
     expect(tighterPeak).toBeLessThan(widerPeak);
     expect(tighterPeak).toBeLessThanOrEqual(1.1 * common.eventDistanceMeters);
     expect(widerPeak).toBeLessThanOrEqual(3 * common.eventDistanceMeters);
+  });
+});
+
+describe("computeAdaptedFutureTargets", () => {
+  // Completed week at +2, current week at +3 (event far off so the cap never bites).
+  const lastCompletedWeekStart = mondayPlusWeeks(2);
+  const currentWeekStart = mondayPlusWeeks(3);
+  const common = {
+    lastCompletedWeekStart,
+    currentWeekStart,
+    eventDate: mondayPlusWeeks(20),
+    capMultiple: 1.5,
+  };
+
+  it("returns only current + future weeks (never the completed week or earlier)", () => {
+    const rows = computeAdaptedFutureTargets({
+      ...common,
+      disciplines: [
+        {
+          discipline: "RUN",
+          eventDistanceMeters: 100_000,
+          lastCompletedActual: 10_000,
+          lastCompletedTarget: 9_000,
+        },
+      ],
+    });
+    expect(rows.length).toBeGreaterThan(0);
+    for (const r of rows) {
+      expect(r.weekStartDate.getTime()).toBeGreaterThanOrEqual(currentWeekStart.getTime());
+    }
+    // The first future week is one growth step above the actual baseline.
+    const firstFuture = rows.find((r) => r.weekStartDate.getTime() === currentWeekStart.getTime())!;
+    expect(firstFuture.targetMeters).toBeGreaterThan(10_000);
+  });
+
+  it("adapts UP: a higher actual raises the ramp above what a lower actual gives", () => {
+    const disc = (lastCompletedActual: number) => [
+      {
+        discipline: "RUN",
+        eventDistanceMeters: 100_000,
+        lastCompletedActual,
+        lastCompletedTarget: 8_000,
+      },
+    ];
+    const high = computeAdaptedFutureTargets({ ...common, disciplines: disc(12_000) });
+    const low = computeAdaptedFutureTargets({ ...common, disciplines: disc(6_000) });
+    const highFirst = high[0]!.targetMeters;
+    const lowFirst = low[0]!.targetMeters;
+    expect(highFirst).toBeGreaterThan(lowFirst);
+  });
+
+  it("adapts DOWN: an actual below the original target lowers the ramp", () => {
+    const rows = computeAdaptedFutureTargets({
+      ...common,
+      disciplines: [
+        {
+          discipline: "RUN",
+          eventDistanceMeters: 100_000,
+          lastCompletedActual: 4_000, // well below target
+          lastCompletedTarget: 12_000,
+        },
+      ],
+    });
+    // First future week ramps from 4,000, so it stays well under the old 12,000 target.
+    expect(rows[0]!.targetMeters).toBeLessThan(12_000);
+  });
+
+  it("no-signal fallback: a 0/missing actual re-ramps from the original target instead of zero", () => {
+    const zero = computeAdaptedFutureTargets({
+      ...common,
+      disciplines: [
+        {
+          discipline: "RUN",
+          eventDistanceMeters: 100_000,
+          lastCompletedActual: 0,
+          lastCompletedTarget: 9_000,
+        },
+      ],
+    });
+    const missing = computeAdaptedFutureTargets({
+      ...common,
+      disciplines: [
+        {
+          discipline: "RUN",
+          eventDistanceMeters: 100_000,
+          lastCompletedActual: null,
+          lastCompletedTarget: 9_000,
+        },
+      ],
+    });
+    // Both fall back to the 9,000 target as the baseline → identical, non-zero ramp.
+    expect(zero[0]!.targetMeters).toBeGreaterThan(9_000);
+    expect(zero.map((r) => r.targetMeters)).toEqual(missing.map((r) => r.targetMeters));
+  });
+
+  it("handles each discipline independently", () => {
+    const rows = computeAdaptedFutureTargets({
+      ...common,
+      disciplines: [
+        {
+          discipline: "SWIM",
+          eventDistanceMeters: 4_000,
+          lastCompletedActual: 2_000,
+          lastCompletedTarget: 1_800,
+        },
+        {
+          discipline: "RUN",
+          eventDistanceMeters: 100_000,
+          lastCompletedActual: 10_000,
+          lastCompletedTarget: 9_000,
+        },
+      ],
+    });
+    expect(new Set(rows.map((r) => r.discipline))).toEqual(new Set(["SWIM", "RUN"]));
+    // SWIM stays capped to 1.5 x its (small) event distance.
+    for (const r of rows.filter((r) => r.discipline === "SWIM")) {
+      expect(r.targetMeters).toBeLessThanOrEqual(1.5 * 4_000);
+    }
   });
 });

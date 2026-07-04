@@ -58,6 +58,14 @@ const capMultipleSchema = z.coerce
   .max(5, "Must be at most 5×")
   .default(1.5);
 
+// Day every training week begins on: 0=Sunday..6=Saturday. Defaults to Monday.
+const weekStartDaySchema = z.coerce
+  .number({ message: "Enter a number" })
+  .int()
+  .min(0, "Invalid day")
+  .max(6, "Invalid day")
+  .default(1);
+
 const disciplineMetricsSchema = z.object({
   eventDistanceMeters: metersSchema,
   startingWeeklyMeters: metersSchema,
@@ -75,6 +83,8 @@ export const createPlanSchema = z
     startDate: startDateSchema.optional(),
     // Optional: defaults to 1.5x when omitted.
     capMultiple: capMultipleSchema,
+    // Optional: defaults to Monday (1) when omitted.
+    weekStartDay: weekStartDaySchema,
     // Each sport is optional, but at least one must be included (e.g. a
     // run-only plan omits SWIM and BIKE).
     disciplines: z

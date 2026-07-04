@@ -1,11 +1,18 @@
 import { auth } from "@/auth";
 import { ActualSource, Discipline } from "@/generated/prisma/client";
+import { effectiveActualKey, resolveEffectiveActuals } from "@/lib/actuals";
 import { buildPlanProgressInputs } from "@/lib/plan-progress";
 import { prisma } from "@/lib/prisma";
 import { computeProgress, type ProgressSummary } from "@/lib/progress";
 import type { DisciplineKey } from "@/lib/ui/theme";
 import type { CreatePlanInput } from "@/lib/validation";
-import { computeWeeklyTargets, planStartMonday, startOfWeekMonday } from "@/lib/weekly-targets";
+import {
+  computeAdaptedFutureTargets,
+  computeWeeklyTargets,
+  planStartWeek,
+  startOfWeek,
+  type AdaptiveDisciplineInput,
+} from "@/lib/weekly-targets";
 
 /** Thrown when an operation is attempted without an authenticated session. */
 export class UnauthorizedError extends Error {
@@ -177,10 +184,10 @@ export async function listRecentActuals(limit = 4) {
 export async function createTrainingPlanWithDisciplines(input: CreatePlanInput) {
   const userId = await requireUserId();
 
-  // Week 1's Monday — the start the user chose (back-dated if they've already
-  // been training), defaulting to the current week. Aligned to a Monday.
-  const startMonday = startOfWeekMonday(input.startDate ?? new Date());
-  if (startMonday.getTime() >= input.eventDate.getTime()) {
+  // Week 1's start — the day the user chose (back-dated if they've already been
+  // training), defaulting to the current week. Aligned to the plan's week-start day.
+  const startWeek = startOfWeek(input.startDate ?? new Date(), input.weekStartDay);
+  if (startWeek.getTime() >= input.eventDate.getTime()) {
     throw new PlanDateRangeError();
   }
 
@@ -190,8 +197,9 @@ export async function createTrainingPlanWithDisciplines(input: CreatePlanInput) 
         userId,
         name: input.name,
         eventDate: input.eventDate,
-        startDate: startMonday,
+        startDate: startWeek,
         capMultiple: input.capMultiple,
+        weekStartDay: input.weekStartDay,
       },
     });
 
@@ -211,7 +219,7 @@ export async function createTrainingPlanWithDisciplines(input: CreatePlanInput) 
     await tx.weeklyTarget.createMany({
       data: buildWeeklyTargetRows({
         planId: plan.id,
-        startDate: startMonday,
+        startDate: startWeek,
         eventDate: plan.eventDate,
         capMultiple: input.capMultiple,
         disciplines,
@@ -233,8 +241,8 @@ export async function createTrainingPlanWithDisciplines(input: CreatePlanInput) 
 export async function updateTrainingPlan(planId: string, input: CreatePlanInput) {
   const userId = await requireUserId();
 
-  const startMonday = startOfWeekMonday(input.startDate ?? new Date());
-  if (startMonday.getTime() >= input.eventDate.getTime()) {
+  const startWeek = startOfWeek(input.startDate ?? new Date(), input.weekStartDay);
+  if (startWeek.getTime() >= input.eventDate.getTime()) {
     throw new PlanDateRangeError();
   }
 
@@ -248,13 +256,19 @@ export async function updateTrainingPlan(planId: string, input: CreatePlanInput)
       throw new NotFoundError();
     }
 
+    const dayChanged = plan.weekStartDay !== input.weekStartDay;
+
     await tx.trainingPlan.update({
       where: { id: plan.id },
       data: {
         name: input.name,
         eventDate: input.eventDate,
-        startDate: startMonday,
+        startDate: startWeek,
         capMultiple: input.capMultiple,
+        weekStartDay: input.weekStartDay,
+        // A full edit regenerates targets, so the previous weekly recompute no
+        // longer applies — let the next on-day view recalculate afresh.
+        lastRecalcWeek: null,
       },
     });
 
@@ -296,12 +310,54 @@ export async function updateTrainingPlan(planId: string, input: CreatePlanInput)
       });
     }
 
+    // If the week-start day changed, existing actuals are keyed to the old grid.
+    // Clear STRAVA actuals (they regenerate on the next sync) and re-anchor MANUAL
+    // ones onto the new grid, deduping any that collapse onto the same week.
+    if (dayChanged) {
+      await tx.weeklyActual.deleteMany({
+        where: { planId: plan.id, source: ActualSource.STRAVA },
+      });
+      const manual = await tx.weeklyActual.findMany({
+        where: { planId: plan.id, source: ActualSource.MANUAL },
+      });
+      await tx.weeklyActual.deleteMany({
+        where: { planId: plan.id, source: ActualSource.MANUAL },
+      });
+      const reanchored = new Map<
+        string,
+        { discipline: Discipline; weekStartDate: Date; actualMeters: number }
+      >();
+      for (const a of manual) {
+        const wk = startOfWeek(a.weekStartDate, input.weekStartDay);
+        const key = `${a.discipline}|${wk.getTime()}`;
+        const existing = reanchored.get(key);
+        if (!existing || a.actualMeters > existing.actualMeters) {
+          reanchored.set(key, {
+            discipline: a.discipline,
+            weekStartDate: wk,
+            actualMeters: a.actualMeters,
+          });
+        }
+      }
+      if (reanchored.size > 0) {
+        await tx.weeklyActual.createMany({
+          data: [...reanchored.values()].map((r) => ({
+            planId: plan.id,
+            discipline: r.discipline,
+            weekStartDate: r.weekStartDate,
+            actualMeters: r.actualMeters,
+            source: ActualSource.MANUAL,
+          })),
+        });
+      }
+    }
+
     // Regenerate targets for the resulting discipline set.
     await tx.weeklyTarget.deleteMany({ where: { planId: plan.id } });
     await tx.weeklyTarget.createMany({
       data: buildWeeklyTargetRows({
         planId: plan.id,
-        startDate: startMonday,
+        startDate: startWeek,
         eventDate: input.eventDate,
         capMultiple: input.capMultiple,
         disciplines,
@@ -323,6 +379,114 @@ export async function deleteTrainingPlan(planId: string): Promise<boolean> {
   // deleteMany with the userId guard: a no-op (count 0) if the plan isn't theirs.
   const { count } = await prisma.trainingPlan.deleteMany({ where: { id: planId, userId } });
   return count > 0;
+}
+
+/**
+ * The weekly "roll forward": re-ramp a plan's current + future targets from the
+ * **last completed week's actual** volume, using the same progression engine
+ * (see [computeAdaptedFutureTargets](src/lib/weekly-targets.ts)).
+ *
+ * Runs **only** when the plan is viewed **on its week-start day** and hasn't
+ * already recalculated this week (the `lastRecalcWeek` guard) — so it's a cheap
+ * no-op on every other view. Past weeks and the just-completed week keep their
+ * historical targets; only weeks on/after the current week are rewritten, and
+ * only for disciplines that produced a new ramp (no data is dropped otherwise).
+ *
+ * Scoped to the session user. Returns whether it recalculated.
+ */
+export async function maybeRecalculatePlan(planId: string): Promise<boolean> {
+  const userId = await requireUserId();
+
+  const plan = await prisma.trainingPlan.findFirst({
+    where: { id: planId, userId },
+    select: {
+      id: true,
+      startDate: true,
+      createdAt: true,
+      eventDate: true,
+      weekStartDay: true,
+      capMultiple: true,
+      lastRecalcWeek: true,
+      disciplines: { select: { discipline: true, eventDistanceMeters: true } },
+      weeklyTargets: { select: { discipline: true, weekStartDate: true, targetMeters: true } },
+      weeklyActuals: {
+        select: { discipline: true, weekStartDate: true, actualMeters: true, source: true },
+      },
+    },
+  });
+  if (!plan) return false;
+
+  const now = new Date();
+  // Trigger only on the plan's week-start day (UTC — consistent with all week math).
+  if (now.getUTCDay() !== plan.weekStartDay) return false;
+
+  const currentWeekStart = startOfWeek(now, plan.weekStartDay);
+  // Already rolled forward for this week.
+  if (plan.lastRecalcWeek && plan.lastRecalcWeek.getTime() === currentWeekStart.getTime()) {
+    return false;
+  }
+
+  const planStart = planStartWeek(plan);
+  const lastPlanWeek = startOfWeek(plan.eventDate, plan.weekStartDay);
+  // Nothing to adapt before the plan has a completed week, or once it's over.
+  if (currentWeekStart.getTime() <= planStart.getTime()) return false;
+  if (currentWeekStart.getTime() > lastPlanWeek.getTime()) return false;
+
+  const lastCompletedWeekStart = new Date(currentWeekStart.getTime() - WEEK_MS);
+
+  // Effective actual (MANUAL over STRAVA) + original target for the completed week.
+  const effective = resolveEffectiveActuals(plan.weeklyActuals);
+  const targetByKey = new Map<string, number>();
+  for (const t of plan.weeklyTargets) {
+    targetByKey.set(effectiveActualKey(t.discipline, t.weekStartDate), t.targetMeters);
+  }
+
+  const disciplines: AdaptiveDisciplineInput[] = plan.disciplines.map((d) => {
+    const key = effectiveActualKey(d.discipline, lastCompletedWeekStart);
+    return {
+      discipline: d.discipline,
+      eventDistanceMeters: d.eventDistanceMeters,
+      lastCompletedActual: effective.get(key)?.meters ?? null,
+      lastCompletedTarget: targetByKey.get(key) ?? 0,
+    };
+  });
+
+  const newRows = computeAdaptedFutureTargets({
+    disciplines,
+    lastCompletedWeekStart,
+    currentWeekStart,
+    eventDate: plan.eventDate,
+    capMultiple: plan.capMultiple,
+  });
+
+  // Only replace future targets for disciplines that produced a fresh ramp.
+  const touched = [...new Set(newRows.map((r) => r.discipline as Discipline))];
+
+  await prisma.$transaction(async (tx) => {
+    if (touched.length > 0) {
+      await tx.weeklyTarget.deleteMany({
+        where: {
+          planId: plan.id,
+          weekStartDate: { gte: currentWeekStart },
+          discipline: { in: touched },
+        },
+      });
+      await tx.weeklyTarget.createMany({
+        data: newRows.map((r) => ({
+          planId: plan.id,
+          discipline: r.discipline as Discipline,
+          weekStartDate: r.weekStartDate,
+          targetMeters: r.targetMeters,
+        })),
+      });
+    }
+    await tx.trainingPlan.update({
+      where: { id: plan.id },
+      data: { lastRecalcWeek: currentWeekStart },
+    });
+  });
+
+  return true;
 }
 
 // ── Child records (scoped via the parent plan's ownership) ───────────────────
@@ -347,15 +511,15 @@ export async function recordManualActual(input: {
 
   const plan = await prisma.trainingPlan.findFirst({
     where: { id: input.planId, userId },
-    select: { id: true, startDate: true, createdAt: true, eventDate: true },
+    select: { id: true, startDate: true, createdAt: true, eventDate: true, weekStartDay: true },
   });
   if (!plan) {
     throw new NotFoundError();
   }
 
-  const weekStartDate = startOfWeekMonday(input.weekStartDate);
-  const startMs = planStartMonday(plan).getTime();
-  const endMs = startOfWeekMonday(plan.eventDate).getTime();
+  const weekStartDate = startOfWeek(input.weekStartDate, plan.weekStartDay);
+  const startMs = planStartWeek(plan).getTime();
+  const endMs = startOfWeek(plan.eventDate, plan.weekStartDay).getTime();
   if (weekStartDate.getTime() < startMs || weekStartDate.getTime() > endMs) {
     throw new WeekOutOfRangeError();
   }

@@ -1,4 +1,4 @@
-import { startOfWeekMonday } from "@/lib/weekly-targets";
+import { DEFAULT_WEEK_START_DAY, startOfWeek } from "@/lib/weekly-targets";
 
 /**
  * Pure mapping + bucketing logic for activity sync — no DB, no network, no
@@ -54,11 +54,15 @@ export interface WeeklyActualBucket {
 }
 
 /**
- * Bucket activities into Monday-start weeks and total the distance per
- * (discipline, week). Unmapped types and non-positive/invalid distances are
- * skipped. Totals are floored to whole meters.
+ * Bucket activities into weeks (starting on `weekStartDay`, 0=Sun..6=Sat,
+ * default Monday) and total the distance per (discipline, week). Unmapped types
+ * and non-positive/invalid distances are skipped. Totals are floored to whole
+ * meters.
  */
-export function aggregateActivitiesByWeek(activities: ActivityInput[]): WeeklyActualBucket[] {
+export function aggregateActivitiesByWeek(
+  activities: ActivityInput[],
+  weekStartDay: number = DEFAULT_WEEK_START_DAY,
+): WeeklyActualBucket[] {
   const sums = new Map<string, { discipline: Discipline; weekMs: number; meters: number }>();
 
   for (const activity of activities) {
@@ -68,7 +72,7 @@ export function aggregateActivitiesByWeek(activities: ActivityInput[]): WeeklyAc
 
     const parsed = new Date(activity.startDateLocal);
     if (Number.isNaN(parsed.getTime())) continue;
-    const weekMs = startOfWeekMonday(parsed).getTime();
+    const weekMs = startOfWeek(parsed, weekStartDay).getTime();
 
     const key = `${discipline}|${weekMs}`;
     const existing = sums.get(key);

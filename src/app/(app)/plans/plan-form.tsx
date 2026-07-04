@@ -44,6 +44,17 @@ type Field = "event" | "start";
 const inputClass =
   "w-full rounded-[10px] border border-border bg-input px-3 py-[10px] text-[14px] text-text outline-none focus:border-brand";
 
+// value = JS getUTCDay() index (0=Sunday). Ordered Monday-first for display.
+const WEEKDAYS = [
+  { value: "1", label: "Monday" },
+  { value: "2", label: "Tuesday" },
+  { value: "3", label: "Wednesday" },
+  { value: "4", label: "Thursday" },
+  { value: "5", label: "Friday" },
+  { value: "6", label: "Saturday" },
+  { value: "0", label: "Sunday" },
+] as const;
+
 function minEventDate(): string {
   return new Date(Date.now() + ONE_WEEK_MS).toISOString().slice(0, 10);
 }
@@ -73,6 +84,7 @@ export function PlanForm({
   const [eventDate, setEventDate] = useState(initial.eventDate);
   const [startDate, setStartDate] = useState(initial.startDate || todayIso());
   const [capMultiple, setCapMultiple] = useState(initial.capMultiple || "1.5");
+  const [weekStartDay, setWeekStartDay] = useState(initial.weekStartDay || "1");
   const [values, setValues] = useState<Record<DiscKey, Record<Field, string>>>(() => ({
     SWIM: { event: initial.disciplines.SWIM.event, start: initial.disciplines.SWIM.start },
     BIKE: { event: initial.disciplines.BIKE.event, start: initial.disciplines.BIKE.start },
@@ -206,6 +218,7 @@ export function PlanForm({
           eventDate,
           startDate,
           capMultiple: Number(capMultiple),
+          weekStartDay: Number(weekStartDay),
           disciplines,
         }),
       });
@@ -322,24 +335,43 @@ export function PlanForm({
             )}
           </div>
         </div>
-        <div>
-          <label className={labelClass}>Peak week cap (×)</label>
-          <input
-            type="number"
-            min={1}
-            max={5}
-            step="0.1"
-            value={capMultiple}
-            onChange={(e) => setCapMultiple(e.target.value)}
-            className={`${inputClass} font-mono max-w-[140px]`}
-          />
-          {errors.capMultiple ? (
-            <p className="mt-1 mb-0 text-[12px] text-behind">{errors.capMultiple}</p>
-          ) : (
+        <div className="grid gap-4 md:grid-cols-2">
+          <div>
+            <label className={labelClass}>Peak week cap (×)</label>
+            <input
+              type="number"
+              min={1}
+              max={5}
+              step="0.1"
+              value={capMultiple}
+              onChange={(e) => setCapMultiple(e.target.value)}
+              className={`${inputClass} font-mono max-w-[140px]`}
+            />
+            {errors.capMultiple ? (
+              <p className="mt-1 mb-0 text-[12px] text-behind">{errors.capMultiple}</p>
+            ) : (
+              <p className="mt-1 mb-0 text-[12px] text-faint">
+                Weekly volume never exceeds this multiple of each sport&apos;s event distance.
+              </p>
+            )}
+          </div>
+          <div>
+            <label className={labelClass}>Week starts on</label>
+            <select
+              value={weekStartDay}
+              onChange={(e) => setWeekStartDay(e.target.value)}
+              className={`${inputClass} cursor-pointer`}
+            >
+              {WEEKDAYS.map((d) => (
+                <option key={d.value} value={d.value}>
+                  {d.label}
+                </option>
+              ))}
+            </select>
             <p className="mt-1 mb-0 text-[12px] text-faint">
-              Weekly volume never exceeds this multiple of each sport&apos;s event distance.
+              Each week rolls over on this day, re-planning ahead from your actual training.
             </p>
-          )}
+          </div>
         </div>
       </div>
 

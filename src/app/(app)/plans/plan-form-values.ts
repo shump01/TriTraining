@@ -14,6 +14,7 @@ export interface PlanFormValues {
   startDate: string; // YYYY-MM-DD ("" => defaults to this week)
   eventDate: string; // YYYY-MM-DD
   capMultiple: string; // e.g. "1.5" — weekly volume never exceeds this × event distance
+  weekStartDay: string; // "0"=Sun..."6"=Sat — the day training weeks begin on
   disciplines: Record<DiscKey, { enabled: boolean; event: string; start: string }>;
 }
 
@@ -24,6 +25,7 @@ export function emptyPlanFormValues(): PlanFormValues {
     startDate: "",
     eventDate: "",
     capMultiple: "1.5",
+    weekStartDay: "1", // Monday
     disciplines: {
       SWIM: { enabled: true, event: "", start: "" },
       BIKE: { enabled: true, event: "", start: "" },

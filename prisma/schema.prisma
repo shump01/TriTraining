@@ -114,18 +114,24 @@ enum ActualSource {
 }
 
 model TrainingPlan {
-  id          String    @id @default(cuid())
-  userId      String
-  name        String
-  eventDate   DateTime  @db.Date
+  id             String    @id @default(cuid())
+  userId         String
+  name           String
+  eventDate      DateTime  @db.Date
   // Week 1's Monday. Nullable for plans created before this column existed; for
   // those the effective start falls back to firstMondayOnOrAfter(createdAt).
-  startDate   DateTime? @db.Date
+  startDate      DateTime? @db.Date
   // Hard cap on weekly volume, as a multiple of each discipline's event
   // distance (see computeWeeklyTargets). Defaults to 1.5x.
-  capMultiple Float     @default(1.5)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  capMultiple    Float     @default(1.5)
+  // Day every training week begins on: 0=Sun..6=Sat. Defaults to Monday (1),
+  // which matches the Monday-aligned data of plans created before this column.
+  weekStartDay   Int       @default(1)
+  // Week-start date of the last adaptive recompute (see maybeRecalculatePlan) —
+  // ensures the weekly re-ramp runs at most once per week. Null until it first runs.
+  lastRecalcWeek DateTime? @db.Date
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

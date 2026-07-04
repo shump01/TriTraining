@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { planStartMonday, startOfWeekMonday } from "@/lib/weekly-targets";
+import { planStartWeek, startOfWeek } from "@/lib/weekly-targets";
 
 import { fetchRecentActivities } from "./client";
 import { getValidStravaAccessToken } from "./connection";
@@ -44,16 +44,19 @@ export async function syncStravaActivities(userId: string): Promise<SyncResult> 
       startDate: true,
       createdAt: true,
       eventDate: true,
+      weekStartDay: true,
       disciplines: { select: { discipline: true } },
     },
   });
 
-  // Each plan covers weeks [week-1 Monday .. Monday of event week], and only the
-  // sports it actually includes (a run-only plan ignores bike/swim activities).
+  // Each plan covers weeks [week-1 start .. start of event week], aligned to the
+  // plan's own week-start day, and only the sports it actually includes (a
+  // run-only plan ignores bike/swim activities).
   const planRanges = plans.map((p) => ({
     id: p.id,
-    startMs: planStartMonday(p).getTime(),
-    endMs: startOfWeekMonday(p.eventDate).getTime(),
+    weekStartDay: p.weekStartDay,
+    startMs: planStartWeek(p).getTime(),
+    endMs: startOfWeek(p.eventDate, p.weekStartDay).getTime(),
     disciplines: new Set<string>(p.disciplines.map((d) => d.discipline)),
   }));
 
@@ -72,23 +75,28 @@ export async function syncStravaActivities(userId: string): Promise<SyncResult> 
     afterEpochSeconds,
   });
 
-  const buckets = aggregateActivitiesByWeek(activities);
+  // Plans may use different week-start days, so bucket once per distinct day
+  // (usually just one) — a bucket's week boundary must match the plan it feeds.
+  const bucketsByDay = new Map<number, ReturnType<typeof aggregateActivitiesByWeek>>();
+  for (const day of new Set(planRanges.map((r) => r.weekStartDay))) {
+    bucketsByDay.set(day, aggregateActivitiesByWeek(activities, day));
+  }
 
-  // Fan each bucket out to every plan whose range covers that week.
-  const rows = buckets.flatMap((bucket) => {
-    const weekMs = bucket.weekStartDate.getTime();
-    return planRanges
-      .filter(
-        (r) => weekMs >= r.startMs && weekMs <= r.endMs && r.disciplines.has(bucket.discipline),
-      )
-      .map((r) => ({
+  // Fan each plan's day-aligned buckets out to the weeks its range covers.
+  const rows = planRanges.flatMap((r) =>
+    (bucketsByDay.get(r.weekStartDay) ?? [])
+      .filter((bucket) => {
+        const weekMs = bucket.weekStartDate.getTime();
+        return weekMs >= r.startMs && weekMs <= r.endMs && r.disciplines.has(bucket.discipline);
+      })
+      .map((bucket) => ({
         planId: r.id,
         discipline: bucket.discipline,
         weekStartDate: bucket.weekStartDate,
         actualMeters: bucket.meters,
         source: "STRAVA" as const,
-      }));
-  });
+      })),
+  );
 
   const planIds = planRanges.map((r) => r.id);
   await prisma.$transaction(async (tx) => {

@@ -1,5 +1,5 @@
 import { logger } from "@/lib/logger";
-import { startOfWeekMonday } from "@/lib/weekly-targets";
+import { startOfWeek } from "@/lib/weekly-targets";
 
 import { fetchRecentActivities } from "./client";
 import { getValidStravaAccessToken } from "./connection";
@@ -39,7 +39,8 @@ export async function getRecentWeeklyAverages(
     return { connected: false, weeks, averages: zeroAverages() };
   }
 
-  const currentWeekMs = startOfWeekMonday(new Date()).getTime();
+  // Pre-plan prefill estimate — no plan yet, so use the default (Monday) week grid.
+  const currentWeekMs = startOfWeek(new Date()).getTime();
   const rangeStartMs = currentWeekMs - weeks * WEEK_MS;
 
   let activities;

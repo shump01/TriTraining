@@ -1,4 +1,4 @@
-import { startOfWeekMonday } from "@/lib/weekly-targets";
+import { DEFAULT_WEEK_START_DAY, startOfWeek } from "@/lib/weekly-targets";
 
 /**
  * Pure target-vs-actual progress model for the tracking dashboard. No DB / no
@@ -56,8 +56,12 @@ function classify(actual: number, target: number): ProgressStatus {
   return "onTrack";
 }
 
-export function computeProgress(weeks: ProgressWeekInput[], now: Date): Progress {
-  const currentWeekMs = startOfWeekMonday(now).getTime();
+export function computeProgress(
+  weeks: ProgressWeekInput[],
+  now: Date,
+  weekStartDay: number = DEFAULT_WEEK_START_DAY,
+): Progress {
+  const currentWeekMs = startOfWeek(now, weekStartDay).getTime();
   let cumulativeTarget = 0;
   let cumulativeActual = 0;
 

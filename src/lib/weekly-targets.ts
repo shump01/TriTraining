@@ -51,46 +51,66 @@ function utcMidnightMs(date: Date): number {
   return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
 }
 
+/** A day-of-week index: 0=Sunday, 1=Monday, … 6=Saturday. */
+export type WeekStartDay = 0 | 1 | 2 | 3 | 4 | 5 | 6;
+
+/** The default training-week boundary when a plan doesn't specify one: Monday. */
+export const DEFAULT_WEEK_START_DAY = 1;
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 /**
- * The first Monday on or after `date` (UTC), at UTC midnight — used to align a
- * plan's week 1 to a Monday. Returns `date`'s day itself when it's already a
- * Monday.
+ * The first `weekStartDay` on or after `date` (UTC), at UTC midnight — used to
+ * align a plan's week 1 to its chosen start day. Returns `date`'s own day when it
+ * already falls on `weekStartDay`. `weekStartDay` is 0=Sun..6=Sat (default Mon).
  *
  * @throws RangeError on an invalid Date.
  */
-export function firstMondayOnOrAfter(date: Date): Date {
+export function firstWeekStartOnOrAfter(
+  date: Date,
+  weekStartDay: number = DEFAULT_WEEK_START_DAY,
+): Date {
   if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
     throw new RangeError("date must be a valid Date");
   }
   const midnight = utcMidnightMs(date);
   const day = new Date(midnight).getUTCDay(); // 0=Sun..6=Sat
-  const offsetDays = day === 1 ? 0 : day === 0 ? 1 : 8 - day;
-  return new Date(midnight + offsetDays * 24 * 60 * 60 * 1000);
+  const offsetDays = (weekStartDay - day + 7) % 7; // forward to the next start day
+  return new Date(midnight + offsetDays * DAY_MS);
 }
 
 /**
- * A plan's week-1 Monday: the explicitly stored `startDate` if present (lets a
+ * The start of the training week that contains `date` — the most recent
+ * `weekStartDay` on or before `date` (UTC midnight). Used to bucket activities
+ * and targets into weeks. `weekStartDay` is 0=Sun..6=Sat (default Mon).
+ *
+ * @throws RangeError on an invalid Date.
+ */
+export function startOfWeek(date: Date, weekStartDay: number = DEFAULT_WEEK_START_DAY): Date {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+    throw new RangeError("date must be a valid Date");
+  }
+  const midnight = utcMidnightMs(date);
+  const day = new Date(midnight).getUTCDay(); // 0=Sun..6=Sat
+  const offsetDays = (day - weekStartDay + 7) % 7; // back to the start day
+  return new Date(midnight - offsetDays * DAY_MS);
+}
+
+/**
+ * A plan's week-1 start: the explicitly stored `startDate` if present (lets a
  * plan be back-dated to when training actually began), otherwise the first
- * Monday on/after the plan's creation date (legacy plans predating that column).
+ * week-start on/after the plan's creation date (legacy plans predating that
+ * column). `weekStartDay` defaults to Monday for plans predating that column.
  */
-export function planStartMonday(plan: { startDate: Date | null; createdAt: Date }): Date {
-  return plan.startDate ?? firstMondayOnOrAfter(plan.createdAt);
-}
-
-/**
- * The Monday (UTC midnight) of the week that contains `date` — i.e. the start of
- * `date`'s training week. Used to bucket activities into weeks.
- *
- * @throws RangeError on an invalid Date.
- */
-export function startOfWeekMonday(date: Date): Date {
-  if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
-    throw new RangeError("date must be a valid Date");
-  }
-  const midnight = utcMidnightMs(date);
-  const day = new Date(midnight).getUTCDay(); // 0=Sun..6=Sat
-  const offsetDays = day === 0 ? -6 : 1 - day; // back to Monday
-  return new Date(midnight + offsetDays * 24 * 60 * 60 * 1000);
+export function planStartWeek(plan: {
+  startDate: Date | null;
+  createdAt: Date;
+  weekStartDay?: number;
+}): Date {
+  return (
+    plan.startDate ??
+    firstWeekStartOnOrAfter(plan.createdAt, plan.weekStartDay ?? DEFAULT_WEEK_START_DAY)
+  );
 }
 
 /**
@@ -188,4 +208,79 @@ export function computeWeeklyTargets({
   }
 
   return targets;
+}
+
+/** One discipline's inputs for the adaptive re-ramp. */
+export interface AdaptiveDisciplineInput {
+  discipline: string;
+  eventDistanceMeters: number;
+  /** Effective actual (MANUAL over STRAVA) for the last completed week, or null. */
+  lastCompletedActual: number | null;
+  /** The current stored target for the last completed week — the no-signal fallback. */
+  lastCompletedTarget: number;
+}
+
+/** A regenerated future target row (discipline kept as a string — this module is pure). */
+export interface AdaptedTargetRow {
+  discipline: string;
+  weekStartDate: Date;
+  targetMeters: number;
+}
+
+/**
+ * Re-ramp the current + future weeks of a plan from the **last completed week's
+ * actual** volume, per discipline, using the same progression engine
+ * (`computeWeeklyTargets`). This is how a plan adapts week-to-week to real
+ * training rather than staying pinned to its original projection.
+ *
+ * - Baseline = the last completed week's effective actual. **Adapt both ways**:
+ *   a higher actual ramps future weeks up (still capped), a lower one ramps them
+ *   down.
+ * - **No-signal fallback**: if that week's actual is missing or 0 (a fully
+ *   skipped week), the baseline falls back to that week's existing target, so a
+ *   blank week doesn't collapse the rest of the plan to zero.
+ * - Only rows on/after `currentWeekStart` are returned; the completed week and
+ *   earlier stay as historical targets.
+ *
+ * Pure — no DB/IO. The caller resolves actuals and persists the result.
+ */
+export function computeAdaptedFutureTargets(args: {
+  disciplines: AdaptiveDisciplineInput[];
+  lastCompletedWeekStart: Date;
+  currentWeekStart: Date;
+  eventDate: Date;
+  capMultiple: number;
+}): AdaptedTargetRow[] {
+  const currentMs = args.currentWeekStart.getTime();
+  const rows: AdaptedTargetRow[] = [];
+
+  for (const d of args.disciplines) {
+    // Real, non-zero actual drives the ramp; otherwise treat the week as no
+    // signal and re-ramp from its original target instead of from zero.
+    const baseline =
+      d.lastCompletedActual && d.lastCompletedActual > 0
+        ? d.lastCompletedActual
+        : d.lastCompletedTarget;
+    if (!(baseline > 0)) continue;
+
+    const targets = computeWeeklyTargets({
+      startDate: args.lastCompletedWeekStart,
+      eventDate: args.eventDate,
+      startingWeeklyMeters: baseline,
+      eventDistanceMeters: d.eventDistanceMeters,
+      capMultiple: args.capMultiple,
+    });
+
+    for (const t of targets) {
+      if (t.weekStartDate.getTime() >= currentMs) {
+        rows.push({
+          discipline: d.discipline,
+          weekStartDate: t.weekStartDate,
+          targetMeters: t.targetMeters,
+        });
+      }
+    }
+  }
+
+  return rows;
 }

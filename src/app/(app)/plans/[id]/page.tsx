@@ -4,8 +4,8 @@ import { notFound } from "next/navigation";
 import { effectiveActualKey, resolveEffectiveActuals } from "@/lib/actuals";
 import { buildPlanProgressInputs } from "@/lib/plan-progress";
 import { computeProgress, type ProgressWeekInput } from "@/lib/progress";
-import { getTrainingPlan } from "@/lib/training-plan";
-import { planStartMonday, startOfWeekMonday } from "@/lib/weekly-targets";
+import { getTrainingPlan, maybeRecalculatePlan } from "@/lib/training-plan";
+import { planStartWeek, startOfWeek } from "@/lib/weekly-targets";
 
 import { DeletePlanButton } from "./delete-plan-button";
 import { PlanDashboard, type SeriesData, type SeriesKey, type WeekRow } from "./plan-dashboard";
@@ -26,6 +26,10 @@ function isoDate(date: Date): string {
 export default async function PlanPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
+  // Weekly roll-forward: if today is the plan's week-start day, re-ramp the
+  // future weeks from last week's actual. A cheap no-op on any other day.
+  await maybeRecalculatePlan(id);
+
   // Scoped to the session user — another user's id returns null → 404.
   const plan = await getTrainingPlan(id);
   if (!plan) {
@@ -33,8 +37,8 @@ export default async function PlanPage({ params }: { params: Promise<{ id: strin
   }
 
   const now = new Date();
-  const currentWeekMs = startOfWeekMonday(now).getTime();
-  const startMonday = planStartMonday(plan);
+  const currentWeekMs = startOfWeek(now, plan.weekStartDay).getTime();
+  const startWeek = planStartWeek(plan);
 
   const inputs = buildPlanProgressInputs(plan);
   const effective = resolveEffectiveActuals(plan.weeklyActuals);
@@ -58,7 +62,7 @@ export default async function PlanPage({ params }: { params: Promise<{ id: strin
     progressInputs: ProgressWeekInput[],
     startVol: number | null,
   ): SeriesData {
-    const prog = computeProgress(progressInputs, now);
+    const prog = computeProgress(progressInputs, now, plan!.weekStartDay);
     const weeks: WeekRow[] = prog.weeks.map((w) => {
       const k = key === "TOTAL" ? null : effectiveActualKey(key, w.weekStartDate);
       const eff = k ? effective.get(k) : undefined;
@@ -96,7 +100,7 @@ export default async function PlanPage({ params }: { params: Promise<{ id: strin
         planId={plan.id}
         planName={plan.name}
         eventDateMs={plan.eventDate.getTime()}
-        startDateMs={startMonday.getTime()}
+        startDateMs={startWeek.getTime()}
         currentWeekMs={currentWeekMs}
         series={series}
       />

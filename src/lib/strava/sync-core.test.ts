@@ -89,4 +89,20 @@ describe("aggregateActivitiesByWeek", () => {
     ]);
     expect(result[0]!.meters).toBe(2501); // 2501.3 floored
   });
+
+  it("buckets on a custom weekStartDay (Sunday): Sun 11th and Mon 12th are one week", () => {
+    // With Sunday weeks, Sun 2026-01-11 and Mon 2026-01-12 fall in the same week
+    // (they would be split across two weeks under the default Monday grid).
+    const result = aggregateActivitiesByWeek(
+      [
+        { sportType: "Run", distanceMeters: 5000, startDateLocal: "2026-01-11T07:00:00Z" },
+        { sportType: "Run", distanceMeters: 6000, startDateLocal: "2026-01-12T07:00:00Z" },
+      ],
+      0, // Sunday
+    );
+    expect(result).toHaveLength(1);
+    expect(result[0]!.meters).toBe(11000);
+    expect(result[0]!.weekStartDate.toISOString()).toBe("2026-01-11T00:00:00.000Z");
+    expect(result[0]!.weekStartDate.getUTCDay()).toBe(0);
+  });
 });

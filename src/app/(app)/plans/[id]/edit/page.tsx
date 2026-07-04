@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { getTrainingPlan } from "@/lib/training-plan";
-import { planStartMonday } from "@/lib/weekly-targets";
+import { planStartWeek } from "@/lib/weekly-targets";
 
 import { PlanForm, type PlanFormValues } from "../../plan-form";
 
@@ -39,9 +39,10 @@ export default async function EditPlanPage({ params }: { params: Promise<{ id: s
 
   const initial: PlanFormValues = {
     name: plan.name,
-    startDate: isoDate(planStartMonday(plan)),
+    startDate: isoDate(planStartWeek(plan)),
     eventDate: isoDate(plan.eventDate),
     capMultiple: String(plan.capMultiple),
+    weekStartDay: String(plan.weekStartDay),
     disciplines: {
       SWIM: disc("SWIM", 1),
       BIKE: disc("BIKE", 1000),
