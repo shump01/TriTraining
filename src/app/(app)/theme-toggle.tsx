@@ -16,7 +16,7 @@ function getServerSnapshot(): "dark" | "light" {
   return "dark";
 }
 
-export function ThemeToggle() {
+export function ThemeToggle({ variant = "full" }: { variant?: "full" | "rail" }) {
   const theme = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
   function toggle() {
@@ -29,6 +29,21 @@ export function ThemeToggle() {
       /* ignore */
     }
     window.dispatchEvent(new Event("themechange"));
+  }
+
+  // Compact icon-only button for the desktop icon rail.
+  if (variant === "rail") {
+    return (
+      <button
+        type="button"
+        onClick={toggle}
+        title="Toggle theme"
+        aria-label="Toggle theme"
+        className="grid h-[34px] w-[34px] cursor-pointer place-items-center rounded-[10px] border border-border text-[15px] text-muted hover:bg-card2"
+      >
+        {theme === "dark" ? "☾" : "☀"}
+      </button>
+    );
   }
 
   return (

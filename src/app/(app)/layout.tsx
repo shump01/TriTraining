@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 
 import { auth } from "@/auth";
 
-import { Sidebar } from "./sidebar";
+import { MobileNav, Rail } from "./app-nav";
 
 export const dynamic = "force-dynamic";
 
@@ -13,10 +13,19 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     redirect("/login");
   }
 
+  const email = session.user.email ?? "";
+
+  // Mobile-first shell: single column with a top app bar; at `app:` (≥820px) the
+  // grid gains a 74px icon rail and the app bar is hidden.
   return (
-    <div className="grid min-h-screen grid-cols-[236px_1fr]">
-      <Sidebar email={session.user.email ?? ""} />
-      <main className="min-w-0 px-[34px] pt-[26px] pb-[60px]">{children}</main>
+    <div className="grid min-h-screen app:grid-cols-[74px_1fr]">
+      <Rail email={email} />
+      <div className="flex min-w-0 flex-col">
+        <MobileNav email={email} />
+        <main className="min-w-0 px-[14px] pt-[14px] pb-[48px] app:px-[28px] app:pt-[22px] app:pb-[56px]">
+          {children}
+        </main>
+      </div>
     </div>
   );
 }

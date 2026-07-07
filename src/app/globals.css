@@ -1,5 +1,11 @@
 @import "tailwindcss";
 
+/* Custom breakpoint: the whole app is mobile-first and switches to the desktop
+   shell (icon rail + multi-column) at 820px via the `app:` variant. */
+@theme {
+  --breakpoint-app: 820px;
+}
+
 /* ── Runtime theme variables (dark default; light via [data-theme="light"]) ── */
 :root {
   color-scheme: dark;

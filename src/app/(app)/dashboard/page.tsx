@@ -82,7 +82,7 @@ export default async function DashboardPage() {
         </Link>
       </div>
 
-      <div className="grid gap-[18px] lg:grid-cols-[1.6fr_1fr]">
+      <div className="grid gap-[18px] app:grid-cols-[1.6fr_1fr]">
         {active ? (
           <Link
             href={`/plans/${active.id}`}

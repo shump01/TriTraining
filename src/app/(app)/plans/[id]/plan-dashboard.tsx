@@ -102,6 +102,11 @@ export function PlanDashboard({
   const weekNumber = currentIndex >= 0 ? currentIndex + 1 : activeData.summary.finished ? n : 0;
   const weeksToGo = Math.max(0, Math.ceil((eventDateMs - currentWeekMs) / WEEK_MS));
 
+  // The week the mobile "this week" strip tracks: the current week, or week 1
+  // before the plan starts / the final week once it's finished.
+  const buildWeekIndex = currentIndex >= 0 ? currentIndex : activeData.summary.finished ? n - 1 : 0;
+  const buildWeek = activeData.weeks[buildWeekIndex];
+
   return (
     <div className="max-w-[1100px]">
       <Link href="/plans" className="text-[13.5px] text-muted hover:text-text">
@@ -138,8 +143,33 @@ export function PlanDashboard({
         </div>
       </div>
 
+      {/* Sticky "this week" strip — mobile only (desktop shows the ring / rail). */}
+      <div className="sticky top-[56px] z-30 mb-3 -mx-[14px] border-b border-border bg-bg2/95 px-[14px] py-[9px] backdrop-blur-[10px] app:hidden">
+        <div className="flex items-center gap-2.5">
+          <span
+            className="shrink-0 font-display text-[13px] font-extrabold"
+            style={{ color: activeData.color }}
+          >
+            {weekNumber > 0 ? `W${weekNumber}` : "W1"}
+          </span>
+          <div className="h-1.5 flex-1 overflow-hidden rounded-[6px] bg-card2">
+            <div
+              className="h-full rounded-[6px]"
+              style={{
+                width: `${Math.min(buildWeek?.pctOfTarget ?? 0, 100)}%`,
+                background: activeData.color,
+              }}
+            />
+          </div>
+          <span className="shrink-0 font-mono text-[11.5px] text-muted">
+            {formatDistance(buildWeek?.actual ?? 0, active)} /{" "}
+            {formatDistance(buildWeek?.target ?? 0, active)}
+          </span>
+        </div>
+      </div>
+
       {series.length > 1 && (
-        <div className="mb-6 flex flex-wrap gap-2">
+        <div className="mb-6 -mx-[14px] flex gap-2 overflow-x-auto px-[14px] [scrollbar-width:none] app:mx-0 app:flex-wrap app:px-0">
           {series.map((s) => {
             const on = active === s.key;
             return (
@@ -147,7 +177,7 @@ export function PlanDashboard({
                 key={s.key}
                 type="button"
                 onClick={() => setActive(s.key)}
-                className={`cursor-pointer rounded-[10px] px-3.5 py-2 text-[13.5px] font-bold ${
+                className={`shrink-0 cursor-pointer rounded-[10px] px-3.5 py-2 text-[13.5px] font-bold whitespace-nowrap ${
                   on ? "" : "text-muted hover:text-text"
                 }`}
                 style={on ? { color: s.color, background: translucent(s.color, 14) } : undefined}
@@ -196,6 +226,9 @@ function CommandView({
     currentIndex >= 0 ? currentIndex : data.summary.finished ? data.weeks.length - 1 : 0;
   const buildWeek = data.weeks[buildWeekIndex];
 
+  // Mobile condensed table: which week's row is expanded to reveal its input.
+  const [expanded, setExpanded] = useState<number | null>(null);
+
   return (
     <>
       <div className="mb-[18px] grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-3.5">
@@ -237,7 +270,7 @@ function CommandView({
         })}
       </div>
 
-      <div className="grid gap-[18px] lg:grid-cols-[1fr_260px]">
+      <div className="grid gap-[18px] app:grid-cols-[1fr_260px]">
         <div className="rounded-[18px] border border-border bg-card p-[22px]">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="m-0 font-display text-[16px] font-bold">Weekly volume — {data.label}</h3>
@@ -252,7 +285,7 @@ function CommandView({
             labelOf={shortDate}
           />
         </div>
-        <div className="flex flex-col items-center justify-center rounded-[18px] border border-border bg-card p-[22px]">
+        <div className="hidden flex-col items-center justify-center rounded-[18px] border border-border bg-card p-[22px] app:flex">
           <div className="mb-3 text-[12px] font-bold tracking-[0.05em] text-muted uppercase">
             This build
           </div>
@@ -264,7 +297,7 @@ function CommandView({
         </div>
       </div>
 
-      <div className="mt-[18px] overflow-hidden rounded-[16px] border border-border bg-card">
+      <div className="mt-[18px] hidden overflow-hidden rounded-[16px] border border-border bg-card app:block">
         <table className="w-full border-collapse text-[14px]">
           <thead>
             <tr className="text-left text-[12px] tracking-[0.04em] text-faint uppercase">
@@ -322,6 +355,73 @@ function CommandView({
           </tbody>
         </table>
       </div>
+
+      {/* Mobile condensed table — tap a week to reveal its actual-entry input. */}
+      <div className="mt-[18px] overflow-hidden rounded-[16px] border border-border bg-card app:hidden">
+        <div className="grid grid-cols-[78px_1fr_52px_26px] text-[10.5px] tracking-[0.04em] text-faint uppercase">
+          <div className="py-[9px] pr-1.5 pl-[14px] font-semibold">Week</div>
+          <div className="px-1.5 py-[9px] font-semibold">Actual / target</div>
+          <div className="px-1.5 py-[9px] text-right font-semibold">%</div>
+          <div />
+        </div>
+        {data.weeks.map((w, i) => {
+          const open = expanded === w.ms;
+          const statusKey = weekStatusKey(w);
+          return (
+            <div
+              key={w.ms}
+              className="border-t border-border"
+              style={w.phase === "current" ? { background: translucent(data.color, 7) } : undefined}
+            >
+              <button
+                type="button"
+                onClick={() => setExpanded(open ? null : w.ms)}
+                className="grid min-h-[44px] w-full cursor-pointer grid-cols-[78px_1fr_52px_26px] items-center text-left"
+              >
+                <div className="py-2.5 pl-[14px]">
+                  <div className="text-[13.5px] font-bold">W{i + 1}</div>
+                  <div className="font-mono text-[10.5px] text-faint">{shortDate(w.ms)}</div>
+                </div>
+                <div className="px-1.5 py-2.5 font-mono text-[12px]">
+                  {w.phase === "future" ? "—" : formatDistance(w.actual ?? 0, active)}
+                  <span className="text-faint"> / {formatDistance(w.target, active)}</span>
+                </div>
+                <div className="px-1.5 py-2.5 text-right font-mono text-[12px]">
+                  {w.pctOfTarget == null ? "—" : `${w.pctOfTarget}%`}
+                </div>
+                <div className="grid place-items-center">
+                  <span
+                    className="h-2 w-2 rounded-full"
+                    style={{ background: STATUS_META[statusKey].color }}
+                    title={STATUS_META[statusKey].label}
+                  />
+                </div>
+              </button>
+              {open && (
+                <div className="border-t border-border px-[14px] py-[11px]">
+                  {editable ? (
+                    <ActualCell
+                      planId={planId}
+                      discipline={active}
+                      weekStartDate={w.dateStr}
+                      manualMeters={w.manualMeters}
+                      effective={
+                        w.effectiveSource
+                          ? { meters: w.actual ?? 0, source: w.effectiveSource }
+                          : null
+                      }
+                    />
+                  ) : (
+                    <div className="text-[12px] text-muted">
+                      Totals combine all sports — switch to a sport to log actuals.
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </>
   );
 }
@@ -338,8 +438,8 @@ function TimelineView({
   const currentWeek = currentIndex >= 0 ? data.weeks[currentIndex] : null;
 
   return (
-    <div className="grid gap-[18px] lg:grid-cols-[280px_1fr]">
-      <div className="flex flex-col gap-4 self-start lg:sticky lg:top-6">
+    <div className="grid gap-[18px] app:grid-cols-[280px_1fr]">
+      <div className="hidden flex-col gap-4 self-start app:flex app:sticky app:top-6">
         <div className="flex flex-col items-center rounded-[18px] border border-border bg-card p-[22px]">
           <ProgressRing pct={data.summary.pctOfTarget ?? 0} color={data.color} size={180} />
           <div className="mt-3 text-center text-[13px] text-muted">

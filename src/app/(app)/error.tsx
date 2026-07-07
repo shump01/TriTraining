@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Error boundary for the authenticated app segment. Renders inside the sidebar
+ * Error boundary for the authenticated app segment. Renders inside the app
  * shell. Shows a generic message only — never the error message or stack — and
  * surfaces just the server-generated `digest` as a support reference.
  */

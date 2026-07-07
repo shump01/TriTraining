@@ -303,7 +303,7 @@ export function PlanForm({
           />
           {errors.name && <p className="mt-1 mb-0 text-[12px] text-behind">{errors.name}</p>}
         </div>
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-4 app:grid-cols-2">
           <div>
             <label className={labelClass}>Start date</label>
             <input
@@ -335,7 +335,7 @@ export function PlanForm({
             )}
           </div>
         </div>
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-4 app:grid-cols-2">
           <div>
             <label className={labelClass}>Peak week cap (×)</label>
             <input
