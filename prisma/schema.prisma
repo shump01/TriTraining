@@ -32,8 +32,47 @@ model User {
   sessions         Session[]
   trainingPlans    TrainingPlan[]
   stravaConnection StravaConnection?
+  ownedGroups      Group[]           @relation("GroupOwner")
+  groupMemberships GroupMembership[]
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Training groups — a light social layer. A group has one owner and many
+// members; members can see each other's high-level (per-sport current-week %)
+// progress. Joining is via a shareable link keyed by `inviteToken`.
+//
+// IMPORTANT: a group is the ONLY place one user's data is visible to another.
+// All access is gated on the requester's membership; see src/lib/groups.ts.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Group {
+  id          String   @id @default(cuid())
+  name        String
+  ownerId     String
+  inviteToken String   @unique // shareable-link secret; the owner can rotate it
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  owner   User              @relation("GroupOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  members GroupMembership[]
+
+  @@index([ownerId])
+}
+
+model GroupMembership {
+  id       String   @id @default(cuid())
+  groupId  String
+  userId   String
+  joinedAt DateTime @default(now())
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // One membership per (group, user) — makes joins idempotent.
+  @@unique([groupId, userId])
+  @@index([userId])
 }
 
 // Strava OAuth account link (separate from login). access/refresh tokens are

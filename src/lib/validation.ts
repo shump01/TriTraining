@@ -121,3 +121,19 @@ export const actualEntrySchema = z.object({
 });
 
 export type ActualEntryInput = z.infer<typeof actualEntrySchema>;
+
+// ── Training groups ──────────────────────────────────────────────────────────
+
+export const createGroupSchema = z.object({
+  name: z.string().trim().min(1, "Name is required").max(80, "Name is too long"),
+});
+
+export const joinGroupSchema = z.object({
+  token: z.string().min(1, "Missing invite token"),
+});
+
+export const removeMemberSchema = z.object({
+  userId: z.string().min(1, "Missing user"),
+});
+
+export type CreateGroupInput = z.infer<typeof createGroupSchema>;
