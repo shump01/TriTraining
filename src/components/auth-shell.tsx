@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 /**
  * Split-screen auth layout: brand panel on the left, form slot on the right.
  * Used by both /login and /signup.
@@ -52,7 +54,14 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
 
       {/* Form side */}
       <div className="flex items-center justify-center p-10">
-        <div className="w-full max-w-[360px]">{children}</div>
+        <div className="w-full max-w-[360px]">
+          {children}
+          <p className="mt-6 text-center text-[13px] text-faint">
+            <Link href="/about" className="hover:text-text">
+              What is TriTrainer? →
+            </Link>
+          </p>
+        </div>
       </div>
     </div>
   );
