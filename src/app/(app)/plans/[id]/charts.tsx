@@ -1,5 +1,7 @@
 "use client";
 
+import { linearTrend, trendAt } from "@/lib/trend";
+
 /**
  * Bespoke SVG charts ported from the design handoff (replacing recharts).
  * Colors are passed as CSS-variable strings (e.g. "var(--swim)") and applied
@@ -50,10 +52,26 @@ export function VolumeChart({
   const slot = innerW / Math.max(n, 1);
   const cx = (i: number) => padL + slot * (i + 0.5);
   const y = (v: number) => padT + innerH - (v / maxY) * innerH;
+  // Keep any drawn point inside the plot area (a steep projection shouldn't
+  // rescale the axis or spill outside the chart).
+  const clampY = (py: number) => Math.max(padT, Math.min(padT + innerH, py));
   const fmtY = (gv: number) =>
     unit === "m" ? Math.round(gv).toLocaleString() : Math.round(gv / 1000).toLocaleString();
   const bw = Math.min(slot * 0.5, 26);
   const targetPath = rows.map((r, i) => `${i ? "L" : "M"}${cx(i)} ${y(r.target)}`).join(" ");
+
+  // Trend line: least-squares fit over COMPLETED weeks' actuals (the in-progress
+  // current week is partial, so it's excluded to avoid biasing the slope), then
+  // projected across the remaining weeks to race day.
+  const fitPoints: { x: number; y: number }[] = [];
+  rows.forEach((r, i) => {
+    const completed = hasCurrent ? i < currentIndex : true;
+    if (r.actual != null && completed) fitPoints.push({ x: i, y: r.actual });
+  });
+  const trend = linearTrend(fitPoints);
+  const trendFrom = fitPoints[0]?.x ?? 0;
+  const trendTo = n - 1;
+  const trendY = (i: number) => clampY(y(Math.max(0, trend ? trendAt(trend, i) : 0)));
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: "block" }}>
@@ -150,6 +168,33 @@ export function VolumeChart({
           style={{ fill: "var(--card)", stroke: color }}
         />
       ))}
+
+      {trend && trendTo > trendFrom && (
+        <g>
+          <line
+            x1={cx(trendFrom)}
+            y1={trendY(trendFrom)}
+            x2={cx(trendTo)}
+            y2={trendY(trendTo)}
+            strokeWidth={2}
+            strokeDasharray="7 5"
+            strokeLinecap="round"
+            style={{ stroke: color, opacity: 0.85 }}
+          />
+          <circle cx={cx(trendTo)} cy={trendY(trendTo)} r={3} style={{ fill: color }} />
+          <text
+            x={cx(trendTo)}
+            y={trendY(trendTo) - 8}
+            textAnchor="end"
+            fontSize={10}
+            fontWeight={700}
+            fontFamily={FONT_MONO}
+            style={{ fill: color, opacity: 0.9 }}
+          >
+            trend
+          </text>
+        </g>
+      )}
 
       {rows.map((r, i) =>
         i % 3 !== 0 && i !== n - 1 ? null : (
