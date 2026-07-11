@@ -54,7 +54,17 @@ export async function POST(req: NextRequest) {
   }
 
   const { sessionToken, expires } = await createDatabaseSession(user.id);
-  const res = NextResponse.json({ ok: true }, { status: 200 });
+
+  // The mobile app (X-Client: mobile) stores the session token itself and sends
+  // it back as a Bearer header — it can't use the httpOnly cookie. Web callers
+  // keep the cookie-only response.
+  const isMobileClient = req.headers.get("x-client") === "mobile";
+  const res = NextResponse.json(
+    isMobileClient
+      ? { ok: true, sessionToken, expires: expires.toISOString() }
+      : { ok: true },
+    { status: 200 },
+  );
   res.cookies.set(SESSION_COOKIE_NAME, sessionToken, {
     ...sessionCookieOptions,
     expires,

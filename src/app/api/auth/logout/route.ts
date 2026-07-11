@@ -15,7 +15,12 @@ export async function POST(req: NextRequest) {
   const limited = enforceRateLimit(req, "logout", 20, 60_000);
   if (limited) return limited;
 
-  const token = req.cookies.get(SESSION_COOKIE_NAME)?.value;
+  // Cookie for web sessions; Authorization: Bearer for the mobile client.
+  const authorization = req.headers.get("authorization");
+  const bearerToken = authorization?.toLowerCase().startsWith("bearer ")
+    ? authorization.slice("bearer ".length).trim()
+    : null;
+  const token = req.cookies.get(SESSION_COOKIE_NAME)?.value ?? bearerToken;
   if (token) {
     await destroyDatabaseSession(token);
   }

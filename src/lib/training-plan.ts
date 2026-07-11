@@ -1,3 +1,5 @@
+import { headers } from "next/headers";
+
 import { auth } from "@/auth";
 import { ActualSource, Discipline } from "@/generated/prisma/client";
 import { effectiveActualKey, resolveEffectiveActuals } from "@/lib/actuals";
@@ -97,10 +99,36 @@ const DISCIPLINE_ORDER = [Discipline.SWIM, Discipline.BIKE, Discipline.RUN] as c
  * before a write.
  */
 
+/**
+ * Mobile-client fallback: resolve the user from an `Authorization: Bearer`
+ * token, which is a `Session.sessionToken` handed out by the login route (see
+ * src/app/api/auth/login/route.ts). Same table, same expiry semantics as the
+ * cookie session — just a different transport. Returns null when there is no
+ * usable bearer token (including outside a request scope, e.g. unit tests).
+ */
+async function bearerUserId(): Promise<string | null> {
+  let authorization: string | null;
+  try {
+    authorization = (await headers()).get("authorization");
+  } catch {
+    return null;
+  }
+  if (!authorization?.toLowerCase().startsWith("bearer ")) return null;
+
+  const token = authorization.slice("bearer ".length).trim();
+  if (!token) return null;
+
+  const session = await prisma.session.findFirst({
+    where: { sessionToken: token, expires: { gt: new Date() } },
+    select: { userId: true },
+  });
+  return session?.userId ?? null;
+}
+
 /** Resolve the authenticated user's id, or throw. The only source of `userId`. */
 export async function requireUserId(): Promise<string> {
   const session = await auth();
-  const userId = session?.user?.id;
+  const userId = session?.user?.id ?? (await bearerUserId());
   if (!userId) {
     throw new UnauthorizedError();
   }

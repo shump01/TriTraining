@@ -3,43 +3,11 @@
 import Link from "next/link";
 import { useState } from "react";
 
+import type { SeriesData, SeriesKey, WeekRow } from "@/lib/plan-series";
 import { STATUS_META, formatDistance, translucent, type StatusKey } from "@/lib/ui/theme";
 
 import { ActualCell } from "./actual-cell";
 import { ProgressRing, Sparkline, VolumeChart, type WeekDatum } from "./charts";
-
-export type SeriesKey = "TOTAL" | "SWIM" | "BIKE" | "RUN";
-
-export interface WeekRow {
-  ms: number;
-  dateStr: string; // YYYY-MM-DD — used for actual writes (matches server)
-  target: number;
-  actual: number | null;
-  phase: "past" | "current" | "future";
-  pctOfTarget: number | null;
-  status: "ahead" | "onTrack" | "behind" | null;
-  cumulativeActual: number;
-  cumulativeTarget: number;
-  manualMeters: number | null;
-  effectiveSource: "MANUAL" | "STRAVA" | null;
-}
-
-export interface SeriesData {
-  key: SeriesKey;
-  label: string;
-  color: string;
-  unit: "m" | "km";
-  startVol: number | null;
-  weeks: WeekRow[];
-  summary: {
-    started: boolean;
-    finished: boolean;
-    cumulativeActual: number;
-    cumulativeTarget: number;
-    pctOfTarget: number | null;
-    status: "ahead" | "onTrack" | "behind" | null;
-  };
-}
 
 export interface PlanDashboardProps {
   planId: string;
