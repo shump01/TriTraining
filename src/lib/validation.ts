@@ -147,6 +147,25 @@ export const actualEntrySchema = z.object({
 
 export type ActualEntryInput = z.infer<typeof actualEntrySchema>;
 
+// ── Weekly wellness check-in ──────────────────────────────────────────────────
+
+/** A subjective 1–5 rating (fatigue / sleep / soreness). */
+const wellnessRating = z.coerce
+  .number({ message: "Enter a number" })
+  .int()
+  .min(1, "Must be 1–5")
+  .max(5, "Must be 1–5");
+
+export const checkinSchema = z.object({
+  weekStartDate: z.coerce.date({ message: "Enter a valid date" }),
+  fatigue: wellnessRating,
+  sleep: wellnessRating,
+  soreness: wellnessRating,
+  note: z.string().trim().max(500, "Note is too long").optional(),
+});
+
+export type CheckinInput = z.infer<typeof checkinSchema>;
+
 // ── Apple Health ingest ──────────────────────────────────────────────────────
 
 /**

@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { auth } from "@/auth";
 import { ActualSource, Discipline } from "@/generated/prisma/client";
 import { effectiveActualKey, resolveEffectiveActuals } from "@/lib/actuals";
+import { checkinReadinessFactor } from "@/lib/checkin";
 import { buildPlanProgressInputs } from "@/lib/plan-progress";
 import { prisma } from "@/lib/prisma";
 import { computeProgress, type ProgressSummary } from "@/lib/progress";
@@ -156,7 +157,38 @@ export async function getTrainingPlan(planId: string) {
       disciplines: true,
       weeklyTargets: { orderBy: { weekStartDate: "asc" } },
       weeklyActuals: true,
+      weeklyCheckins: true,
     },
+  });
+}
+
+/**
+ * Record (upsert) a weekly wellness check-in for a plan. Scoped to the owning
+ * user; the week is aligned to the plan's week-start day. Feeds the next
+ * adaptive re-ramp via checkinReadinessFactor.
+ */
+export async function recordCheckin(
+  planId: string,
+  input: { weekStartDate: Date; fatigue: number; sleep: number; soreness: number; note?: string },
+) {
+  const userId = await requireUserId();
+  const plan = await prisma.trainingPlan.findFirst({
+    where: { id: planId, userId },
+    select: { id: true, weekStartDay: true },
+  });
+  if (!plan) throw new NotFoundError();
+
+  const weekStart = startOfWeek(input.weekStartDate, plan.weekStartDay);
+  const data = {
+    fatigue: input.fatigue,
+    sleep: input.sleep,
+    soreness: input.soreness,
+    note: input.note ?? null,
+  };
+  return prisma.weeklyCheckin.upsert({
+    where: { planId_weekStartDate: { planId: plan.id, weekStartDate: weekStart } },
+    create: { planId: plan.id, weekStartDate: weekStart, ...data },
+    update: data,
   });
 }
 
@@ -462,6 +494,9 @@ export async function maybeRecalculatePlan(planId: string): Promise<boolean> {
       weeklyActuals: {
         select: { discipline: true, weekStartDate: true, actualMeters: true, source: true },
       },
+      weeklyCheckins: {
+        select: { weekStartDate: true, fatigue: true, sleep: true, soreness: true },
+      },
     },
   });
   if (!plan) return false;
@@ -501,6 +536,12 @@ export async function maybeRecalculatePlan(planId: string): Promise<boolean> {
     };
   });
 
+  // A fatigued/sore check-in for the just-completed week eases the re-ramp.
+  const lastCheckin = plan.weeklyCheckins.find(
+    (c) => c.weekStartDate.getTime() === lastCompletedWeekStart.getTime(),
+  );
+  const readinessFactor = lastCheckin ? checkinReadinessFactor(lastCheckin) : 1;
+
   const newRows = computeAdaptedFutureTargets({
     disciplines,
     lastCompletedWeekStart,
@@ -508,6 +549,7 @@ export async function maybeRecalculatePlan(planId: string): Promise<boolean> {
     eventDate: plan.eventDate,
     capMultiple: plan.capMultiple,
     taperWeeks: plan.taperWeeks,
+    readinessFactor,
   });
 
   // Only replace future targets for disciplines that produced a fresh ramp.

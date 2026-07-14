@@ -605,6 +605,22 @@ describe("computeAdaptedFutureTargets", () => {
     }
   });
 
+  it("eases the ramp when a check-in reports fatigue (readinessFactor < 1)", () => {
+    const disciplines = [
+      {
+        discipline: "RUN",
+        eventDistanceMeters: 100_000,
+        lastCompletedActual: 10_000,
+        lastCompletedTarget: 9_000,
+      },
+    ];
+    const normal = computeAdaptedFutureTargets({ ...common, disciplines });
+    const eased = computeAdaptedFutureTargets({ ...common, readinessFactor: 0.8, disciplines });
+    // The whole forward ramp starts lower after a fatigued week.
+    expect(eased[0]!.targetMeters).toBeLessThan(normal[0]!.targetMeters);
+    expect(eased[0]!.targetMeters).toBeGreaterThan(0);
+  });
+
   it("carries the taper through the re-ramp (race week ends below the peak)", () => {
     const rows = computeAdaptedFutureTargets({
       ...common,

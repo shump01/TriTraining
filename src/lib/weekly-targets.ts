@@ -295,17 +295,26 @@ export function computeAdaptedFutureTargets(args: {
   capMultiple: number;
   /** Taper weeks; the re-ramp ends at `eventDate` so the taper stays on race week. */
   taperWeeks?: number;
+  /**
+   * Volume multiplier from the last completed week's wellness check-in (see
+   * checkinReadinessFactor). < 1 eases the following weeks toward recovery; 1
+   * (default) leaves the ramp untouched.
+   */
+  readinessFactor?: number;
 }): AdaptedTargetRow[] {
   const currentMs = args.currentWeekStart.getTime();
   const rows: AdaptedTargetRow[] = [];
+  const readinessFactor = args.readinessFactor ?? 1;
 
   for (const d of args.disciplines) {
     // Real, non-zero actual drives the ramp; otherwise treat the week as no
-    // signal and re-ramp from its original target instead of from zero.
-    const baseline =
+    // signal and re-ramp from its original target instead of from zero. A
+    // fatigued check-in scales the baseline down so the plan eases off.
+    const raw =
       d.lastCompletedActual && d.lastCompletedActual > 0
         ? d.lastCompletedActual
         : d.lastCompletedTarget;
+    const baseline = raw * readinessFactor;
     if (!(baseline > 0)) continue;
 
     const targets = computeWeeklyTargets({
