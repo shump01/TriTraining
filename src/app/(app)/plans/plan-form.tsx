@@ -1,8 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 
+import { computeWeeklyTargets, startOfWeek } from "@/lib/weekly-targets";
+
+import { VolumeChart } from "./[id]/charts";
 import type { DiscKey, PlanFormValues } from "./plan-form-values";
 
 export type { PlanFormValues } from "./plan-form-values";
@@ -60,6 +63,9 @@ function minEventDate(): string {
 }
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
+}
+function shortDate(ms: number): string {
+  return new Date(ms).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
 /**
@@ -151,6 +157,57 @@ export function PlanForm({
       setAutofilled((prev) => ({ ...prev, [key]: false }));
     }
   }
+
+  // Live preview of the generated weekly-volume curve (total across enabled
+  // sports), recomputed as inputs change with the same pure engine the server
+  // persists — including the taper. Incomplete/invalid inputs yield no preview.
+  const preview = useMemo(() => {
+    if (!startDate || !eventDate) return null;
+    const sd = new Date(startDate);
+    const ed = new Date(eventDate);
+    if (Number.isNaN(sd.getTime()) || Number.isNaN(ed.getTime())) return null;
+    const cap = Number(capMultiple);
+    if (!(cap >= 1)) return null;
+    const taper = Number(taperWeeks) || 0;
+
+    let startWeek: Date;
+    try {
+      startWeek = startOfWeek(sd, Number(weekStartDay));
+    } catch {
+      return null;
+    }
+    if (startWeek.getTime() >= ed.getTime()) return null;
+
+    const totals = new Map<number, number>();
+    for (const d of DISC) {
+      if (!enabled[d.key]) continue;
+      const eventM = Number(values[d.key].event) * d.factor;
+      const startM = Number(values[d.key].start) * d.factor;
+      if (!(eventM > 0) || !(startM > 0)) continue;
+      let rows;
+      try {
+        rows = computeWeeklyTargets({
+          startDate: startWeek,
+          eventDate: ed,
+          startingWeeklyMeters: startM,
+          eventDistanceMeters: eventM,
+          capMultiple: cap,
+          taperWeeks: taper,
+        });
+      } catch {
+        continue;
+      }
+      for (const t of rows) {
+        const ms = t.weekStartDate.getTime();
+        totals.set(ms, (totals.get(ms) ?? 0) + t.targetMeters);
+      }
+    }
+    if (totals.size === 0) return null;
+    const chartRows = [...totals.entries()]
+      .sort((a, b) => a[0] - b[0])
+      .map(([ms, target]) => ({ weekStartMs: ms, target, actual: null as number | null }));
+    return { rows: chartRows, startVol: chartRows[0]?.target ?? null };
+  }, [startDate, eventDate, weekStartDay, capMultiple, taperWeeks, values, enabled]);
 
   function validate(): Record<string, string> {
     const next: Record<string, string> = {};
@@ -481,6 +538,26 @@ export function PlanForm({
       </div>
       {errors.disciplines && (
         <p className="mt-2 mb-0 text-[12px] text-behind">{errors.disciplines}</p>
+      )}
+
+      {preview && (
+        <div className="mt-6 rounded-[14px] border border-border bg-card2 p-4">
+          <div className="mb-2.5 flex items-baseline justify-between">
+            <span className={labelClass}>Preview — total weekly volume</span>
+            <span className="font-mono text-[11.5px] text-faint">
+              {preview.rows.length} weeks
+              {Number(taperWeeks) > 0 ? " · tapers into race day" : ""}
+            </span>
+          </div>
+          <VolumeChart
+            rows={preview.rows}
+            currentIndex={-1}
+            color="var(--brand)"
+            unit="km"
+            startVol={preview.startVol}
+            labelOf={shortDate}
+          />
+        </div>
       )}
 
       {formError && <p className="mt-4 mb-0 text-[13.5px] text-behind">{formError}</p>}
