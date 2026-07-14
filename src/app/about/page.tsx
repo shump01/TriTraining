@@ -176,8 +176,11 @@ export default function AboutPage() {
         </div>
       </section>
 
-      <footer className="mx-auto max-w-[1000px] border-t border-border px-5 py-6 font-mono text-[12px] text-faint">
-        © 2026 TriTrainer
+      <footer className="mx-auto flex max-w-[1000px] items-center justify-between border-t border-border px-5 py-6 font-mono text-[12px] text-faint">
+        <span>© 2026 TriTrainer</span>
+        <Link href="/privacy" className="hover:text-text">
+          Privacy
+        </Link>
       </footer>
     </div>
   );
