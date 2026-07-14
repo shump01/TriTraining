@@ -58,6 +58,21 @@ const WEEKDAYS = [
   { value: "0", label: "Sunday" },
 ] as const;
 
+// Standard triathlon race distances — event distances in each sport's DISPLAY
+// unit (swim m, bike/run km), matching the form inputs.
+const RACE_PRESETS = [
+  { key: "sprint", label: "Sprint", event: { SWIM: "750", BIKE: "20", RUN: "5" } },
+  { key: "olympic", label: "Olympic", event: { SWIM: "1500", BIKE: "40", RUN: "10" } },
+  { key: "half", label: "Half (70.3)", event: { SWIM: "1900", BIKE: "90", RUN: "21.1" } },
+  { key: "full", label: "Full (Ironman)", event: { SWIM: "3800", BIKE: "180", RUN: "42.2" } },
+] as const;
+
+const PRIORITIES = [
+  { value: "A", label: "A — goal race" },
+  { value: "B", label: "B — secondary" },
+  { value: "C", label: "C — tune-up" },
+] as const;
+
 function minEventDate(): string {
   return new Date(Date.now() + ONE_WEEK_MS).toISOString().slice(0, 10);
 }
@@ -92,6 +107,8 @@ export function PlanForm({
   const [capMultiple, setCapMultiple] = useState(initial.capMultiple || "1.5");
   const [weekStartDay, setWeekStartDay] = useState(initial.weekStartDay || "1");
   const [taperWeeks, setTaperWeeks] = useState(initial.taperWeeks || "2");
+  const [priority, setPriority] = useState(initial.priority || "A");
+  const [preset, setPreset] = useState("");
   const [values, setValues] = useState<Record<DiscKey, Record<Field, string>>>(() => ({
     SWIM: { event: initial.disciplines.SWIM.event, start: initial.disciplines.SWIM.start },
     BIKE: { event: initial.disciplines.BIKE.event, start: initial.disciplines.BIKE.start },
@@ -156,6 +173,20 @@ export function PlanForm({
     if (field === "start" && autofilled[key]) {
       setAutofilled((prev) => ({ ...prev, [key]: false }));
     }
+  }
+
+  // A race preset fills the standard event distances and enables all sports;
+  // it never touches the (personal) starting weekly volumes.
+  function applyPreset(key: string) {
+    setPreset(key);
+    const p = RACE_PRESETS.find((x) => x.key === key);
+    if (!p) return;
+    setValues((prev) => ({
+      SWIM: { ...prev.SWIM, event: p.event.SWIM },
+      BIKE: { ...prev.BIKE, event: p.event.BIKE },
+      RUN: { ...prev.RUN, event: p.event.RUN },
+    }));
+    setEnabled({ SWIM: true, BIKE: true, RUN: true });
   }
 
   // Live preview of the generated weekly-volume curve (total across enabled
@@ -284,6 +315,7 @@ export function PlanForm({
           capMultiple: Number(capMultiple),
           weekStartDay: Number(weekStartDay),
           taperWeeks: Number(taperWeeks),
+          priority,
           disciplines,
         }),
       });
@@ -368,6 +400,25 @@ export function PlanForm({
           />
           {errors.name && <p className="mt-1 mb-0 text-[12px] text-behind">{errors.name}</p>}
         </div>
+        <div>
+          <label className={labelClass}>Race preset (optional)</label>
+          <select
+            value={preset}
+            onChange={(e) => applyPreset(e.target.value)}
+            className={`${inputClass} cursor-pointer`}
+          >
+            <option value="">Custom…</option>
+            {RACE_PRESETS.map((p) => (
+              <option key={p.key} value={p.key}>
+                {p.label}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 mb-0 text-[12px] text-faint">
+            Fills the standard swim/bike/run distances for a common race — tweak them below if
+            needed.
+          </p>
+        </div>
         <div className="grid gap-4 app:grid-cols-2">
           <div>
             <label className={labelClass}>Start date</label>
@@ -438,25 +489,44 @@ export function PlanForm({
             </p>
           </div>
         </div>
-        <div>
-          <label className={labelClass}>Race-week taper (weeks)</label>
-          <input
-            type="number"
-            min={0}
-            max={4}
-            step="1"
-            value={taperWeeks}
-            onChange={(e) => setTaperWeeks(e.target.value)}
-            className={`${inputClass} font-mono max-w-[140px]`}
-          />
-          {errors.taperWeeks ? (
-            <p className="mt-1 mb-0 text-[12px] text-behind">{errors.taperWeeks}</p>
-          ) : (
+        <div className="grid gap-4 app:grid-cols-2">
+          <div>
+            <label className={labelClass}>Race-week taper (weeks)</label>
+            <input
+              type="number"
+              min={0}
+              max={4}
+              step="1"
+              value={taperWeeks}
+              onChange={(e) => setTaperWeeks(e.target.value)}
+              className={`${inputClass} font-mono max-w-[140px]`}
+            />
+            {errors.taperWeeks ? (
+              <p className="mt-1 mb-0 text-[12px] text-behind">{errors.taperWeeks}</p>
+            ) : (
+              <p className="mt-1 mb-0 text-[12px] text-faint">
+                The final weeks ramp down from your peak into race day so you arrive fresh. 0 = no
+                taper.
+              </p>
+            )}
+          </div>
+          <div>
+            <label className={labelClass}>Season priority</label>
+            <select
+              value={priority}
+              onChange={(e) => setPriority(e.target.value)}
+              className={`${inputClass} cursor-pointer`}
+            >
+              {PRIORITIES.map((p) => (
+                <option key={p.value} value={p.value}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
             <p className="mt-1 mb-0 text-[12px] text-faint">
-              The final weeks ramp down from your peak into race day so you arrive fresh. 0 = no
-              taper.
+              How this race ranks in your season — shown on the season timeline.
             </p>
-          )}
+          </div>
         </div>
       </div>
 

@@ -3,14 +3,29 @@ import Link from "next/link";
 import { listTrainingPlansWithProgress } from "@/lib/training-plan";
 import { DISCIPLINE_META, STATUS_META, translucent, type StatusKey } from "@/lib/ui/theme";
 
+import { SeasonTimeline, type SeasonPlan } from "./season-timeline";
+
 export const dynamic = "force-dynamic";
 
 function eventLabel(date: Date): string {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
+function statusKeyOf(p: { summary: { started: boolean; status: StatusKey | null } }): StatusKey {
+  return p.summary.started ? (p.summary.status ?? "onTrack") : "upcoming";
+}
+
 export default async function PlansPage() {
   const plans = await listTrainingPlansWithProgress();
+
+  const seasonPlans: SeasonPlan[] = plans.map((p) => ({
+    id: p.id,
+    name: p.name,
+    startMs: p.startDateMs,
+    eventMs: p.eventDate.getTime(),
+    priority: p.priority,
+    color: STATUS_META[statusKeyOf(p)].color,
+  }));
 
   return (
     <div className="max-w-[980px]">
@@ -23,6 +38,8 @@ export default async function PlansPage() {
           + New plan
         </Link>
       </div>
+
+      <SeasonTimeline plans={seasonPlans} nowMs={new Date().getTime()} />
 
       {plans.length === 0 ? (
         <div className="rounded-[16px] border border-border bg-card p-8 text-center">
@@ -37,10 +54,7 @@ export default async function PlansPage() {
       ) : (
         <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
           {plans.map((p) => {
-            const statusKey: StatusKey = p.summary.started
-              ? (p.summary.status ?? "onTrack")
-              : "upcoming";
-            const status = STATUS_META[statusKey];
+            const status = STATUS_META[statusKeyOf(p)];
             const pct = p.summary.pctOfTarget ?? 0;
             return (
               <Link
@@ -55,9 +69,17 @@ export default async function PlansPage() {
                   >
                     {status.label}
                   </span>
-                  <span className="font-mono text-[12.5px] text-faint">
-                    {eventLabel(p.eventDate)}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="rounded-[6px] border border-border px-1.5 py-0.5 font-mono text-[10.5px] font-bold text-muted"
+                      title={`Priority ${p.priority}`}
+                    >
+                      {p.priority}
+                    </span>
+                    <span className="font-mono text-[12.5px] text-faint">
+                      {eventLabel(p.eventDate)}
+                    </span>
+                  </div>
                 </div>
                 <div className="mb-1 font-display text-[20px] font-extrabold tracking-[-0.02em]">
                   {p.name}

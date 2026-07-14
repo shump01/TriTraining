@@ -84,6 +84,9 @@ const taperWeeksSchema = z.coerce
   .max(4, "Must be at most 4 weeks")
   .default(2);
 
+// Season priority: A (goal race), B, or C (tune-up). Defaults to A when omitted.
+const prioritySchema = z.enum(["A", "B", "C"]).default("A");
+
 const disciplineMetricsSchema = z.object({
   eventDistanceMeters: metersSchema,
   startingWeeklyMeters: metersSchema,
@@ -105,6 +108,8 @@ export const createPlanSchema = z
     weekStartDay: weekStartDaySchema,
     // Optional: defaults to 2 taper weeks when omitted.
     taperWeeks: taperWeeksSchema,
+    // Optional: defaults to "A" when omitted.
+    priority: prioritySchema,
     // Each sport is optional, but at least one must be included (e.g. a
     // run-only plan omits SWIM and BIKE).
     disciplines: z

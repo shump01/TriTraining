@@ -44,6 +44,7 @@ export default async function EditPlanPage({ params }: { params: Promise<{ id: s
     capMultiple: String(plan.capMultiple),
     weekStartDay: String(plan.weekStartDay),
     taperWeeks: String(plan.taperWeeks),
+    priority: plan.priority,
     disciplines: {
       SWIM: disc("SWIM", 1),
       BIKE: disc("BIKE", 1000),

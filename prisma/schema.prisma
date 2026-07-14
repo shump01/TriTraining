@@ -167,6 +167,9 @@ model TrainingPlan {
   // Race-week taper: the final N weeks ramp down from the peak into race day
   // (see computeWeeklyTargets). 0 = no taper (peak on the event week). Default 2.
   taperWeeks     Int       @default(2)
+  // Season priority: "A" (goal race), "B", or "C" (tune-up). Drives the season
+  // timeline's emphasis. Default "A".
+  priority       String    @default("A")
   // Day every training week begins on: 0=Sun..6=Sat. Defaults to Monday (1),
   // which matches the Monday-aligned data of plans created before this column.
   weekStartDay   Int       @default(1)

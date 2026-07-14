@@ -16,6 +16,7 @@ export interface PlanFormValues {
   capMultiple: string; // e.g. "1.5" — weekly volume never exceeds this × event distance
   weekStartDay: string; // "0"=Sun..."6"=Sat — the day training weeks begin on
   taperWeeks: string; // "0"–"4" — final weeks that ramp down into race day
+  priority: string; // "A" | "B" | "C" — season priority
   disciplines: Record<DiscKey, { enabled: boolean; event: string; start: string }>;
 }
 
@@ -28,6 +29,7 @@ export function emptyPlanFormValues(): PlanFormValues {
     capMultiple: "1.5",
     weekStartDay: "1", // Monday
     taperWeeks: "2",
+    priority: "A",
     disciplines: {
       SWIM: { enabled: true, event: "", start: "" },
       BIKE: { enabled: true, event: "", start: "" },

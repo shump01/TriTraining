@@ -169,6 +169,8 @@ export interface PlanWithProgress {
   summary: ProgressSummary;
   weeksToGo: number;
   disciplines: DisciplineKey[];
+  /** Season priority: "A" (goal race), "B", or "C" (tune-up). */
+  priority: string;
 }
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
@@ -194,6 +196,7 @@ export async function listTrainingPlansWithProgress(): Promise<PlanWithProgress[
       summary,
       weeksToGo,
       disciplines,
+      priority: p.priority,
     };
   });
 }
@@ -241,6 +244,7 @@ export async function createTrainingPlanWithDisciplines(input: CreatePlanInput) 
         capMultiple: input.capMultiple,
         weekStartDay: input.weekStartDay,
         taperWeeks: input.taperWeeks,
+        priority: input.priority,
       },
     });
 
@@ -309,6 +313,7 @@ export async function updateTrainingPlan(planId: string, input: CreatePlanInput)
         capMultiple: input.capMultiple,
         weekStartDay: input.weekStartDay,
         taperWeeks: input.taperWeeks,
+        priority: input.priority,
         // A full edit regenerates targets, so the previous weekly recompute no
         // longer applies — let the next on-day view recalculate afresh.
         lastRecalcWeek: null,
