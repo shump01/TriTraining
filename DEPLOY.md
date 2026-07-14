@@ -65,19 +65,20 @@ with a clear message. Set these on the server (a `.env` in the working directory
 by `server.js`; or use the host's environment-variable settings). See
 [`.env.example`](.env.example).
 
-| Variable                                    | Notes                                                                                                       |
-| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`                              | Postgres connection (Supabase pooler)                                                                       |
-| `DIRECT_URL`                                | Direct (non-pooled) connection — used by `migrate deploy`                                                   |
-| `AUTH_SECRET`                               | `openssl rand -base64 32`                                                                                   |
-| `NEXTAUTH_URL`                              | `https://training.richysdev.co.uk`                                                                          |
-| `ENCRYPTION_KEY`                            | base64 32 bytes. **Must be the same key** that encrypted existing Strava tokens, or they can't be decrypted |
-| `STRAVA_CLIENT_ID` / `STRAVA_CLIENT_SECRET` | from the Strava API application                                                                             |
-| `STRAVA_WEBHOOK_VERIFY_TOKEN`               | only if using Strava webhooks                                                                               |
-| `SMTP_HOST` / `SMTP_PORT`                   | mail server for password-reset emails (port 587 STARTTLS). Optional — reset emails are skipped if unset     |
-| `SMTP_USER` / `SMTP_PASS`                   | mailbox credentials. On Hetzner, create a mailbox (e.g. `noreply@richysdev.co.uk`) in KonsoleH              |
-| `MAIL_FROM`                                 | from address, e.g. `TriTrainer <noreply@richysdev.co.uk>`                                                   |
-| `NODE_ENV`                                  | `production` (set the host's "Application mode" to production)                                              |
+| Variable                                    | Notes                                                                                                                                                                                  |
+| ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                              | Postgres connection (Supabase pooler)                                                                                                                                                  |
+| `DIRECT_URL`                                | Direct (non-pooled) connection — used by `migrate deploy`                                                                                                                              |
+| `AUTH_SECRET`                               | `openssl rand -base64 32`                                                                                                                                                              |
+| `NEXTAUTH_URL`                              | `https://training.richysdev.co.uk`                                                                                                                                                     |
+| `ENCRYPTION_KEY`                            | base64 32 bytes. **Must be the same key** that encrypted existing Strava tokens, or they can't be decrypted                                                                            |
+| `STRAVA_CLIENT_ID` / `STRAVA_CLIENT_SECRET` | from the Strava API application                                                                                                                                                        |
+| `STRAVA_WEBHOOK_VERIFY_TOKEN`               | only if using Strava webhooks                                                                                                                                                          |
+| `SMTP_HOST` / `SMTP_PORT`                   | mail server for password-reset emails (port 587 STARTTLS). Optional — reset emails are skipped if unset                                                                                |
+| `SMTP_USER` / `SMTP_PASS`                   | mailbox credentials. On Hetzner, create a mailbox (e.g. `noreply@richysdev.co.uk`) in KonsoleH                                                                                         |
+| `MAIL_FROM`                                 | from address, e.g. `TriTrainer <noreply@richysdev.co.uk>`                                                                                                                              |
+| `TRUSTED_PROXY_COUNT`                       | number of reverse proxies that append to `X-Forwarded-For`. Set to `1` behind Passenger/nginx so rate-limit IPs can't be spoofed. Default `0` (throttles fall back to a shared bucket) |
+| `NODE_ENV`                                  | `production` (set the host's "Application mode" to production)                                                                                                                         |
 
 ---
 

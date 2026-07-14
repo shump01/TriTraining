@@ -38,6 +38,12 @@ const envSchema = z.object({
   SMTP_PASS: z.string().optional(),
   // "From" address for outbound mail, e.g. "TriTrainer <noreply@richysdev.co.uk>".
   MAIL_FROM: z.string().optional(),
+  // Number of trusted reverse proxies in front of the app that APPEND to
+  // X-Forwarded-For. Used to pick the real client IP from the correct hop for
+  // rate limiting (see src/lib/security.ts). Default 0 = don't trust XFF at all
+  // (safe: everyone shares a bucket). Set to 1 for a standard single reverse
+  // proxy (e.g. Hetzner/Passenger, nginx); raise it only if you add more hops.
+  TRUSTED_PROXY_COUNT: z.coerce.number().int().nonnegative().default(0),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
 });
 

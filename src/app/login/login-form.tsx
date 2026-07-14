@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
 
+import { safeCallbackPath } from "@/lib/safe-redirect";
+
 const inputClass =
   "w-full rounded-[11px] border border-border bg-input px-[14px] py-[13px] text-[15px] text-text outline-none focus:border-brand";
 const labelClass = "mb-[7px] block text-[13px] font-semibold text-muted";
@@ -25,7 +27,8 @@ export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
       });
 
       if (res.ok) {
-        window.location.href = callbackUrl || "/dashboard";
+        // Never trust the raw callbackUrl — only same-origin relative paths.
+        window.location.href = safeCallbackPath(callbackUrl);
         return;
       }
 

@@ -1,17 +1,38 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+import { env } from "@/env";
 import { rateLimit } from "@/lib/rate-limit";
 
 /**
- * Best-effort client IP for rate limiting. Reads `x-forwarded-for` (first hop)
- * then `x-real-ip`. Only trustworthy behind a proxy that sets these headers;
- * configure your proxy accordingly in production.
+ * Client IP for rate limiting, resistant to `X-Forwarded-For` spoofing.
+ *
+ * XFF is a client-controllable, comma-separated list; each proxy the request
+ * passes through APPENDS the address it saw. So the only trustworthy entry is
+ * the one added by the outermost proxy WE control — `TRUSTED_PROXY_COUNT` hops
+ * from the right. Everything to the left of that is attacker-supplied and must
+ * be ignored, otherwise an attacker rotates a fake leftmost IP per request to
+ * mint a fresh rate-limit bucket each time (defeating brute-force throttles).
+ *
+ * With `TRUSTED_PROXY_COUNT = 0` (default) we don't trust XFF at all and fall
+ * back to `x-real-ip` / a constant — the fail-safe (over-throttle, never
+ * under-throttle). Production must set it to match the real proxy depth.
  */
 export function getClientIp(req: NextRequest): string {
-  const forwarded = req.headers.get("x-forwarded-for");
-  if (forwarded) {
-    const first = forwarded.split(",")[0]?.trim();
-    if (first) return first;
+  const trusted = env.TRUSTED_PROXY_COUNT;
+  if (trusted > 0) {
+    const forwarded = req.headers.get("x-forwarded-for");
+    if (forwarded) {
+      const parts = forwarded
+        .split(",")
+        .map((p) => p.trim())
+        .filter(Boolean);
+      if (parts.length > 0) {
+        // Count `trusted` hops back from the right; clamp so an over-large
+        // config or a short (spoofed) header can't index out of bounds.
+        const ip = parts[Math.max(0, parts.length - trusted)];
+        if (ip) return ip;
+      }
+    }
   }
   return req.headers.get("x-real-ip")?.trim() || "127.0.0.1";
 }

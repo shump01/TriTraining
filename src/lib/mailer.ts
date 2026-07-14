@@ -20,8 +20,13 @@ function getTransport(): nodemailer.Transporter {
   transport ??= nodemailer.createTransport({
     host: env.SMTP_HOST,
     port: env.SMTP_PORT,
-    // STARTTLS on 587 (Hetzner default); implicit TLS when using 465.
+    // Implicit TLS on 465; STARTTLS otherwise (Hetzner default on 587).
     secure: env.SMTP_PORT === 465,
+    // Never transmit the reset link / credentials in cleartext: require a
+    // successful STARTTLS upgrade (fail the send rather than fall back to
+    // plaintext) and refuse anything below TLS 1.2.
+    requireTLS: true,
+    tls: { minVersion: "TLSv1.2" },
     auth: { user: env.SMTP_USER, pass: env.SMTP_PASS },
   });
   return transport;
