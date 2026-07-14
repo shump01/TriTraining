@@ -85,6 +85,7 @@ export function PlanForm({
   const [startDate, setStartDate] = useState(initial.startDate || todayIso());
   const [capMultiple, setCapMultiple] = useState(initial.capMultiple || "1.5");
   const [weekStartDay, setWeekStartDay] = useState(initial.weekStartDay || "1");
+  const [taperWeeks, setTaperWeeks] = useState(initial.taperWeeks || "2");
   const [values, setValues] = useState<Record<DiscKey, Record<Field, string>>>(() => ({
     SWIM: { event: initial.disciplines.SWIM.event, start: initial.disciplines.SWIM.start },
     BIKE: { event: initial.disciplines.BIKE.event, start: initial.disciplines.BIKE.start },
@@ -175,6 +176,12 @@ export function PlanForm({
       const n = Number(capMultiple);
       if (!(n >= 1 && n <= 5)) next.capMultiple = "Must be between 1× and 5×";
     }
+    if (taperWeeks.trim() === "") {
+      next.taperWeeks = "Required";
+    } else {
+      const n = Number(taperWeeks);
+      if (!Number.isInteger(n) || n < 0 || n > 4) next.taperWeeks = "Must be 0–4 weeks";
+    }
     if (!DISC.some((d) => enabled[d.key])) {
       next.disciplines = "Select at least one sport";
     }
@@ -219,6 +226,7 @@ export function PlanForm({
           startDate,
           capMultiple: Number(capMultiple),
           weekStartDay: Number(weekStartDay),
+          taperWeeks: Number(taperWeeks),
           disciplines,
         }),
       });
@@ -372,6 +380,26 @@ export function PlanForm({
               Each week rolls over on this day, re-planning ahead from your actual training.
             </p>
           </div>
+        </div>
+        <div>
+          <label className={labelClass}>Race-week taper (weeks)</label>
+          <input
+            type="number"
+            min={0}
+            max={4}
+            step="1"
+            value={taperWeeks}
+            onChange={(e) => setTaperWeeks(e.target.value)}
+            className={`${inputClass} font-mono max-w-[140px]`}
+          />
+          {errors.taperWeeks ? (
+            <p className="mt-1 mb-0 text-[12px] text-behind">{errors.taperWeeks}</p>
+          ) : (
+            <p className="mt-1 mb-0 text-[12px] text-faint">
+              The final weeks ramp down from your peak into race day so you arrive fresh. 0 = no
+              taper.
+            </p>
+          )}
         </div>
       </div>
 

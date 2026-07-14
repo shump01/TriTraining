@@ -21,6 +21,16 @@ export const CAP_MULTIPLE = 1.5;
  */
 export const BLOCK_WEEKS = 4;
 
+/**
+ * Race-week volume as a fraction of the peak, at the bottom of the taper. The
+ * final taper week (race week) lands here; earlier taper weeks interpolate up
+ * toward the peak. 0.5 = race week at half the peak volume.
+ */
+export const TAPER_FLOOR = 0.5;
+
+/** Default number of taper weeks for a plan (the schema/validation default). */
+export const DEFAULT_TAPER_WEEKS = 2;
+
 const MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000;
 
 export interface WeeklyTargetInput {
@@ -37,6 +47,13 @@ export interface WeeklyTargetInput {
    * eventDistanceMeters`. Must be positive. Defaults to `CAP_MULTIPLE` (1.5).
    */
   capMultiple?: number;
+  /**
+   * Number of race-week taper weeks: the final N weeks ramp DOWN from the peak
+   * into race day (so the athlete arrives fresh) instead of building. Defaults
+   * to 0 (no taper — the volume peaks on the event week). Clamped so a plan
+   * always keeps at least two build weeks.
+   */
+  taperWeeks?: number;
 }
 
 export interface WeeklyTarget {
@@ -129,6 +146,11 @@ export function planStartWeek(plan: {
  *   get smaller weekly increases — slower progression where possible.
  * - That even rate is capped at 12%. For plans too short to reach the cap within
  *   12%/week build steps, the ramp simply uses the full 12%.
+ * - **Taper:** with `taperWeeks > 0`, the volume peaks `taperWeeks` weeks before
+ *   the event and the final weeks ramp down to `TAPER_FLOOR × peak` at race week,
+ *   so the athlete arrives fresh. De-loads don't apply in the taper. `taperWeeks`
+ *   is clamped to keep at least two build weeks. Default 0 keeps the peak on the
+ *   event week (the pre-taper behavior).
  * - All targets are whole meters (rounded down).
  *
  * Growth is applied to the previous week's *integer* target, so the week-over-
@@ -144,6 +166,7 @@ export function computeWeeklyTargets({
   startingWeeklyMeters,
   eventDistanceMeters,
   capMultiple = CAP_MULTIPLE,
+  taperWeeks = 0,
 }: WeeklyTargetInput): WeeklyTarget[] {
   if (!(startDate instanceof Date) || Number.isNaN(startDate.getTime())) {
     throw new RangeError("startDate must be a valid Date");
@@ -173,14 +196,22 @@ export function computeWeeklyTargets({
   const cap = capMultiple * eventDistanceMeters;
   const clampedStart = Math.min(startingWeeklyMeters, cap);
 
+  // The final `effectiveTaper` weeks ramp DOWN into race day instead of building.
+  // Clamp so a plan always keeps at least two build weeks (a start week + a
+  // peak); short plans automatically get less (or no) taper. A negative or
+  // fractional request is floored/clamped here rather than throwing.
+  const effectiveTaper = Math.max(0, Math.min(Math.floor(taperWeeks), weekCount - 2));
+  // Index of the last BUILD week — the volume peak. Taper weeks (if any) follow.
+  const peakIndex = weekCount - 1 - effectiveTaper;
+
   const isDeloadWeek = (week: number) => week % BLOCK_WEEKS === BLOCK_WEEKS - 1;
 
-  // Each week reaches a "growth exponent" — the number of build steps applied so
-  // far. De-load weeks reset to their block's 2nd week, so they don't advance
-  // the exponent; the highest exponent is reached at the final peak.
+  // Each build week reaches a "growth exponent" — the number of build steps
+  // applied so far. De-load weeks reset to their block's 2nd week, so they don't
+  // advance the exponent; the highest exponent is reached at the peak (peakIndex).
   let maxExponent = 0;
   const exponents: number[] = [0];
-  for (let week = 1; week < weekCount; week++) {
+  for (let week = 1; week <= peakIndex; week++) {
     const exponent = isDeloadWeek(week) ? exponents[week - 2]! : exponents[week - 1]! + 1;
     exponents.push(exponent);
     if (exponent > maxExponent) maxExponent = exponent;
@@ -199,10 +230,22 @@ export function computeWeeklyTargets({
   const values: number[] = [Math.floor(clampedStart)];
   const targets: WeeklyTarget[] = [{ weekStartDate: new Date(startMs), targetMeters: values[0]! }];
 
-  for (let week = 1; week < weekCount; week++) {
+  // Build weeks 1..peakIndex — the existing even ramp with de-load steps.
+  for (let week = 1; week <= peakIndex; week++) {
     const value = isDeloadWeek(week)
       ? values[week - 2]! // de-load: back to this block's 2nd week
       : Math.floor(Math.min(values[week - 1]! * (1 + growthRate), cap));
+    values.push(value);
+    targets.push({ weekStartDate: new Date(startMs + week * MS_PER_WEEK), targetMeters: value });
+  }
+
+  // Taper weeks (peakIndex+1 .. weekCount-1): ramp down evenly from the peak
+  // volume to `TAPER_FLOOR × peak` at race week. De-loads don't apply here.
+  const peakValue = Math.max(...values);
+  for (let t = 1; t <= effectiveTaper; t++) {
+    const week = peakIndex + t;
+    const factor = 1 - (1 - TAPER_FLOOR) * (t / effectiveTaper);
+    const value = Math.floor(peakValue * factor);
     values.push(value);
     targets.push({ weekStartDate: new Date(startMs + week * MS_PER_WEEK), targetMeters: value });
   }
@@ -250,6 +293,8 @@ export function computeAdaptedFutureTargets(args: {
   currentWeekStart: Date;
   eventDate: Date;
   capMultiple: number;
+  /** Taper weeks; the re-ramp ends at `eventDate` so the taper stays on race week. */
+  taperWeeks?: number;
 }): AdaptedTargetRow[] {
   const currentMs = args.currentWeekStart.getTime();
   const rows: AdaptedTargetRow[] = [];
@@ -269,6 +314,7 @@ export function computeAdaptedFutureTargets(args: {
       startingWeeklyMeters: baseline,
       eventDistanceMeters: d.eventDistanceMeters,
       capMultiple: args.capMultiple,
+      taperWeeks: args.taperWeeks,
     });
 
     for (const t of targets) {

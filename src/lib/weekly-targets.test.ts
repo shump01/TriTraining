@@ -4,6 +4,7 @@ import {
   BLOCK_WEEKS,
   CAP_MULTIPLE,
   MAX_WEEKLY_INCREASE,
+  TAPER_FLOOR,
   computeAdaptedFutureTargets,
   computeWeeklyTargets,
   firstWeekStartOnOrAfter,
@@ -406,6 +407,87 @@ describe("computeWeeklyTargets — configurable capMultiple", () => {
   });
 });
 
+describe("computeWeeklyTargets — race-week taper", () => {
+  it("defaults to no taper (omitting taperWeeks == taperWeeks: 0)", () => {
+    const omitted = computeWeeklyTargets(baseInput({ eventDate: mondayPlusWeeks(15) }));
+    const zero = computeWeeklyTargets(baseInput({ eventDate: mondayPlusWeeks(15), taperWeeks: 0 }));
+    expect(zero.map((t) => t.targetMeters)).toEqual(omitted.map((t) => t.targetMeters));
+  });
+
+  it("moves the peak earlier and ramps the final weeks down to the floor", () => {
+    // 12 weeks, 2-week taper => peak at index 9 (not a de-load week), taper at 10 & 11.
+    const result = computeWeeklyTargets({
+      startDate: MONDAY,
+      eventDate: mondayPlusWeeks(11),
+      startingWeeklyMeters: 5_000,
+      eventDistanceMeters: 10_000, // cap = 15,000
+      taperWeeks: 2,
+    });
+    expect(result).toHaveLength(12);
+
+    const peak = Math.max(...result.map((t) => t.targetMeters));
+    // The peak lands on the last BUILD week (index 9), before the taper.
+    expect(result[9]!.targetMeters).toBe(peak);
+    // Taper weeks step down: ~75% then ~50% (the floor) of the peak.
+    expect(result[10]!.targetMeters).toBe(Math.floor(peak * 0.75));
+    expect(result[11]!.targetMeters).toBe(Math.floor(peak * TAPER_FLOOR));
+    expect(result[11]!.targetMeters).toBeLessThan(result[10]!.targetMeters);
+    expect(result[10]!.targetMeters).toBeLessThan(peak);
+  });
+
+  it("keeps a single-week taper's race week at the floor", () => {
+    // 3 weeks, taperWeeks 2 clamps to 1 (needs >=2 build weeks): peak at index 1, taper at 2.
+    const result = computeWeeklyTargets({
+      startDate: MONDAY,
+      eventDate: mondayPlusWeeks(2),
+      startingWeeklyMeters: 10_000,
+      eventDistanceMeters: 1_000_000, // cap far above, so weeks just build
+      taperWeeks: 2,
+    });
+    expect(result).toHaveLength(3);
+    const peak = Math.max(...result.map((t) => t.targetMeters));
+    expect(result[1]!.targetMeters).toBe(peak);
+    expect(result[2]!.targetMeters).toBe(Math.floor(peak * TAPER_FLOOR));
+  });
+
+  it("clamps away the taper on plans too short to keep two build weeks", () => {
+    // 2 weeks: effectiveTaper clamps to 0 — identical to no taper.
+    const tapered = computeWeeklyTargets({
+      startDate: MONDAY,
+      eventDate: mondayPlusWeeks(1),
+      startingWeeklyMeters: 10_000,
+      eventDistanceMeters: 1_000_000,
+      taperWeeks: 2,
+    });
+    const none = computeWeeklyTargets({
+      startDate: MONDAY,
+      eventDate: mondayPlusWeeks(1),
+      startingWeeklyMeters: 10_000,
+      eventDistanceMeters: 1_000_000,
+      taperWeeks: 0,
+    });
+    expect(tapered.map((t) => t.targetMeters)).toEqual(none.map((t) => t.targetMeters));
+    expect(tapered).toHaveLength(2);
+  });
+
+  it("still respects the 12% build ceiling and the cap with a taper", () => {
+    const eventDistanceMeters = 10_000;
+    const cap = CAP_MULTIPLE * eventDistanceMeters;
+    const result = computeWeeklyTargets({
+      startDate: MONDAY,
+      eventDate: mondayPlusWeeks(25),
+      startingWeeklyMeters: 4_000,
+      eventDistanceMeters,
+      taperWeeks: 3,
+    });
+    for (const t of result) expect(t.targetMeters).toBeLessThanOrEqual(cap);
+    // The last 3 weeks strictly descend into race day.
+    const tail = result.slice(-3).map((t) => t.targetMeters);
+    expect(tail[0]!).toBeGreaterThan(tail[1]!);
+    expect(tail[1]!).toBeGreaterThan(tail[2]!);
+  });
+});
+
 describe("computeAdaptedFutureTargets", () => {
   // Completed week at +2, current week at +3 (event far off so the cap never bites).
   const lastCompletedWeekStart = mondayPlusWeeks(2);
@@ -521,5 +603,25 @@ describe("computeAdaptedFutureTargets", () => {
     for (const r of rows.filter((r) => r.discipline === "SWIM")) {
       expect(r.targetMeters).toBeLessThanOrEqual(1.5 * 4_000);
     }
+  });
+
+  it("carries the taper through the re-ramp (race week ends below the peak)", () => {
+    const rows = computeAdaptedFutureTargets({
+      ...common,
+      taperWeeks: 2,
+      disciplines: [
+        {
+          discipline: "RUN",
+          eventDistanceMeters: 100_000,
+          lastCompletedActual: 10_000,
+          lastCompletedTarget: 9_000,
+        },
+      ],
+    });
+    const vals = rows.map((r) => r.targetMeters);
+    const peak = Math.max(...vals);
+    // The re-ramp still tapers into race day: the last week is well under the peak.
+    expect(vals.at(-1)!).toBeLessThan(peak);
+    expect(vals.at(-1)!).toBeLessThanOrEqual(peak * 0.6);
   });
 });

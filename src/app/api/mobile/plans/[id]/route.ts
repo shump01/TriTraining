@@ -36,6 +36,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
           name: plan.name,
           weekStartDay: plan.weekStartDay,
           capMultiple: plan.capMultiple,
+          taperWeeks: plan.taperWeeks,
           eventDateMs: plan.eventDate.getTime(),
           startDateMs: planStartWeek(plan).getTime(),
           currentWeekMs: startOfWeek(now, plan.weekStartDay).getTime(),

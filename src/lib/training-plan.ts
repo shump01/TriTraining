@@ -64,6 +64,7 @@ function buildWeeklyTargetRows(args: {
   startDate: Date;
   eventDate: Date;
   capMultiple: number;
+  taperWeeks: number;
   disciplines: DisciplineVolumes[];
 }) {
   return args.disciplines.flatMap((d) =>
@@ -73,6 +74,7 @@ function buildWeeklyTargetRows(args: {
       startingWeeklyMeters: d.startingWeeklyMeters,
       eventDistanceMeters: d.eventDistanceMeters,
       capMultiple: args.capMultiple,
+      taperWeeks: args.taperWeeks,
     }).map((t) => ({
       planId: args.planId,
       discipline: d.discipline,
@@ -238,6 +240,7 @@ export async function createTrainingPlanWithDisciplines(input: CreatePlanInput) 
         startDate: startWeek,
         capMultiple: input.capMultiple,
         weekStartDay: input.weekStartDay,
+        taperWeeks: input.taperWeeks,
       },
     });
 
@@ -260,6 +263,7 @@ export async function createTrainingPlanWithDisciplines(input: CreatePlanInput) 
         startDate: startWeek,
         eventDate: plan.eventDate,
         capMultiple: input.capMultiple,
+        taperWeeks: input.taperWeeks,
         disciplines,
       }),
     });
@@ -304,6 +308,7 @@ export async function updateTrainingPlan(planId: string, input: CreatePlanInput)
         startDate: startWeek,
         capMultiple: input.capMultiple,
         weekStartDay: input.weekStartDay,
+        taperWeeks: input.taperWeeks,
         // A full edit regenerates targets, so the previous weekly recompute no
         // longer applies — let the next on-day view recalculate afresh.
         lastRecalcWeek: null,
@@ -398,6 +403,7 @@ export async function updateTrainingPlan(planId: string, input: CreatePlanInput)
         startDate: startWeek,
         eventDate: input.eventDate,
         capMultiple: input.capMultiple,
+        taperWeeks: input.taperWeeks,
         disciplines,
       }),
     });
@@ -444,6 +450,7 @@ export async function maybeRecalculatePlan(planId: string): Promise<boolean> {
       eventDate: true,
       weekStartDay: true,
       capMultiple: true,
+      taperWeeks: true,
       lastRecalcWeek: true,
       disciplines: { select: { discipline: true, eventDistanceMeters: true } },
       weeklyTargets: { select: { discipline: true, weekStartDate: true, targetMeters: true } },
@@ -495,6 +502,7 @@ export async function maybeRecalculatePlan(planId: string): Promise<boolean> {
     currentWeekStart,
     eventDate: plan.eventDate,
     capMultiple: plan.capMultiple,
+    taperWeeks: plan.taperWeeks,
   });
 
   // Only replace future targets for disciplines that produced a fresh ramp.

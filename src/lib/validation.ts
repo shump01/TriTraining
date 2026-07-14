@@ -75,6 +75,15 @@ const weekStartDaySchema = z.coerce
   .max(6, "Invalid day")
   .default(1);
 
+// Race-week taper length: the final N weeks ramp down into race day (see
+// computeWeeklyTargets). 0 = no taper. Defaults to 2 when omitted.
+const taperWeeksSchema = z.coerce
+  .number({ message: "Enter a number" })
+  .int("Must be a whole number of weeks")
+  .min(0, "Must be 0 or more")
+  .max(4, "Must be at most 4 weeks")
+  .default(2);
+
 const disciplineMetricsSchema = z.object({
   eventDistanceMeters: metersSchema,
   startingWeeklyMeters: metersSchema,
@@ -94,6 +103,8 @@ export const createPlanSchema = z
     capMultiple: capMultipleSchema,
     // Optional: defaults to Monday (1) when omitted.
     weekStartDay: weekStartDaySchema,
+    // Optional: defaults to 2 taper weeks when omitted.
+    taperWeeks: taperWeeksSchema,
     // Each sport is optional, but at least one must be included (e.g. a
     // run-only plan omits SWIM and BIKE).
     disciplines: z
