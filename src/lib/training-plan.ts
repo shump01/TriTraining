@@ -162,6 +162,8 @@ export interface PlanWithProgress {
   id: string;
   name: string;
   eventDate: Date;
+  /** Start of week 1 (ms) — the app's Apple Health sync queries from here. */
+  startDateMs: number;
   summary: ProgressSummary;
   weeksToGo: number;
   disciplines: DisciplineKey[];
@@ -182,7 +184,15 @@ export async function listTrainingPlansWithProgress(): Promise<PlanWithProgress[
     const { total, disciplines } = buildPlanProgressInputs(p);
     const { summary } = computeProgress(total, now);
     const weeksToGo = Math.max(0, Math.ceil((p.eventDate.getTime() - now.getTime()) / WEEK_MS));
-    return { id: p.id, name: p.name, eventDate: p.eventDate, summary, weeksToGo, disciplines };
+    return {
+      id: p.id,
+      name: p.name,
+      eventDate: p.eventDate,
+      startDateMs: planStartWeek(p).getTime(),
+      summary,
+      weeksToGo,
+      disciplines,
+    };
   });
 }
 

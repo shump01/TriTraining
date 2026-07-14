@@ -27,13 +27,18 @@
     "dotenv": "^17.4.2",
     "next": "^16.2.9",
     "next-auth": "^5.0.0-beta.31",
+    "nodemailer": "^9.0.3",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "zod": "^4.4.3"
   },
+  "overrides": {
+    "nodemailer": "^9.0.3"
+  },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.1",
     "@types/node": "^26.0.0",
+    "@types/nodemailer": "^8.0.1",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "eslint": "^9.39.4",

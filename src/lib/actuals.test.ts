@@ -70,3 +70,49 @@ describe("resolveEffectiveActuals — MANUAL overrides STRAVA", () => {
     });
   });
 });
+
+describe("resolveEffectiveActuals — APPLE_HEALTH precedence", () => {
+  it("uses APPLE_HEALTH when it is the only source", () => {
+    const rows: ActualRow[] = [
+      { discipline: "RUN", weekStartDate: WEEK, actualMeters: 12000, source: "APPLE_HEALTH" },
+    ];
+    expect(resolveEffectiveActuals(rows).get(key("RUN", WEEK))).toEqual({
+      meters: 12000,
+      source: "APPLE_HEALTH",
+    });
+  });
+
+  it("prefers STRAVA over APPLE_HEALTH regardless of input order", () => {
+    const healthFirst: ActualRow[] = [
+      { discipline: "BIKE", weekStartDate: WEEK, actualMeters: 61000, source: "APPLE_HEALTH" },
+      { discipline: "BIKE", weekStartDate: WEEK, actualMeters: 60000, source: "STRAVA" },
+    ];
+    const stravaFirst: ActualRow[] = [...healthFirst].reverse();
+    for (const rows of [healthFirst, stravaFirst]) {
+      expect(resolveEffectiveActuals(rows).get(key("BIKE", WEEK))).toEqual({
+        meters: 60000,
+        source: "STRAVA",
+      });
+    }
+  });
+
+  it("prefers MANUAL over both auto sources", () => {
+    const rows: ActualRow[] = [
+      { discipline: "SWIM", weekStartDate: WEEK, actualMeters: 3000, source: "APPLE_HEALTH" },
+      { discipline: "SWIM", weekStartDate: WEEK, actualMeters: 3100, source: "STRAVA" },
+      { discipline: "SWIM", weekStartDate: WEEK, actualMeters: 2500, source: "MANUAL" },
+    ];
+    expect(resolveEffectiveActuals(rows).get(key("SWIM", WEEK))).toEqual({
+      meters: 2500,
+      source: "MANUAL",
+    });
+  });
+
+  it("never sums sources for the same week", () => {
+    const rows: ActualRow[] = [
+      { discipline: "RUN", weekStartDate: WEEK, actualMeters: 10000, source: "APPLE_HEALTH" },
+      { discipline: "RUN", weekStartDate: WEEK, actualMeters: 10000, source: "STRAVA" },
+    ];
+    expect(resolveEffectiveActuals(rows).get(key("RUN", WEEK))?.meters).toBe(10000);
+  });
+});

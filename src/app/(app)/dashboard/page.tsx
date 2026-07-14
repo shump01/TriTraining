@@ -169,7 +169,12 @@ export default async function DashboardPage() {
                     {DISCIPLINE_META[d].label} · week of {shortDate(a.weekStartDate)}
                   </div>
                   <div className="text-[12.5px] text-faint">
-                    {a.plan.name} · {a.source === "MANUAL" ? "manual entry" : "Strava"}
+                    {a.plan.name} ·{" "}
+                    {a.source === "MANUAL"
+                      ? "manual entry"
+                      : a.source === "APPLE_HEALTH"
+                        ? "Apple Health"
+                        : "Strava"}
                   </div>
                 </div>
                 <div className="font-display text-[16px] font-extrabold">

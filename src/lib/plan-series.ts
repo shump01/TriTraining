@@ -1,4 +1,9 @@
-import { effectiveActualKey, resolveEffectiveActuals, type ActualRow } from "@/lib/actuals";
+import {
+  effectiveActualKey,
+  resolveEffectiveActuals,
+  type ActualRow,
+  type ActualSource,
+} from "@/lib/actuals";
 import { buildPlanProgressInputs } from "@/lib/plan-progress";
 import { computeProgress, type ProgressWeekInput } from "@/lib/progress";
 
@@ -21,7 +26,7 @@ export interface WeekRow {
   cumulativeActual: number;
   cumulativeTarget: number;
   manualMeters: number | null;
-  effectiveSource: "MANUAL" | "STRAVA" | null;
+  effectiveSource: ActualSource | null;
 }
 
 export interface SeriesData {

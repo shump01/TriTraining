@@ -85,7 +85,9 @@ export async function GET(req: NextRequest) {
       {
         user: { email: user?.email ?? null },
         activePlan,
-        strava: strava ? { connected: true, lastSyncedAt: strava.lastSyncedAt } : { connected: false, lastSyncedAt: null },
+        strava: strava
+          ? { connected: true, lastSyncedAt: strava.lastSyncedAt }
+          : { connected: false, lastSyncedAt: null },
         recentActuals: recent.map((a) => ({
           discipline: a.discipline,
           weekStartDate: a.weekStartDate,

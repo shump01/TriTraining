@@ -20,12 +20,12 @@ exactly as it is**. The only server work is a thin, additive API surface the app
 
 ## 2. Hard constraints
 
-| Stays as-is | Notes |
-| --- | --- |
-| Next.js server + Passenger hosting | The app is a pure API client of `https://training.richysdev.co.uk` |
-| Prisma schema & Supabase DB | One additive migration only (Apple Health enum value, §4.4) |
-| Auth.js database sessions | Mobile reuses the **same `Session` table rows** as bearer tokens |
-| All existing routes & pages | Website is untouched; mobile endpoints are new, additive routes |
+| Stays as-is                                                                       | Notes                                                                 |
+| --------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| Next.js server + Passenger hosting                                                | The app is a pure API client of `https://training.richysdev.co.uk`    |
+| Prisma schema & Supabase DB                                                       | One additive migration only (Apple Health enum value, §4.4)           |
+| Auth.js database sessions                                                         | Mobile reuses the **same `Session` table rows** as bearer tokens      |
+| All existing routes & pages                                                       | Website is untouched; mobile endpoints are new, additive routes       |
 | Domain engine (`weekly-targets`, `progress`, `actuals`, `plan-progress`, `trend`) | Reused server-side; pure copies reused in-app for instant client math |
 
 ## 3. App tech stack
@@ -71,14 +71,14 @@ All follow the existing route pattern: `enforceRateLimit` → zod parse → data
 
 Thin wrappers over existing, already-session-scoped functions:
 
-| Endpoint | Reuses |
-| --- | --- |
-| `GET /api/mobile/dashboard` | `listTrainingPlans` + active-plan rule, `buildPlanProgressInputs`/`computeProgress` minis, `getStravaConnectionSummary`, `listRecentActuals` (mirror of `dashboard/page.tsx`) |
-| `GET /api/mobile/plans` | `listTrainingPlansWithProgress()` |
-| `GET /api/mobile/plans/[id]` | **`maybeRecalculatePlan(id)` first** (preserves the adaptive roll-forward trigger), then `getTrainingPlan` + the series shaping currently in `plans/[id]/page.tsx` — extract that shaping into `src/lib/plan-series.ts` and use it from both the page and this route (pure refactor, no behavior change) |
-| `GET /api/mobile/groups` | `listMyGroups()` |
-| `GET /api/mobile/groups/[id]` | `getGroup` + `getGroupMemberStats` |
-| `GET /api/mobile/groups/join-info/[token]` | `getGroupByToken` |
+| Endpoint                                   | Reuses                                                                                                                                                                                                                                                                                                   |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/mobile/dashboard`                | `listTrainingPlans` + active-plan rule, `buildPlanProgressInputs`/`computeProgress` minis, `getStravaConnectionSummary`, `listRecentActuals` (mirror of `dashboard/page.tsx`)                                                                                                                            |
+| `GET /api/mobile/plans`                    | `listTrainingPlansWithProgress()`                                                                                                                                                                                                                                                                        |
+| `GET /api/mobile/plans/[id]`               | **`maybeRecalculatePlan(id)` first** (preserves the adaptive roll-forward trigger), then `getTrainingPlan` + the series shaping currently in `plans/[id]/page.tsx` — extract that shaping into `src/lib/plan-series.ts` and use it from both the page and this route (pure refactor, no behavior change) |
+| `GET /api/mobile/groups`                   | `listMyGroups()`                                                                                                                                                                                                                                                                                         |
+| `GET /api/mobile/groups/[id]`              | `getGroup` + `getGroupMemberStats`                                                                                                                                                                                                                                                                       |
+| `GET /api/mobile/groups/join-info/[token]` | `getGroupByToken`                                                                                                                                                                                                                                                                                        |
 
 All **mutations already exist** and are reused unmodified: `POST /api/plans`,
 `PUT/DELETE /api/plans/[id]`, `POST /api/plans/[id]/actuals`, all `/api/groups/*`,
@@ -97,7 +97,7 @@ schema already cascades plans/actuals/groups/sessions/Strava connection). In-app
   `ALTER TYPE ... ADD VALUE`; the `WeeklyActual` unique key already includes `source`, so
   a third source slots in with no other schema change).
 - **`POST /api/health/ingest`** — body `{ workouts: [{ sportType, distanceMeters,
-  startDateLocal }] }` using Strava-compatible `sportType` strings (`Swim`/`Ride`/`Run`),
+startDateLocal }] }` using Strava-compatible `sportType` strings (`Swim`/`Ride`/`Run`),
   so the server **reuses `mapSportTypeToDiscipline` + `aggregateActivitiesByWeek`
   unchanged** ([src/lib/strava/sync-core.ts]). Mirror `syncStravaActivities`
   ([src/lib/strava/sync.ts]): bucket per distinct plan `weekStartDay`, fan out to plans
@@ -107,8 +107,8 @@ schema already cascades plans/actuals/groups/sessions/Strava connection). In-app
 - **Precedence** ([src/lib/actuals.ts]): extend `resolveEffectiveActuals` to
   `MANUAL > STRAVA > APPLE_HEALTH` (deterministic, still never summed).
   ⚠ **Double-count is impossible** (precedence picks one source per week), but a user
-  whose Watch workouts also auto-post to Strava gets the *same* data from both sources —
-  fine. The real risk is *partial overlap* (e.g. only some workouts reach Strava): then
+  whose Watch workouts also auto-post to Strava gets the _same_ data from both sources —
+  fine. The real risk is _partial overlap_ (e.g. only some workouts reach Strava): then
   the higher-precedence STRAVA week hides a more-complete Health week. Mitigation: an
   in-app note recommending one auto source, and a Settings toggle "Prefer Apple Health
   over Strava" (per-user column, phase 7) if it proves needed.
@@ -189,16 +189,16 @@ labels, "now"/"trend" labels. Sparkline and ProgressRing port the same way.
 
 ## 9. Delivery phases (each independently shippable/testable)
 
-| Phase | Scope | Done when |
-| --- | --- | --- |
-| **0. Backend contract** | §4.1–4.3 (bearer auth, mobile reads, delete account) + tests | curl with a Bearer token exercises every endpoint; web unaffected (full suite green) |
-| **1. App skeleton** | Expo project, theming, API client, auth screens, secure token, tab shell | Sign up / in / out on a device against prod-like backend |
-| **2. Read-only parity** | Dashboard, plans list, plan detail (charts, tabs, Command/Timeline), groups read | Screens match web data exactly for the same account |
-| **3. Mutations** | Plan create/edit/delete, manual actuals (condensed table), groups create/join/leave/manage, deep links | Two-device group flow works; adaptive recompute observed on week-start day |
-| **4. Strava v1** | Connection status, link-out connect, in-app Sync now | Strava actuals appear in-app |
-| **5. Apple Health** | §4.4 migration + ingest, HealthKit permissions, manual sync, source labels | Watch workout → visible weekly actual; idempotent re-sync; precedence honored |
-| **6. Release** | App icons/splash, error/empty states, account deletion UI, privacy policy page on the website, EAS → TestFlight → App Store review (demo account) | App live |
-| **7. Post-launch** | HealthKit background delivery, Strava in-app OAuth (v2), source-preference toggle, Android/Health Connect | — |
+| Phase                   | Scope                                                                                                                                             | Done when                                                                            |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| **0. Backend contract** | §4.1–4.3 (bearer auth, mobile reads, delete account) + tests                                                                                      | curl with a Bearer token exercises every endpoint; web unaffected (full suite green) |
+| **1. App skeleton**     | Expo project, theming, API client, auth screens, secure token, tab shell                                                                          | Sign up / in / out on a device against prod-like backend                             |
+| **2. Read-only parity** | Dashboard, plans list, plan detail (charts, tabs, Command/Timeline), groups read                                                                  | Screens match web data exactly for the same account                                  |
+| **3. Mutations**        | Plan create/edit/delete, manual actuals (condensed table), groups create/join/leave/manage, deep links                                            | Two-device group flow works; adaptive recompute observed on week-start day           |
+| **4. Strava v1**        | Connection status, link-out connect, in-app Sync now                                                                                              | Strava actuals appear in-app                                                         |
+| **5. Apple Health**     | §4.4 migration + ingest, HealthKit permissions, manual sync, source labels                                                                        | Watch workout → visible weekly actual; idempotent re-sync; precedence honored        |
+| **6. Release**          | App icons/splash, error/empty states, account deletion UI, privacy policy page on the website, EAS → TestFlight → App Store review (demo account) | App live                                                                             |
+| **7. Post-launch**      | HealthKit background delivery, Strava in-app OAuth (v2), source-preference toggle, Android/Health Connect                                         | —                                                                                    |
 
 ## 10. Testing
 

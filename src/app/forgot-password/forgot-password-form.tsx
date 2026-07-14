@@ -1,34 +1,31 @@
 "use client";
 
-import Link from "next/link";
 import { useState, type FormEvent } from "react";
 
 const inputClass =
   "w-full rounded-[11px] border border-border bg-input px-[14px] py-[13px] text-[15px] text-text outline-none focus:border-brand";
 const labelClass = "mb-[7px] block text-[13px] font-semibold text-muted";
 
-export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
+export function ForgotPasswordForm() {
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [sent, setSent] = useState(false);
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     setError(null);
     setLoading(true);
     try {
-      const res = await fetch("/api/auth/login", {
+      const res = await fetch("/api/auth/forgot-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email }),
       });
-
       if (res.ok) {
-        window.location.href = callbackUrl || "/dashboard";
+        setSent(true);
         return;
       }
-
       const data = (await res.json().catch(() => ({}))) as { error?: string };
       setError(data.error ?? "Something went wrong. Please try again.");
     } catch {
@@ -36,6 +33,16 @@ export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
     } finally {
       setLoading(false);
     }
+  }
+
+  if (sent) {
+    return (
+      <p className="rounded-[12px] border border-border bg-card p-4 text-[14px] leading-[1.55] text-muted">
+        If an account exists for <span className="font-semibold text-text">{email}</span>,
+        we&apos;ve sent a link to reset your password. Check your inbox (and spam) — the link is
+        valid for 60 minutes.
+      </p>
+    );
   }
 
   return (
@@ -47,25 +54,8 @@ export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
         onChange={(e) => setEmail(e.target.value)}
         autoComplete="email"
         required
-        className={`${inputClass} mb-[18px]`}
+        className={`${inputClass} mb-6`}
       />
-      <label className={labelClass}>Password</label>
-      <input
-        type="password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        autoComplete="current-password"
-        required
-        className={`${inputClass} mb-2`}
-      />
-      <div className="mb-6 text-right">
-        <Link
-          href="/forgot-password"
-          className="text-[13px] font-semibold text-muted hover:text-text"
-        >
-          Forgot password?
-        </Link>
-      </div>
       {error && (
         <p role="alert" className="mt-0 mb-4 text-[13.5px] text-behind">
           {error}
@@ -76,7 +66,7 @@ export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
         disabled={loading}
         className="w-full cursor-pointer rounded-[11px] bg-brand py-[14px] font-display text-[16px] font-bold text-white hover:brightness-110 disabled:opacity-70"
       >
-        {loading ? "Signing in…" : "Sign in"}
+        {loading ? "Sending…" : "Send reset link"}
       </button>
     </form>
   );

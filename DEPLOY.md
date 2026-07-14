@@ -74,6 +74,9 @@ by `server.js`; or use the host's environment-variable settings). See
 | `ENCRYPTION_KEY`                            | base64 32 bytes. **Must be the same key** that encrypted existing Strava tokens, or they can't be decrypted |
 | `STRAVA_CLIENT_ID` / `STRAVA_CLIENT_SECRET` | from the Strava API application                                                                             |
 | `STRAVA_WEBHOOK_VERIFY_TOKEN`               | only if using Strava webhooks                                                                               |
+| `SMTP_HOST` / `SMTP_PORT`                   | mail server for password-reset emails (port 587 STARTTLS). Optional — reset emails are skipped if unset     |
+| `SMTP_USER` / `SMTP_PASS`                   | mailbox credentials. On Hetzner, create a mailbox (e.g. `noreply@richysdev.co.uk`) in KonsoleH              |
+| `MAIL_FROM`                                 | from address, e.g. `TriTrainer <noreply@richysdev.co.uk>`                                                   |
 | `NODE_ENV`                                  | `production` (set the host's "Application mode" to production)                                              |
 
 ---

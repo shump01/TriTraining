@@ -10,7 +10,7 @@ export interface ActualCellProps {
   /** Existing MANUAL value (what the input edits), or null. */
   manualMeters: number | null;
   /** The currently effective actual + its source, or null if none yet. */
-  effective: { meters: number; source: "MANUAL" | "STRAVA" } | null;
+  effective: { meters: number; source: "MANUAL" | "STRAVA" | "APPLE_HEALTH" } | null;
 }
 
 export function ActualCell({
@@ -93,7 +93,7 @@ export function ActualCell({
           <span className="text-faint">
             {effective.meters.toLocaleString()} m{" "}
             <em className={effective.source === "MANUAL" ? "text-ahead" : "text-muted"}>
-              ({effective.source.toLowerCase()})
+              ({effective.source.replace("_", " ").toLowerCase()})
             </em>
           </span>
         ) : (

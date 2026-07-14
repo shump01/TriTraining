@@ -60,9 +60,7 @@ export async function POST(req: NextRequest) {
   // keep the cookie-only response.
   const isMobileClient = req.headers.get("x-client") === "mobile";
   const res = NextResponse.json(
-    isMobileClient
-      ? { ok: true, sessionToken, expires: expires.toISOString() }
-      : { ok: true },
+    isMobileClient ? { ok: true, sessionToken, expires: expires.toISOString() } : { ok: true },
     { status: 200 },
   );
   res.cookies.set(SESSION_COOKIE_NAME, sessionToken, {

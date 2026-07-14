@@ -135,7 +135,16 @@ Prisma adapter and a **database session strategy**.
   `Session`, `VerificationToken` per the Auth.js adapter spec, plus
   `User.passwordHash` (argon2id — plaintext is never stored).
 - **Endpoints**: `POST /api/auth/signup`, `POST /api/auth/login`,
-  `POST /api/auth/logout`. Auth.js's own handlers live at `/api/auth/[...nextauth]`.
+  `POST /api/auth/logout`, `POST /api/auth/forgot-password`,
+  `POST /api/auth/reset-password`. Auth.js's own handlers live at `/api/auth/[...nextauth]`.
+- **Password reset** (`/forgot-password` → email link → `/reset-password/[token]`):
+  the raw token is emailed but only its **SHA-256 hash** is stored (in the Auth.js
+  `VerificationToken` table under a `pwreset:` identifier), so a DB leak yields no usable
+  links. Tokens are **single-use** and expire after 60 minutes; a successful reset
+  **revokes all of the user's sessions**. Forgot-password never reveals whether an account
+  exists and is rate-limited per IP _and_ per email. Email goes out via optional SMTP
+  ([src/lib/mailer.ts](src/lib/mailer.ts)); with SMTP unset the link is dev-logged so the
+  flow stays testable.
 - **Sessions**: secure, `httpOnly`, `sameSite=lax` cookie (`Secure` in
   production). The session token is stored in the `Session` table; `auth()`
   validates it. `signOut` deletes the row server-side.

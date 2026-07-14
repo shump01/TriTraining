@@ -26,6 +26,15 @@ export const loginSchema = z.object({
 export type SignupInput = z.infer<typeof signupSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 
+export const forgotPasswordSchema = z.object({
+  email: z.email("Enter a valid email address"),
+});
+
+export const resetPasswordSchema = z.object({
+  token: z.string().min(1, "Missing reset token"),
+  password: passwordSchema, // reuse the same strength policy as sign-up
+});
+
 // ── Training plan creation ───────────────────────────────────────────────────
 
 const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
@@ -121,6 +130,27 @@ export const actualEntrySchema = z.object({
 });
 
 export type ActualEntryInput = z.infer<typeof actualEntrySchema>;
+
+// ── Apple Health ingest ──────────────────────────────────────────────────────
+
+/**
+ * One normalized workout from HealthKit, using Strava-compatible sportType
+ * strings (Swim/Ride/Run) so the server reuses the sync-core mapping unchanged.
+ * Unmapped types are accepted and ignored server-side (same policy as Strava).
+ */
+export const healthIngestSchema = z.object({
+  workouts: z
+    .array(
+      z.object({
+        sportType: z.string().max(64),
+        distanceMeters: z.number().finite().nonnegative().max(MAX_METERS),
+        startDateLocal: z.string().max(64),
+      }),
+    )
+    .max(10_000, "Too many workouts in one batch"),
+});
+
+export type HealthIngestInput = z.infer<typeof healthIngestSchema>;
 
 // ── Training groups ──────────────────────────────────────────────────────────
 
