@@ -1,9 +1,7 @@
 import Link from "next/link";
 
 import { auth } from "@/auth";
-import { buildPlanProgressInputs } from "@/lib/plan-progress";
 import { buildPlanSeries } from "@/lib/plan-series";
-import { computeProgress } from "@/lib/progress";
 import { computeReadiness, type ReadinessStatus } from "@/lib/readiness";
 import { getStravaConnectionSummary } from "@/lib/strava/connection";
 import { getTrainingPlan, listRecentActuals, listTrainingPlans } from "@/lib/training-plan";
@@ -60,8 +58,10 @@ export default async function DashboardPage() {
   if (active) {
     const full = await getTrainingPlan(active.id);
     if (full) {
-      const inputs = buildPlanProgressInputs(full);
-      const { overall } = computeReadiness(buildPlanSeries(full, now));
+      // One source of truth for both the minis and the readiness chip. Series
+      // already omits TOTAL for single-sport plans and honors the week-start day.
+      const series = buildPlanSeries(full, now);
+      const { overall } = computeReadiness(series);
       if (overall && overall.status !== "insufficient") {
         const unit = overall.basis === "projection" ? "of peak" : "so far";
         readinessChip = {
@@ -69,25 +69,17 @@ export default async function DashboardPage() {
           color: READINESS_COLOR[overall.status],
         };
       }
-      const discMinis = inputs.disciplines.map((d) => ({
-        key: d as string,
-        label: DISCIPLINE_META[d].label,
-        color: DISCIPLINE_META[d].color,
-        pct: computeProgress(inputs.byDiscipline[d] ?? [], now).summary.pctOfTarget ?? 0,
-      }));
-      // TOTAL only adds value for multi-sport plans.
-      minis =
-        inputs.disciplines.length > 1
-          ? [
-              {
-                key: "TOTAL",
-                label: "Total",
-                color: "var(--brand)",
-                pct: computeProgress(inputs.total, now).summary.pctOfTarget ?? 0,
-              },
-              ...discMinis,
-            ]
-          : discMinis;
+      // Each mini shows the CURRENT week's % (matches the plan-detail cards).
+      minis = series.map((s) => {
+        const i = s.weeks.findIndex((w) => w.phase === "current");
+        const curIndex = i >= 0 ? i : s.summary.finished ? s.weeks.length - 1 : 0;
+        return {
+          key: s.key,
+          label: s.label,
+          color: s.color,
+          pct: s.weeks[curIndex]?.pctOfTarget ?? 0,
+        };
+      });
     }
     weeksToGo = Math.max(0, Math.ceil((active.eventDate.getTime() - now.getTime()) / WEEK_MS));
   }
