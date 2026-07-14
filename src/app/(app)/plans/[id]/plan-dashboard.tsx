@@ -209,7 +209,12 @@ function CommandView({
       <div className="mb-[18px] grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-3.5">
         {series.map((s) => {
           const k = s.key;
-          const pct = s.summary.pctOfTarget ?? 0;
+          // Show the CURRENT week's own progress, not the plan-to-date total.
+          // Before the plan starts, show week 1; once finished, the final week.
+          const curIndex =
+            currentIndex >= 0 ? currentIndex : s.summary.finished ? s.weeks.length - 1 : 0;
+          const cur = s.weeks[curIndex];
+          const pct = cur?.pctOfTarget ?? 0;
           const on = active === k;
           const sparkIndex = currentIndex >= 0 ? currentIndex : s.weeks.length - 1;
           return (
@@ -227,15 +232,14 @@ function CommandView({
                 >
                   {s.label}
                 </span>
-                <StatusPill statusKey={summaryStatusKey(s.summary)} small />
+                <StatusPill statusKey={cur ? weekStatusKey(cur) : "upcoming"} small />
               </div>
               <div className="font-display text-[30px] leading-none font-black">
                 {pct}
                 <span className="text-[16px] font-bold text-muted">%</span>
               </div>
               <div className="mt-1 mb-2.5 text-[11.5px] text-faint">
-                {formatDistance(s.summary.cumulativeActual, k)} /{" "}
-                {formatDistance(s.summary.cumulativeTarget, k)}
+                {formatDistance(cur?.actual ?? 0, k)} / {formatDistance(cur?.target ?? 0, k)}
               </div>
               <div className="h-[34px]">
                 <Sparkline rows={toData(s)} color={s.color} currentIndex={sparkIndex} />
