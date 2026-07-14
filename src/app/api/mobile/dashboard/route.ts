@@ -2,8 +2,10 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { mapKnownApiError } from "@/lib/api";
 import { buildPlanProgressInputs } from "@/lib/plan-progress";
+import { buildPlanSeries } from "@/lib/plan-series";
 import { prisma } from "@/lib/prisma";
 import { computeProgress } from "@/lib/progress";
+import { computeReadiness, type SeriesReadiness } from "@/lib/readiness";
 import { enforceRateLimit } from "@/lib/security";
 import { getStravaConnectionSummary } from "@/lib/strava/connection";
 import {
@@ -48,12 +50,15 @@ export async function GET(req: NextRequest) {
       eventDate: Date;
       weeksToGo: number;
       minis: { key: string; label: string; pct: number }[];
+      readiness: SeriesReadiness | null;
     } | null = null;
 
     if (active) {
       const full = await getTrainingPlan(active.id);
       let minis: { key: string; label: string; pct: number }[] = [];
+      let readiness: SeriesReadiness | null = null;
       if (full) {
+        readiness = computeReadiness(buildPlanSeries(full, now)).overall;
         const inputs = buildPlanProgressInputs(full);
         const discMinis = inputs.disciplines.map((d) => ({
           key: d as string,
@@ -78,6 +83,7 @@ export async function GET(req: NextRequest) {
         eventDate: active.eventDate,
         weeksToGo: Math.max(0, Math.ceil((active.eventDate.getTime() - now.getTime()) / WEEK_MS)),
         minis,
+        readiness,
       };
     }
 

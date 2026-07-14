@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { mapKnownApiError } from "@/lib/api";
 import { buildPlanSeries } from "@/lib/plan-series";
+import { computeReadiness } from "@/lib/readiness";
 import { enforceRateLimit } from "@/lib/security";
 import { getTrainingPlan, maybeRecalculatePlan } from "@/lib/training-plan";
 import { planStartWeek, startOfWeek } from "@/lib/weekly-targets";
@@ -29,6 +30,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     }
 
     const now = new Date();
+    const series = buildPlanSeries(plan, now);
     return NextResponse.json(
       {
         plan: {
@@ -46,7 +48,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
             eventDistanceMeters: d.eventDistanceMeters,
           })),
         },
-        series: buildPlanSeries(plan, now),
+        series,
+        readiness: computeReadiness(series),
       },
       { status: 200 },
     );

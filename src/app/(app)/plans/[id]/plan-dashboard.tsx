@@ -3,11 +3,13 @@
 import Link from "next/link";
 import { useState } from "react";
 
+import type { PlanReadiness } from "@/lib/readiness";
 import type { SeriesData, SeriesKey, WeekRow } from "@/lib/plan-series";
 import { STATUS_META, formatDistance, translucent, type StatusKey } from "@/lib/ui/theme";
 
 import { ActualCell } from "./actual-cell";
 import { ProgressRing, Sparkline, VolumeChart, type WeekDatum } from "./charts";
+import { ReadinessPanel } from "./readiness-panel";
 
 export interface PlanDashboardProps {
   planId: string;
@@ -17,6 +19,8 @@ export interface PlanDashboardProps {
   currentWeekMs: number;
   /** Ordered tabs to show: [TOTAL?, ...present disciplines]. TOTAL is omitted for single-sport plans. */
   series: SeriesData[];
+  /** Race-day projection derived from the same series. */
+  readiness: PlanReadiness;
 }
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
@@ -60,6 +64,7 @@ export function PlanDashboard({
   startDateMs,
   currentWeekMs,
   series,
+  readiness,
 }: PlanDashboardProps) {
   const [active, setActive] = useState<SeriesKey>(series[0]?.key ?? "TOTAL");
   const [variation, setVariation] = useState<"command" | "timeline">("command");
@@ -110,6 +115,8 @@ export function PlanDashboard({
           ))}
         </div>
       </div>
+
+      <ReadinessPanel readiness={readiness} />
 
       {/* Sticky "this week" strip — mobile only (desktop shows the ring / rail). */}
       <div className="sticky top-[56px] z-30 mb-3 -mx-[14px] border-b border-border bg-bg2/95 px-[14px] py-[9px] backdrop-blur-[10px] app:hidden">

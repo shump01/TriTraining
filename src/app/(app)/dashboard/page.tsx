@@ -2,16 +2,36 @@ import Link from "next/link";
 
 import { auth } from "@/auth";
 import { buildPlanProgressInputs } from "@/lib/plan-progress";
+import { buildPlanSeries } from "@/lib/plan-series";
 import { computeProgress } from "@/lib/progress";
+import { computeReadiness, type ReadinessStatus } from "@/lib/readiness";
 import { getStravaConnectionSummary } from "@/lib/strava/connection";
 import { getTrainingPlan, listRecentActuals, listTrainingPlans } from "@/lib/training-plan";
-import { DISCIPLINE_META, formatDistance, translucent, type DisciplineKey } from "@/lib/ui/theme";
+import {
+  DISCIPLINE_META,
+  STATUS_META,
+  formatDistance,
+  translucent,
+  type DisciplineKey,
+} from "@/lib/ui/theme";
 
 import { StravaCard } from "./strava-card";
 
 export const dynamic = "force-dynamic";
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+// Compact readiness chip text/color, reusing the plan status palette.
+const READINESS_TEXT: Record<Exclude<ReadinessStatus, "insufficient">, string> = {
+  ahead: "Ahead",
+  onTrack: "On track",
+  atRisk: "At risk",
+};
+const READINESS_COLOR: Record<Exclude<ReadinessStatus, "insufficient">, string> = {
+  ahead: STATUS_META.ahead.color,
+  onTrack: STATUS_META.onTrack.color,
+  atRisk: STATUS_META.behind.color,
+};
 
 function shortDate(d: Date): string {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
@@ -36,10 +56,19 @@ export default async function DashboardPage() {
   // Per-discipline + total "% of target" for the active plan.
   let minis: { key: string; label: string; color: string; pct: number }[] = [];
   let weeksToGo = 0;
+  let readinessChip: { label: string; color: string } | null = null;
   if (active) {
     const full = await getTrainingPlan(active.id);
     if (full) {
       const inputs = buildPlanProgressInputs(full);
+      const { overall } = computeReadiness(buildPlanSeries(full, now));
+      if (overall && overall.status !== "insufficient") {
+        const unit = overall.basis === "projection" ? "of peak" : "so far";
+        readinessChip = {
+          label: `${READINESS_TEXT[overall.status]} · ${overall.pct}% ${unit}`,
+          color: READINESS_COLOR[overall.status],
+        };
+      }
       const discMinis = inputs.disciplines.map((d) => ({
         key: d as string,
         label: DISCIPLINE_META[d].label,
@@ -96,6 +125,17 @@ export default async function DashboardPage() {
                 <div className="font-display text-[23px] font-extrabold tracking-[-0.02em]">
                   {active.name}
                 </div>
+                {readinessChip && (
+                  <span
+                    className="mt-2 inline-block rounded-[20px] px-[10px] py-1 text-[11.5px] font-bold"
+                    style={{
+                      color: readinessChip.color,
+                      background: translucent(readinessChip.color, 14),
+                    }}
+                  >
+                    {readinessChip.label}
+                  </span>
+                )}
               </div>
               <div className="text-right">
                 <div className="font-display text-[30px] leading-none font-black">{weeksToGo}</div>

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { buildPlanSeries } from "@/lib/plan-series";
+import { computeReadiness } from "@/lib/readiness";
 import { getTrainingPlan, maybeRecalculatePlan } from "@/lib/training-plan";
 import { planStartWeek, startOfWeek } from "@/lib/weekly-targets";
 
@@ -27,6 +28,7 @@ export default async function PlanPage({ params }: { params: Promise<{ id: strin
   const currentWeekMs = startOfWeek(now, plan.weekStartDay).getTime();
   const startWeek = planStartWeek(plan);
   const series = buildPlanSeries(plan, now);
+  const readiness = computeReadiness(series);
 
   return (
     <>
@@ -37,6 +39,7 @@ export default async function PlanPage({ params }: { params: Promise<{ id: strin
         startDateMs={startWeek.getTime()}
         currentWeekMs={currentWeekMs}
         series={series}
+        readiness={readiness}
       />
 
       <div className="mt-8 flex max-w-[1100px] flex-wrap items-center gap-3 border-t border-border pt-5">
