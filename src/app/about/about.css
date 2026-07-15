@@ -1,0 +1,475 @@
+/* About page — marketing aesthetic (near-black, Anton/Fraunces, sport accents),
+   matching the landing + auth pages. Scoped under .aboutpage so it stays clear
+   of the rest of the app. */
+
+.aboutpage {
+  --ink: #f3ede1;
+  --ink-dim: #a7a294;
+  --ink-faint: #6b6a63;
+  --void: #08090b;
+  --swim: #1fe3cf;
+  --bike: #ffb020;
+  --run: #ff4d64;
+  --paper: #f3ede1;
+  --line: rgba(243, 237, 225, 0.09);
+  --ab-ease: cubic-bezier(0.22, 1, 0.36, 1);
+
+  position: relative;
+  min-height: 100vh;
+  background: var(--void);
+  color: var(--ink);
+  font-family: var(--font-hanken), sans-serif;
+  font-size: 17px;
+  line-height: 1.55;
+  letter-spacing: normal;
+  overflow-x: hidden;
+}
+.aboutpage .glows {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(40vw 40vw at 10% 2%, rgba(31, 227, 207, 0.14), transparent 60%),
+    radial-gradient(46vw 46vw at 88% 24%, rgba(255, 176, 32, 0.11), transparent 62%),
+    radial-gradient(40vw 40vw at 55% 98%, rgba(255, 77, 100, 0.12), transparent 60%);
+  animation: ab-breathe 16s var(--ab-ease) infinite alternate;
+}
+@keyframes ab-breathe {
+  to {
+    transform: scale(1.1) translateY(-2%);
+    opacity: 0.82;
+  }
+}
+.aboutpage .grain {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  opacity: 0.045;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.aboutpage .wrap {
+  position: relative;
+  z-index: 1;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0 clamp(20px, 5vw, 56px);
+}
+.aboutpage .mono {
+  font-family: var(--font-jetbrains), monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 12px;
+  color: var(--ink-dim);
+}
+.aboutpage .brand {
+  font-family: var(--font-anton), sans-serif;
+  font-size: 21px;
+  letter-spacing: 0.02em;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink);
+  text-decoration: none;
+}
+.aboutpage .dot3 {
+  display: inline-flex;
+  gap: 3px;
+}
+.aboutpage .dot3 i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: block;
+}
+.aboutpage .dot3 i:nth-child(1) {
+  background: var(--swim);
+}
+.aboutpage .dot3 i:nth-child(2) {
+  background: var(--bike);
+}
+.aboutpage .dot3 i:nth-child(3) {
+  background: var(--run);
+}
+.aboutpage .btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-weight: 700;
+  font-size: 14.5px;
+  text-decoration: none;
+  color: var(--void);
+  background: var(--paper);
+  padding: 12px 22px;
+  border-radius: 100px;
+  overflow: hidden;
+  isolation: isolate;
+  transition: transform 0.3s var(--ab-ease);
+}
+.aboutpage .btn span {
+  position: relative;
+  z-index: 1;
+}
+.aboutpage .btn::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: linear-gradient(100deg, var(--swim), var(--bike), var(--run));
+  transform: translateY(101%);
+  transition: transform 0.4s var(--ab-ease);
+}
+.aboutpage .btn:hover {
+  transform: translateY(-2px);
+}
+.aboutpage .btn:hover::before {
+  transform: translateY(0);
+}
+.aboutpage .btn.ghost {
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid var(--line);
+}
+.aboutpage .btn.ghost::before {
+  display: none;
+}
+.aboutpage .btn.ghost:hover {
+  border-color: var(--ink);
+}
+.aboutpage .signlink {
+  color: var(--ink-dim);
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
+  transition: color 0.25s;
+}
+.aboutpage .signlink:hover {
+  color: var(--ink);
+}
+
+/* Top bar */
+.aboutpage .topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 22px 0;
+}
+.aboutpage .topbar .right {
+  display: inline-flex;
+  align-items: center;
+  gap: 20px;
+}
+
+/* Hero */
+.aboutpage .hero {
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  gap: 44px;
+  align-items: center;
+  padding: clamp(40px, 8vh, 90px) 0 clamp(56px, 9vh, 96px);
+}
+.aboutpage .eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 26px;
+}
+.aboutpage .pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--run);
+  box-shadow: 0 0 0 0 rgba(255, 77, 100, 0.6);
+  animation: ab-pulse 2.4s infinite;
+}
+@keyframes ab-pulse {
+  70% {
+    box-shadow: 0 0 0 12px rgba(255, 77, 100, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 77, 100, 0);
+  }
+}
+.aboutpage h1 {
+  font-family: var(--font-anton), sans-serif;
+  text-transform: uppercase;
+  font-size: clamp(3rem, 7vw, 6rem);
+  line-height: 0.88;
+  letter-spacing: -0.015em;
+  margin: 0 0 22px;
+}
+.aboutpage h1 em,
+.aboutpage .finale em {
+  font-family: var(--font-fraunces), serif;
+  font-style: italic;
+  text-transform: none;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  background: linear-gradient(100deg, var(--swim), var(--bike) 55%, var(--run));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.aboutpage .lede {
+  color: var(--ink-dim);
+  font-size: clamp(16px, 1.4vw, 18.5px);
+  line-height: 1.6;
+  max-width: 46ch;
+}
+.aboutpage .lede b {
+  color: var(--ink);
+  font-weight: 600;
+}
+.aboutpage .hero-cta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 30px;
+}
+.aboutpage .curve-card {
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0));
+  padding: 20px 20px 14px;
+}
+.aboutpage .curve-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 6px;
+}
+.aboutpage .curve-card svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible;
+}
+.aboutpage .draw {
+  animation: ab-draw 2s var(--ab-ease) forwards;
+}
+.aboutpage .draw.s2 {
+  animation-delay: 0.22s;
+}
+.aboutpage .draw.s3 {
+  animation-delay: 0.44s;
+}
+@keyframes ab-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.aboutpage .flag {
+  opacity: 0;
+  animation: ab-fade 0.6s var(--ab-ease) 2.2s forwards;
+}
+@keyframes ab-fade {
+  to {
+    opacity: 1;
+  }
+}
+.aboutpage .legend {
+  display: flex;
+  gap: 16px;
+  margin-top: 10px;
+}
+.aboutpage .legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-jetbrains), monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.aboutpage .legend i {
+  width: 14px;
+  height: 3px;
+  border-radius: 2px;
+}
+
+/* Content sections */
+.aboutpage .section {
+  padding: clamp(56px, 9vh, 100px) 0;
+  border-top: 1px solid var(--line);
+}
+.aboutpage .section-label {
+  font-family: var(--font-jetbrains), monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 12px;
+  color: var(--ink-faint);
+  margin-bottom: 8px;
+}
+.aboutpage .section-title {
+  font-family: var(--font-anton), sans-serif;
+  text-transform: uppercase;
+  font-size: clamp(1.8rem, 4vw, 3rem);
+  line-height: 0.95;
+  letter-spacing: -0.01em;
+  margin: 0 0 40px;
+}
+.aboutpage .feat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 18px;
+}
+.aboutpage .card {
+  position: relative;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 26px 24px;
+  background: linear-gradient(165deg, rgba(255, 255, 255, 0.03), transparent);
+  overflow: hidden;
+  transition:
+    transform 0.5s var(--ab-ease),
+    border-color 0.5s;
+}
+.aboutpage .card::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--accent, var(--ink-faint));
+  transform: scaleY(0);
+  transform-origin: top;
+  transition: transform 0.5s var(--ab-ease);
+}
+.aboutpage .card:hover {
+  transform: translateY(-5px);
+  border-color: rgba(243, 237, 225, 0.22);
+}
+.aboutpage .card:hover::before {
+  transform: scaleY(1);
+}
+.aboutpage .card h3 {
+  font-size: 19px;
+  font-weight: 700;
+  line-height: 1.2;
+  margin: 0 0 9px;
+}
+.aboutpage .card p {
+  color: var(--ink-dim);
+  font-size: 14.5px;
+  line-height: 1.55;
+  margin: 0;
+}
+
+/* Steps */
+.aboutpage .steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.aboutpage .step {
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 22px 24px;
+  background: linear-gradient(165deg, rgba(255, 255, 255, 0.025), transparent);
+}
+.aboutpage .step-n {
+  flex-shrink: 0;
+  font-family: var(--font-anton), sans-serif;
+  font-size: 20px;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  color: var(--void);
+  background: var(--accent, var(--paper));
+}
+.aboutpage .step h3 {
+  font-size: 17px;
+  font-weight: 700;
+  margin: 2px 0 6px;
+}
+.aboutpage .step p {
+  color: var(--ink-dim);
+  font-size: 14.5px;
+  line-height: 1.55;
+  margin: 0;
+}
+
+/* Finale */
+.aboutpage .finale {
+  text-align: center;
+  padding: clamp(80px, 13vh, 140px) 0;
+  border-top: 1px solid var(--line);
+}
+.aboutpage .finale h2 {
+  font-family: var(--font-anton), sans-serif;
+  text-transform: uppercase;
+  font-size: clamp(2.2rem, 6.5vw, 5rem);
+  line-height: 0.88;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+.aboutpage .finale p {
+  color: var(--ink-dim);
+  margin: 18px auto 0;
+  max-width: 42ch;
+}
+.aboutpage .finale .btn {
+  margin-top: 34px;
+  font-size: 16px;
+  padding: 15px 28px;
+}
+
+/* Footer */
+.aboutpage .foot {
+  border-top: 1px solid var(--line);
+  padding: 40px 0 56px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 18px;
+}
+.aboutpage .foot a {
+  color: var(--ink-dim);
+  text-decoration: none;
+  transition: color 0.25s;
+}
+.aboutpage .foot a:hover {
+  color: var(--ink);
+}
+
+@media (max-width: 860px) {
+  .aboutpage .hero {
+    grid-template-columns: 1fr;
+  }
+  .aboutpage .feat-grid {
+    grid-template-columns: 1fr;
+  }
+  .aboutpage .topbar .right .signlink {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .aboutpage *,
+  .aboutpage *::before,
+  .aboutpage *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+  .aboutpage .draw {
+    stroke-dashoffset: 0 !important;
+  }
+  .aboutpage .flag {
+    opacity: 1;
+  }
+}

@@ -1,10 +1,7 @@
 "use client";
 
+import Link from "next/link";
 import { useState, type FormEvent } from "react";
-
-const inputClass =
-  "w-full rounded-[11px] border border-border bg-input px-[14px] py-[13px] text-[15px] text-text outline-none focus:border-brand";
-const labelClass = "mb-[7px] block text-[13px] font-semibold text-muted";
 
 export function SignupForm() {
   const [email, setEmail] = useState("");
@@ -40,51 +37,51 @@ export function SignupForm() {
 
   if (success) {
     return (
-      <p role="status" className="text-[15px] text-ahead">
-        Account created.{" "}
-        <a href="/login" className="font-bold text-brand">
-          Sign in →
-        </a>
-      </p>
+      <div role="status">
+        <p className="auth-note auth-note-ok">Your account is ready — you can sign in now.</p>
+        <Link href="/login" className="btn auth-submit">
+          <span>Sign in →</span>
+        </Link>
+      </div>
     );
   }
 
   return (
     <form onSubmit={onSubmit}>
-      <label className={labelClass}>Email</label>
-      <input
-        type="email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        autoComplete="email"
-        required
-        className={`${inputClass} mb-[18px]`}
-      />
-      <label className={labelClass}>Password</label>
-      <input
-        type="password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        autoComplete="new-password"
-        required
-        minLength={12}
-        className={`${inputClass} mb-2`}
-      />
-      <p className="mt-0 mb-5 text-[12px] text-faint">
+      <div className="auth-field">
+        <label className="auth-label">Email</label>
+        <input
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          autoComplete="email"
+          required
+          className="auth-input"
+        />
+      </div>
+      <div className="auth-field">
+        <label className="auth-label">Password</label>
+        <input
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          autoComplete="new-password"
+          required
+          minLength={12}
+          className="auth-input"
+        />
+      </div>
+      <p className="auth-hint">
         At least 12 characters, including an uppercase letter, a lowercase letter, a number, and a
         symbol.
       </p>
       {error && (
-        <p role="alert" className="mt-0 mb-4 text-[13.5px] text-behind">
+        <p role="alert" className="auth-error">
           {error}
         </p>
       )}
-      <button
-        type="submit"
-        disabled={loading}
-        className="w-full cursor-pointer rounded-[11px] bg-brand py-[14px] font-display text-[16px] font-bold text-white hover:brightness-110 disabled:opacity-70"
-      >
-        {loading ? "Creating account…" : "Create account"}
+      <button type="submit" disabled={loading} className="btn auth-submit">
+        <span>{loading ? "Creating account…" : "Create account"}</span>
       </button>
     </form>
   );

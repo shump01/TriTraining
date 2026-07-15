@@ -1,6 +1,7 @@
-/* Login page styling — matches the marketing landing aesthetic (near-black,
-   Anton/Fraunces, sport accents). Self-contained and scoped under .authpage so
-   it never touches the rest of the app (signup/forgot/reset keep AuthShell). */
+/* Auth page styling (login / signup / forgot-password / reset-password) — the
+   marketing landing aesthetic (near-black, Anton/Fraunces, sport accents).
+   Shared via AuthLayout; fully scoped under .authpage so it never leaks into
+   the rest of the app, which uses globals.css. */
 
 .authpage {
   --ink: #f3ede1;
@@ -333,6 +334,31 @@
   color: var(--run);
   font-size: 13.5px;
   margin: 0 0 14px;
+}
+/* Password-policy hint under a field. */
+.authpage .auth-hint {
+  margin: -8px 0 18px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-faint);
+}
+/* Confirmation / success notice (reset link sent, password updated). */
+.authpage .auth-note {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(243, 237, 225, 0.03);
+  padding: 16px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--ink-dim);
+  margin: 0 0 18px;
+}
+.authpage .auth-note b {
+  color: var(--ink);
+  font-weight: 600;
+}
+.authpage .auth-note-ok {
+  border-color: color-mix(in srgb, var(--swim) 45%, var(--line));
 }
 .authpage .auth-submit {
   width: 100%;

@@ -3,10 +3,6 @@
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
 
-const inputClass =
-  "w-full rounded-[11px] border border-border bg-input px-[14px] py-[13px] text-[15px] text-text outline-none focus:border-brand";
-const labelClass = "mb-[7px] block text-[13px] font-semibold text-muted";
-
 export function ResetPasswordForm({ token }: { token: string }) {
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -44,15 +40,12 @@ export function ResetPasswordForm({ token }: { token: string }) {
   if (done) {
     return (
       <div>
-        <p className="mb-5 rounded-[12px] border border-border bg-card p-4 text-[14px] leading-[1.55] text-muted">
+        <p className="auth-note auth-note-ok" role="status">
           Your password has been updated. For your security, any existing sessions have been signed
           out.
         </p>
-        <Link
-          href="/login"
-          className="block w-full cursor-pointer rounded-[11px] bg-brand py-[14px] text-center font-display text-[16px] font-bold text-white hover:brightness-110"
-        >
-          Sign in
+        <Link href="/login" className="btn auth-submit">
+          <span>Sign in →</span>
         </Link>
       </div>
     );
@@ -60,39 +53,39 @@ export function ResetPasswordForm({ token }: { token: string }) {
 
   return (
     <form onSubmit={onSubmit}>
-      <label className={labelClass}>New password</label>
-      <input
-        type="password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        autoComplete="new-password"
-        required
-        className={`${inputClass} mb-2`}
-      />
-      <p className="mt-0 mb-[18px] text-[12.5px] text-faint">
+      <div className="auth-field">
+        <label className="auth-label">New password</label>
+        <input
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          autoComplete="new-password"
+          required
+          className="auth-input"
+        />
+      </div>
+      <p className="auth-hint">
         At least 12 characters, including an uppercase letter, a lowercase letter, a number, and a
         symbol.
       </p>
-      <label className={labelClass}>Confirm new password</label>
-      <input
-        type="password"
-        value={confirm}
-        onChange={(e) => setConfirm(e.target.value)}
-        autoComplete="new-password"
-        required
-        className={`${inputClass} mb-6`}
-      />
+      <div className="auth-field" style={{ marginBottom: 22 }}>
+        <label className="auth-label">Confirm new password</label>
+        <input
+          type="password"
+          value={confirm}
+          onChange={(e) => setConfirm(e.target.value)}
+          autoComplete="new-password"
+          required
+          className="auth-input"
+        />
+      </div>
       {error && (
-        <p role="alert" className="mt-0 mb-4 text-[13.5px] text-behind">
+        <p role="alert" className="auth-error">
           {error}
         </p>
       )}
-      <button
-        type="submit"
-        disabled={loading}
-        className="w-full cursor-pointer rounded-[11px] bg-brand py-[14px] font-display text-[16px] font-bold text-white hover:brightness-110 disabled:opacity-70"
-      >
-        {loading ? "Updating…" : "Update password"}
+      <button type="submit" disabled={loading} className="btn auth-submit">
+        <span>{loading ? "Updating…" : "Update password"}</span>
       </button>
     </form>
   );

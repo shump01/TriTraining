@@ -2,10 +2,6 @@
 
 import { useState, type FormEvent } from "react";
 
-const inputClass =
-  "w-full rounded-[11px] border border-border bg-input px-[14px] py-[13px] text-[15px] text-text outline-none focus:border-brand";
-const labelClass = "mb-[7px] block text-[13px] font-semibold text-muted";
-
 export function ForgotPasswordForm() {
   const [email, setEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -37,36 +33,33 @@ export function ForgotPasswordForm() {
 
   if (sent) {
     return (
-      <p className="rounded-[12px] border border-border bg-card p-4 text-[14px] leading-[1.55] text-muted">
-        If an account exists for <span className="font-semibold text-text">{email}</span>,
-        we&apos;ve sent a link to reset your password. Check your inbox (and spam) — the link is
-        valid for 60 minutes.
+      <p className="auth-note auth-note-ok" role="status">
+        If an account exists for <b>{email}</b>, we&apos;ve sent a link to reset your password.
+        Check your inbox (and spam) — the link is valid for 60 minutes.
       </p>
     );
   }
 
   return (
     <form onSubmit={onSubmit}>
-      <label className={labelClass}>Email</label>
-      <input
-        type="email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        autoComplete="email"
-        required
-        className={`${inputClass} mb-6`}
-      />
+      <div className="auth-field" style={{ marginBottom: 22 }}>
+        <label className="auth-label">Email</label>
+        <input
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          autoComplete="email"
+          required
+          className="auth-input"
+        />
+      </div>
       {error && (
-        <p role="alert" className="mt-0 mb-4 text-[13.5px] text-behind">
+        <p role="alert" className="auth-error">
           {error}
         </p>
       )}
-      <button
-        type="submit"
-        disabled={loading}
-        className="w-full cursor-pointer rounded-[11px] bg-brand py-[14px] font-display text-[16px] font-bold text-white hover:brightness-110 disabled:opacity-70"
-      >
-        {loading ? "Sending…" : "Send reset link"}
+      <button type="submit" disabled={loading} className="btn auth-submit">
+        <span>{loading ? "Sending…" : "Send reset link"}</span>
       </button>
     </form>
   );
