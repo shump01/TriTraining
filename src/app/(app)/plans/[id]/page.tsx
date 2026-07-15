@@ -9,6 +9,7 @@ import { planStartWeek, startOfWeek } from "@/lib/weekly-targets";
 import { CheckinCard } from "./checkin-card";
 import { DeletePlanButton } from "./delete-plan-button";
 import { PlanDashboard } from "./plan-dashboard";
+import { SharePlanButton } from "./share-plan-button";
 
 export const dynamic = "force-dynamic";
 
@@ -74,6 +75,9 @@ export default async function PlanPage({ params }: { params: Promise<{ id: strin
           Edit plan
         </Link>
         <DeletePlanButton planId={plan.id} planName={plan.name} />
+        <div className="ml-auto">
+          <SharePlanButton planId={plan.id} initialToken={plan.shareToken} />
+        </div>
       </div>
     </>
   );

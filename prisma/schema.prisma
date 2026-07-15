@@ -170,6 +170,9 @@ model TrainingPlan {
   // Season priority: "A" (goal race), "B", or "C" (tune-up). Drives the season
   // timeline's emphasis. Default "A".
   priority       String    @default("A")
+  // Secret for a public read-only share link (/shared/<token>). Null = not
+  // shared; the owner can generate and revoke it. Unique so a token maps to one plan.
+  shareToken     String?   @unique
   // Day every training week begins on: 0=Sun..6=Sat. Defaults to Monday (1),
   // which matches the Monday-aligned data of plans created before this column.
   weekStartDay   Int       @default(1)

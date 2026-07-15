@@ -166,6 +166,9 @@ export const checkinSchema = z.object({
 
 export type CheckinInput = z.infer<typeof checkinSchema>;
 
+/** Toggle a plan's public read-only share link. */
+export const shareSchema = z.object({ enabled: z.boolean() });
+
 // ── Apple Health ingest ──────────────────────────────────────────────────────
 
 /**

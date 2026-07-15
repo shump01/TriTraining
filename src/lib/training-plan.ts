@@ -1,3 +1,5 @@
+import { randomBytes } from "crypto";
+
 import { headers } from "next/headers";
 
 import { auth } from "@/auth";
@@ -460,6 +462,49 @@ export async function deleteTrainingPlan(planId: string): Promise<boolean> {
   // deleteMany with the userId guard: a no-op (count 0) if the plan isn't theirs.
   const { count } = await prisma.trainingPlan.deleteMany({ where: { id: planId, userId } });
   return count > 0;
+}
+
+/**
+ * Enable or disable a plan's public read-only share link. Owner-scoped.
+ * Enabling generates a token once (kept stable across re-enables until revoked);
+ * disabling clears it so any existing link stops working. Returns the current
+ * token, or null when sharing is off.
+ */
+export async function setPlanSharing(planId: string, enabled: boolean): Promise<string | null> {
+  const userId = await requireUserId();
+  const plan = await prisma.trainingPlan.findFirst({
+    where: { id: planId, userId },
+    select: { id: true, shareToken: true },
+  });
+  if (!plan) throw new NotFoundError();
+
+  if (!enabled) {
+    await prisma.trainingPlan.update({ where: { id: plan.id }, data: { shareToken: null } });
+    return null;
+  }
+  if (plan.shareToken) return plan.shareToken;
+
+  const token = randomBytes(18).toString("base64url");
+  await prisma.trainingPlan.update({ where: { id: plan.id }, data: { shareToken: token } });
+  return token;
+}
+
+/**
+ * PUBLIC read-only lookup by share token — deliberately NOT user-scoped, since a
+ * share link is meant for people without an account. Returns the plan's display
+ * data (targets + actuals) or null. Only reachable with the unguessable token,
+ * and only while the owner keeps sharing on.
+ */
+export async function getPlanByShareToken(token: string) {
+  if (!token) return null;
+  return prisma.trainingPlan.findUnique({
+    where: { shareToken: token },
+    include: {
+      disciplines: true,
+      weeklyTargets: { orderBy: { weekStartDate: "asc" } },
+      weeklyActuals: true,
+    },
+  });
 }
 
 /**
