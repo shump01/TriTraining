@@ -55,7 +55,10 @@ export async function ingestHealthWorkouts(
       where: { planId: { in: planIds }, source: "APPLE_HEALTH" },
     });
     if (rows.length > 0) {
-      await tx.weeklyActual.createMany({ data: rows });
+      // skipDuplicates keeps concurrent ingests of the same batch from failing
+      // on the unique key: the loser's deleteMany snapshot predates the
+      // winner's commit, so its inserts would otherwise conflict.
+      await tx.weeklyActual.createMany({ data: rows, skipDuplicates: true });
     }
   });
 
