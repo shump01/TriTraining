@@ -3,12 +3,14 @@
 import Link from "next/link";
 import { useState } from "react";
 
+import { buildHeatmap } from "@/lib/heatmap";
 import type { PlanReadiness } from "@/lib/readiness";
 import type { SeriesData, SeriesKey, WeekRow } from "@/lib/plan-series";
 import { STATUS_META, formatDistance, translucent, type StatusKey } from "@/lib/ui/theme";
 
 import { ActualCell } from "./actual-cell";
 import { ProgressRing, Sparkline, VolumeChart, type WeekDatum } from "./charts";
+import { ConsistencyCard } from "./consistency-card";
 import { ReadinessPanel } from "./readiness-panel";
 
 export interface PlanDashboardProps {
@@ -117,6 +119,8 @@ export function PlanDashboard({
       </div>
 
       <ReadinessPanel readiness={readiness} />
+
+      <ConsistencyCard heatmap={buildHeatmap(series[0]?.weeks ?? [])} />
 
       {/* Sticky "this week" strip — mobile only (desktop shows the ring / rail). */}
       <div className="sticky top-[56px] z-30 mb-3 -mx-[14px] border-b border-border bg-bg2/95 px-[14px] py-[9px] backdrop-blur-[10px] app:hidden">
