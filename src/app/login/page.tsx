@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { AuthLayout } from "../auth-layout";
 import { LoginForm } from "./login-form";
+import { LoginJourney } from "./login-journey";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +26,7 @@ export default async function LoginPage({
       sub="Your plan has been holding the line. Sign in to pick up right where you left off — week by week, sport by sport."
       formTitle="Sign in"
       formSub="Pick up your build where you left off."
+      brand={<LoginJourney />}
       alt={
         <p className="auth-alt">
           New to TriTrainer? <Link href="/signup">Create one</Link>

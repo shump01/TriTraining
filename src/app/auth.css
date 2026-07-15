@@ -147,6 +147,25 @@
   padding: clamp(32px, 4.5vw, 60px);
   border-right: 1px solid var(--line);
 }
+/* Full-bleed brand panel (login "journey" animation): drop the padding/flex so
+   the animated stage fills the whole column edge-to-edge. */
+.authpage .auth-brand-media {
+  display: block;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+/* The animation stage: fixed 960×1200 canvas, scaled to cover the panel and
+   centered. Its inner content positions against the 960×1200 box. */
+.authpage .journey-stage {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: #0a1322;
+}
 .authpage .auth-eyebrow {
   display: inline-flex;
   align-items: center;

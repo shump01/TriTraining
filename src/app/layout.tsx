@@ -1,5 +1,13 @@
 import type { Metadata } from "next";
-import { Anton, Archivo, Fraunces, Hanken_Grotesk, JetBrains_Mono } from "next/font/google";
+import {
+  Anton,
+  Archivo,
+  Fraunces,
+  Hanken_Grotesk,
+  IBM_Plex_Mono,
+  JetBrains_Mono,
+  Space_Grotesk,
+} from "next/font/google";
 import { headers } from "next/headers";
 
 import "./globals.css";
@@ -36,6 +44,19 @@ const jetbrains = JetBrains_Mono({
   variable: "--font-jetbrains",
   display: "swap",
 });
+// Fonts for the login "journey" animation (login page brand panel only).
+const spaceGrotesk = Space_Grotesk({
+  subsets: ["latin"],
+  weight: ["400", "500", "700"],
+  variable: "--font-space-grotesk",
+  display: "swap",
+});
+const ibmPlexMono = IBM_Plex_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500"],
+  variable: "--font-ibm-plex-mono",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "TriTrainer",
@@ -56,7 +77,7 @@ export default async function RootLayout({
   return (
     <html
       lang="en"
-      className={`${archivo.variable} ${anton.variable} ${fraunces.variable} ${hanken.variable} ${jetbrains.variable}`}
+      className={`${archivo.variable} ${anton.variable} ${fraunces.variable} ${hanken.variable} ${jetbrains.variable} ${spaceGrotesk.variable} ${ibmPlexMono.variable}`}
     >
       <body>
         <script nonce={nonce} dangerouslySetInnerHTML={{ __html: themeBootstrap }} />

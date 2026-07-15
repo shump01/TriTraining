@@ -17,6 +17,7 @@ export function AuthLayout({
   formSub,
   children,
   alt,
+  brand,
 }: {
   eyebrow: string;
   headline: ReactNode;
@@ -25,6 +26,9 @@ export function AuthLayout({
   formSub: string;
   children: ReactNode;
   alt: ReactNode;
+  /** Optional full-bleed brand-panel replacement (e.g. the login animation).
+   *  When set, it fills the left panel instead of the static wordmark + curve. */
+  brand?: ReactNode;
 }) {
   const wordmark = (
     <>
@@ -43,42 +47,46 @@ export function AuthLayout({
       <div className="grain" />
 
       <div className="auth-split">
-        <aside className="auth-brand">
-          <Link href="/" className="brand">
-            {wordmark}
-          </Link>
+        {brand ? (
+          <aside className="auth-brand auth-brand-media">{brand}</aside>
+        ) : (
+          <aside className="auth-brand">
+            <Link href="/" className="brand">
+              {wordmark}
+            </Link>
 
-          <div>
-            <span className="auth-eyebrow">
-              <span className="pulse" />
-              <span className="mono">{eyebrow}</span>
-            </span>
-            <h1 className="auth-h1">{headline}</h1>
-            <p className="auth-sub">{sub}</p>
+            <div>
+              <span className="auth-eyebrow">
+                <span className="pulse" />
+                <span className="mono">{eyebrow}</span>
+              </span>
+              <h1 className="auth-h1">{headline}</h1>
+              <p className="auth-sub">{sub}</p>
 
-            <div className="auth-curve">
-              <HeroCurve />
-              <div className="legend">
-                <span>
-                  <i style={{ background: "var(--swim)" }} />
-                  Swim
-                </span>
-                <span>
-                  <i style={{ background: "var(--bike)" }} />
-                  Bike
-                </span>
-                <span>
-                  <i style={{ background: "var(--run)" }} />
-                  Run
-                </span>
+              <div className="auth-curve">
+                <HeroCurve />
+                <div className="legend">
+                  <span>
+                    <i style={{ background: "var(--swim)" }} />
+                    Swim
+                  </span>
+                  <span>
+                    <i style={{ background: "var(--bike)" }} />
+                    Bike
+                  </span>
+                  <span>
+                    <i style={{ background: "var(--run)" }} />
+                    Run
+                  </span>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="mono" style={{ letterSpacing: "0.1em" }}>
-            Plan the build · arrive fresh
-          </div>
-        </aside>
+            <div className="mono" style={{ letterSpacing: "0.1em" }}>
+              Plan the build · arrive fresh
+            </div>
+          </aside>
+        )}
 
         <main className="auth-form">
           <div className="auth-card">
