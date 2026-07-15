@@ -46,7 +46,14 @@ export function proxy(req: NextRequest) {
 
   const pathname = req.nextUrl.pathname;
   if (PROTECTED.some((re) => re.test(pathname)) && !req.cookies.get(SESSION_COOKIE_NAME)?.value) {
-    const loginUrl = new URL("/login", req.url);
+    // Pin the redirect base to the canonical app URL. Middleware currently emits
+    // a RELATIVE Location, so this already resolves against the real domain — but
+    // pinning to NEXTAUTH_URL keeps it correct even if that changes and matches
+    // the Strava OAuth routes (whose absolute redirects DID bounce to the proxy's
+    // internal localhost Host). Read the env var directly (inlined at build), not
+    // the zod-validated env module which shouldn't enter edge middleware; fall
+    // back to req.url if unset.
+    const loginUrl = new URL("/login", process.env.NEXTAUTH_URL || req.url);
     loginUrl.searchParams.set("callbackUrl", pathname);
     const redirect = NextResponse.redirect(loginUrl);
     redirect.headers.set("content-security-policy", csp);

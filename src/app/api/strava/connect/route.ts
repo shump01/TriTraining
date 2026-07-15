@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+import { env } from "@/env";
 import { handleApiError } from "@/lib/api";
 import { enforceRateLimit } from "@/lib/security";
 import { buildAuthorizeUrl } from "@/lib/strava/client";
@@ -23,7 +24,7 @@ export async function GET(req: NextRequest) {
     userId = await requireUserId();
   } catch (error) {
     if (error instanceof UnauthorizedError) {
-      return NextResponse.redirect(new URL("/login?callbackUrl=/dashboard", req.url));
+      return NextResponse.redirect(new URL("/login?callbackUrl=/dashboard", env.NEXTAUTH_URL));
     }
     return handleApiError(error, { route: "GET /api/strava/connect" });
   }

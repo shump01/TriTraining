@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+import { env } from "@/env";
 import { logger } from "@/lib/logger";
 import { enforceRateLimit } from "@/lib/security";
 import { exchangeCodeForTokens } from "@/lib/strava/client";
@@ -10,8 +11,11 @@ import { UnauthorizedError, requireUserId } from "@/lib/training-plan";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function redirectTo(req: NextRequest, status: string) {
-  const url = new URL("/dashboard", req.url);
+// Build redirects from the canonical app URL, NOT req.url — behind the reverse
+// proxy the request's Host is the internal address (localhost), which would
+// otherwise bounce the user off the public domain after the OAuth callback.
+function redirectTo(status: string) {
+  const url = new URL("/dashboard", env.NEXTAUTH_URL);
   url.searchParams.set("strava", status);
   const res = NextResponse.redirect(url);
   // Clear the one-time state cookie on the way out.
@@ -28,7 +32,7 @@ export async function GET(req: NextRequest) {
 
   // User declined, or Strava returned an error.
   if (params.get("error")) {
-    return redirectTo(req, "denied");
+    return redirectTo("denied");
   }
 
   let userId: string;
@@ -36,13 +40,13 @@ export async function GET(req: NextRequest) {
     userId = await requireUserId();
   } catch (error) {
     if (error instanceof UnauthorizedError) {
-      return NextResponse.redirect(new URL("/login?callbackUrl=/dashboard", req.url));
+      return NextResponse.redirect(new URL("/login?callbackUrl=/dashboard", env.NEXTAUTH_URL));
     }
     logger.error("Strava callback auth check failed", {
       route: "GET /api/strava/callback",
       error,
     });
-    return redirectTo(req, "error");
+    return redirectTo("error");
   }
 
   const code = params.get("code");
@@ -52,7 +56,7 @@ export async function GET(req: NextRequest) {
 
   // CSRF: the signed state must verify AND be tied to this session + cookie.
   if (!code || !verifyOAuthState(state, cookieNonce, userId)) {
-    return redirectTo(req, "error");
+    return redirectTo("error");
   }
 
   try {
@@ -63,8 +67,8 @@ export async function GET(req: NextRequest) {
       route: "GET /api/strava/callback",
       error,
     });
-    return redirectTo(req, "error");
+    return redirectTo("error");
   }
 
-  return redirectTo(req, "connected");
+  return redirectTo("connected");
 }
