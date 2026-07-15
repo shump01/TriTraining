@@ -3,8 +3,10 @@ import { describe, expect, it } from "vitest";
 import {
   ATL_DAYS,
   CTL_DAYS,
+  MAX_FORM_EASING,
   activityTss,
   buildLoadSeries,
+  formLoadFactor,
   formStatus,
   summarizeLoad,
   type DailyTss,
@@ -101,6 +103,38 @@ describe("formStatus", () => {
     expect(formStatus(0).key).toBe("neutral");
     expect(formStatus(-20).key).toBe("productive");
     expect(formStatus(-40).key).toBe("overreaching");
+  });
+});
+
+describe("formLoadFactor", () => {
+  it("leaves the ramp untouched for fresh, balanced, or productively-fatigued Form", () => {
+    expect(formLoadFactor(20)).toBe(1); // fresh
+    expect(formLoadFactor(0)).toBe(1); // balanced
+    expect(formLoadFactor(-25)).toBe(1); // productive — desirable stress, don't blunt
+    expect(formLoadFactor(-30)).toBe(1); // exactly at the overreaching boundary
+  });
+
+  it("eases only once Form crosses into overreaching, deepening with fatigue", () => {
+    // Below −30 it starts easing; monotonically stronger as TSB drops.
+    expect(formLoadFactor(-35)).toBeLessThan(1);
+    expect(formLoadFactor(-45)).toBeLessThan(formLoadFactor(-35));
+  });
+
+  it("saturates at the maximum easing for deep overreaching", () => {
+    expect(formLoadFactor(-55)).toBeCloseTo(1 - MAX_FORM_EASING, 6);
+    expect(formLoadFactor(-80)).toBeCloseTo(1 - MAX_FORM_EASING, 6); // clamped, no further
+  });
+
+  it("returns 1 for a non-finite TSB", () => {
+    expect(formLoadFactor(NaN)).toBe(1);
+    expect(formLoadFactor(Infinity)).toBe(1);
+  });
+
+  it("eases exactly when Form reads overreaching (factor < 1 ⟺ status)", () => {
+    for (const tsb of [10, 0, -20, -30, -31, -50]) {
+      const overreaching = formStatus(tsb).key === "overreaching";
+      expect(formLoadFactor(tsb) < 1).toBe(overreaching);
+    }
   });
 });
 

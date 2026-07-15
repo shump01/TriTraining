@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { computeReadiness, type ReadinessSeriesInput } from "@/lib/readiness";
+import { computeFormReadiness, computeReadiness, type ReadinessSeriesInput } from "@/lib/readiness";
+
+// A "feels fine" check-in (low load → no subjective easing) and a "wrecked" one.
+const FEELS_FINE = { fatigue: 1, sleep: 5, soreness: 1 };
+const WRECKED = { fatigue: 5, sleep: 1, soreness: 5 };
 
 type Phase = "past" | "current" | "future";
 const wk = (target: number, actual: number | null, phase: Phase) => ({ target, actual, phase });
@@ -106,5 +110,41 @@ describe("computeReadiness — overall vs disciplines", () => {
     const result = computeReadiness([series("RUN", buildingWeeks([100, 110, 120]))]);
     expect(result.overall?.key).toBe("RUN");
     expect(result.disciplines.map((d) => d.key)).toEqual(["RUN"]);
+  });
+});
+
+describe("computeFormReadiness", () => {
+  it("maps Form to a status and rounds the TSB", () => {
+    const f = computeFormReadiness(12.6);
+    expect(f.tsb).toBe(13);
+    expect(f.status).toBe("neutral");
+    expect(f.eases).toBe(false);
+    expect(f.note).toBeNull();
+  });
+
+  it("eases (and only eases) when Form is overreaching", () => {
+    expect(computeFormReadiness(-40).eases).toBe(true);
+    expect(computeFormReadiness(-40).status).toBe("overreaching");
+    expect(computeFormReadiness(-20).eases).toBe(false); // productive, not overreaching
+  });
+
+  it("flags the objective override: feels fine, but Form is overreaching", () => {
+    const f = computeFormReadiness(-38, FEELS_FINE);
+    expect(f.note).toMatch(/numbers say ease back/i);
+  });
+
+  it("reassures when the check-in flags fatigue but Form is fresh", () => {
+    const f = computeFormReadiness(22, WRECKED);
+    expect(f.status).toBe("fresh");
+    expect(f.note).toMatch(/won't set your build back/i);
+  });
+
+  it("stays quiet when the two signals agree", () => {
+    // Overreaching Form AND a wrecked check-in both point the same way → no cross-check.
+    expect(computeFormReadiness(-38, WRECKED).note).toBeNull();
+    // Fresh Form and a fine check-in also agree.
+    expect(computeFormReadiness(22, FEELS_FINE).note).toBeNull();
+    // No check-in → nothing to cross-check.
+    expect(computeFormReadiness(-38).note).toBeNull();
   });
 });

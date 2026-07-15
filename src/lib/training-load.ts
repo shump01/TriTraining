@@ -92,6 +92,30 @@ export function formStatus(tsb: number): { key: FormStatus; label: string } {
   return { key: "overreaching", label: "Overreaching — ease off" };
 }
 
+/** Largest easing the objective Form signal applies to the re-ramp (15% off). */
+export const MAX_FORM_EASING = 0.15;
+// Easing engages only once Form crosses into overreaching (the same −30 band
+// boundary as formStatus) — the −10..−30 "productive" zone is *desirable*
+// training stress and must not be blunted…
+const FORM_EASE_START_TSB = -30;
+// …then eases linearly to the floor at deep overreaching.
+const FORM_EASE_FLOOR_TSB = -55;
+
+/**
+ * Map current Form (TSB) to a volume multiplier in [1 − MAX_FORM_EASING, 1] for
+ * the adaptive re-ramp — the *objective* companion to the subjective check-in
+ * factor (see checkinReadinessFactor). Balanced or productively-fatigued Form
+ * (TSB ≥ −30) leaves the ramp untouched; deeper Form — acute fatigue running
+ * well ahead of fitness — eases the following weeks toward recovery. So the ramp
+ * eases exactly when Form reads "overreaching". A non-finite TSB returns 1.
+ */
+export function formLoadFactor(tsb: number): number {
+  if (!Number.isFinite(tsb)) return 1;
+  const span = FORM_EASE_START_TSB - FORM_EASE_FLOOR_TSB; // 25
+  const over = Math.min(Math.max(FORM_EASE_START_TSB - tsb, 0), span); // 0…25
+  return 1 - (over / span) * MAX_FORM_EASING;
+}
+
 export interface LoadSummary {
   fitness: number; // CTL, rounded
   fatigue: number; // ATL, rounded

@@ -6,9 +6,11 @@ import { auth } from "@/auth";
 import { ActualSource, Discipline } from "@/generated/prisma/client";
 import { effectiveActualKey, resolveEffectiveActuals } from "@/lib/actuals";
 import { checkinReadinessFactor } from "@/lib/checkin";
+import { getUserFormTsb } from "@/lib/load-data";
 import { buildPlanProgressInputs } from "@/lib/plan-progress";
 import { prisma } from "@/lib/prisma";
 import { computeProgress, type ProgressSummary } from "@/lib/progress";
+import { formLoadFactor } from "@/lib/training-load";
 import type { DisciplineKey } from "@/lib/ui/theme";
 import type { CreatePlanInput } from "@/lib/validation";
 import {
@@ -581,11 +583,17 @@ export async function maybeRecalculatePlan(planId: string): Promise<boolean> {
     };
   });
 
-  // A fatigued/sore check-in for the just-completed week eases the re-ramp.
+  // Two easing signals, combined multiplicatively:
+  //  • subjective — a fatigued/sore check-in for the just-completed week;
+  //  • objective — the athlete's current Form (TSB) from HR training load. When
+  //    Form is deep in the overreaching band, ease the ramp even if no check-in
+  //    was logged, and stack with a fatigued check-in when both agree.
   const lastCheckin = plan.weeklyCheckins.find(
     (c) => c.weekStartDate.getTime() === lastCompletedWeekStart.getTime(),
   );
-  const readinessFactor = lastCheckin ? checkinReadinessFactor(lastCheckin) : 1;
+  const checkinFactor = lastCheckin ? checkinReadinessFactor(lastCheckin) : 1;
+  const formTsb = await getUserFormTsb(userId);
+  const readinessFactor = checkinFactor * (formTsb != null ? formLoadFactor(formTsb) : 1);
 
   const newRows = computeAdaptedFutureTargets({
     disciplines,

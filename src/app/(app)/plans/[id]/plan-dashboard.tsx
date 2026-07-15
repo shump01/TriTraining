@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { buildHeatmap } from "@/lib/heatmap";
-import type { PlanReadiness } from "@/lib/readiness";
+import type { FormReadiness, PlanReadiness } from "@/lib/readiness";
 import type { SeriesData, SeriesKey, WeekRow } from "@/lib/plan-series";
 import { STATUS_META, formatDistance, translucent, type StatusKey } from "@/lib/ui/theme";
 
@@ -24,6 +24,8 @@ export interface PlanDashboardProps {
   series: SeriesData[];
   /** Race-day projection derived from the same series. */
   readiness: PlanReadiness;
+  /** Objective Form (TSB) signal + subjective cross-check. Null without HR load. */
+  formSignal?: FormReadiness | null;
 }
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
@@ -68,6 +70,7 @@ export function PlanDashboard({
   currentWeekMs,
   series,
   readiness,
+  formSignal,
 }: PlanDashboardProps) {
   const [active, setActive] = useState<SeriesKey>(series[0]?.key ?? "TOTAL");
   const [variation, setVariation] = useState<"command" | "timeline">("command");
@@ -119,7 +122,7 @@ export function PlanDashboard({
         </div>
       </div>
 
-      <ReadinessPanel readiness={readiness} />
+      <ReadinessPanel readiness={readiness} form={formSignal} />
 
       <ConsistencyCard heatmap={buildHeatmap(series[0]?.weeks ?? [])} />
 

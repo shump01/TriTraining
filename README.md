@@ -207,6 +207,18 @@ hard **cap** of `capMultiple × eventDistance` (per-plan, default 1.5×).
   plan. The recompute is view-driven (no scheduler required) and uses UTC for the
   "today is the start day" check, consistent with the rest of the week math.
 
+- **Two readiness signals ease the ramp.** On top of _how much_ you trained, the
+  re-ramp folds in _how ready you are_ via a volume multiplier: a **subjective**
+  one from the weekly wellness check-in (`checkinReadinessFactor` — fatigue /
+  sleep / soreness), and an **objective** one from HR training load
+  (`formLoadFactor` — current Form / TSB from the Performance Management Chart).
+  Form only eases the ramp once it crosses into **overreaching** (deep negative
+  TSB), so productive training stress isn't blunted; the two factors combine
+  multiplicatively. The plan page also **cross-checks** them
+  (`computeFormReadiness`): when the check-in says "fine" but Form shows fatigue
+  outrunning fitness, it surfaces the objective override — the "you feel fresh,
+  but your Form is −35" insight.
+
 ## Database
 
 Postgres via Prisma 7. For quick local iteration `npm run db:push` is fine; for any

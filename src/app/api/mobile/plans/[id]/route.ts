@@ -1,8 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { mapKnownApiError } from "@/lib/api";
+import { getTrainingLoad } from "@/lib/load-data";
 import { buildPlanSeries } from "@/lib/plan-series";
-import { computeReadiness } from "@/lib/readiness";
+import { computeFormReadiness, computeReadiness } from "@/lib/readiness";
 import { enforceRateLimit } from "@/lib/security";
 import { getTrainingPlan, maybeRecalculatePlan } from "@/lib/training-plan";
 import { planStartWeek, startOfWeek } from "@/lib/weekly-targets";
@@ -35,6 +36,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     // The current week's wellness check-in (if any) — same lookup as the page.
     const checkin =
       plan.weeklyCheckins.find((c) => c.weekStartDate.getTime() === currentWeekMs) ?? null;
+
+    // Objective Form (TSB) + subjective cross-check, mirroring the web plan page.
+    const load = await getTrainingLoad();
+    const form = load.summary ? computeFormReadiness(load.summary.form, checkin) : null;
+
     return NextResponse.json(
       {
         plan: {
@@ -56,6 +62,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         },
         series,
         readiness: computeReadiness(series),
+        form: form && {
+          tsb: form.tsb,
+          status: form.status,
+          label: form.label,
+          eases: form.eases,
+          note: form.note,
+        },
         checkin: checkin && {
           fatigue: checkin.fatigue,
           sleep: checkin.sleep,

@@ -23,9 +23,8 @@ export interface TrainingLoad {
   summary: LoadSummary | null;
 }
 
-export async function getTrainingLoad(): Promise<TrainingLoad> {
-  const userId = await requireUserId();
-
+/** Read + compute a specific user's training load. Shared by the callers below. */
+async function readUserLoad(userId: string): Promise<TrainingLoad> {
   const [user, loads] = await Promise.all([
     prisma.user.findUnique({ where: { id: userId }, select: { thresholdHr: true } }),
     prisma.activityLoad.findMany({
@@ -50,6 +49,21 @@ export async function getTrainingLoad(): Promise<TrainingLoad> {
   const series = buildLoadSeries(daily, Date.now());
 
   return { thresholdHr, hasActivities, series, summary: summarizeLoad(series) };
+}
+
+export async function getTrainingLoad(): Promise<TrainingLoad> {
+  return readUserLoad(await requireUserId());
+}
+
+/**
+ * A user's current Form (TSB), or null when it can't be computed yet (no
+ * threshold HR set, or no HR-recorded activities). Takes an explicit userId so
+ * the adaptive re-ramp can fold Form into the ramp without re-reading the
+ * session. See [formLoadFactor](src/lib/training-load.ts).
+ */
+export async function getUserFormTsb(userId: string): Promise<number | null> {
+  const { summary } = await readUserLoad(userId);
+  return summary?.form ?? null;
 }
 
 /** Set (or clear) the athlete's threshold HR. Scoped to the session user. */

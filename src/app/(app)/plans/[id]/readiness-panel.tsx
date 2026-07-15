@@ -1,4 +1,5 @@
-import type { PlanReadiness, ReadinessStatus, SeriesReadiness } from "@/lib/readiness";
+import type { FormReadiness, PlanReadiness, ReadinessStatus, SeriesReadiness } from "@/lib/readiness";
+import type { FormStatus } from "@/lib/training-load";
 import {
   DISCIPLINE_META,
   STATUS_META,
@@ -15,6 +16,14 @@ const STATUS_KEY: Record<ReadinessStatus, StatusKey> = {
   onTrack: "onTrack",
   atRisk: "behind",
   insufficient: "upcoming",
+};
+
+// Form (TSB) bands reuse the same status palette (matches the /load page).
+const FORM_STATUS_KEY: Record<FormStatus, StatusKey> = {
+  fresh: "onTrack",
+  neutral: "upcoming",
+  productive: "ahead",
+  overreaching: "behind",
 };
 
 const STATUS_LABEL: Record<ReadinessStatus, string> = {
@@ -43,9 +52,17 @@ function headline(o: SeriesReadiness): string {
  * "Am I on track?" — projects the current trajectory to the peak week and, when
  * a discipline is trending short, surfaces a concrete weekly correction.
  */
-export function ReadinessPanel({ readiness }: { readiness: PlanReadiness }) {
+export function ReadinessPanel({
+  readiness,
+  form,
+}: {
+  readiness: PlanReadiness;
+  form?: FormReadiness | null;
+}) {
   const overall = readiness.overall;
   if (!overall) return null;
+
+  const formColor = form ? STATUS_META[FORM_STATUS_KEY[form.status]].color : "";
 
   const meta = STATUS_META[STATUS_KEY[overall.status]];
   const showDisciplines = overall.key === "TOTAL" && readiness.disciplines.length > 0;
@@ -89,6 +106,40 @@ export function ReadinessPanel({ readiness }: { readiness: PlanReadiness }) {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {form && (
+        <div className="mt-3.5 border-t border-border pt-3.5">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <span className="font-mono text-[11px] tracking-[0.08em] text-faint uppercase">
+              Form
+            </span>
+            <span
+              className="rounded-[20px] px-[10px] py-1 text-[12px] font-bold"
+              style={{ color: formColor, background: translucent(formColor, 14) }}
+              title="Form (TSB) from your HR training load — Fitness minus Fatigue"
+            >
+              {form.tsb > 0 ? `+${form.tsb}` : form.tsb} · {form.label}
+            </span>
+            {form.eases && (
+              <span className="font-mono text-[11.5px] text-muted">
+                easing this week&apos;s ramp toward recovery
+              </span>
+            )}
+          </div>
+          {form.note && (
+            <p
+              className="mt-2.5 mb-0 rounded-[11px] border px-3.5 py-2.5 text-[13px] font-semibold"
+              style={{
+                color: formColor,
+                background: translucent(formColor, 10),
+                borderColor: translucent(formColor, 24),
+              }}
+            >
+              {form.note}
+            </p>
+          )}
         </div>
       )}
 

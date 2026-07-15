@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { getTrainingLoad } from "@/lib/load-data";
 import { buildPlanSeries } from "@/lib/plan-series";
-import { computeReadiness } from "@/lib/readiness";
+import { computeFormReadiness, computeReadiness } from "@/lib/readiness";
 import { getTrainingPlan, maybeRecalculatePlan } from "@/lib/training-plan";
 import { planStartWeek, startOfWeek } from "@/lib/weekly-targets";
 
@@ -38,6 +39,13 @@ export default async function PlanPage({ params }: { params: Promise<{ id: strin
     (c) => c.weekStartDate.getTime() === currentWeekMs,
   );
 
+  // Objective Form (TSB) from HR training load, cross-checked against this week's
+  // check-in. Null until the athlete has set an LTHR and synced HR activities.
+  const load = await getTrainingLoad();
+  const formSignal = load.summary
+    ? computeFormReadiness(load.summary.form, currentCheckin ?? null)
+    : null;
+
   return (
     <>
       <PlanDashboard
@@ -48,6 +56,7 @@ export default async function PlanPage({ params }: { params: Promise<{ id: strin
         currentWeekMs={currentWeekMs}
         series={series}
         readiness={readiness}
+        formSignal={formSignal}
       />
 
       {isActiveWeek && (
