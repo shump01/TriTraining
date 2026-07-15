@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Archivo, Hanken_Grotesk, JetBrains_Mono } from "next/font/google";
+import { Anton, Archivo, Fraunces, Hanken_Grotesk, JetBrains_Mono } from "next/font/google";
 import { headers } from "next/headers";
 
 import "./globals.css";
@@ -8,6 +8,20 @@ const archivo = Archivo({
   subsets: ["latin"],
   weight: ["500", "600", "700", "800", "900"],
   variable: "--font-archivo",
+  display: "swap",
+});
+// Landing-page display faces (marketing home only).
+const anton = Anton({
+  subsets: ["latin"],
+  weight: "400",
+  variable: "--font-anton",
+  display: "swap",
+});
+const fraunces = Fraunces({
+  subsets: ["latin"],
+  weight: ["500", "600"],
+  style: ["italic"],
+  variable: "--font-fraunces",
   display: "swap",
 });
 const hanken = Hanken_Grotesk({
@@ -40,7 +54,10 @@ export default async function RootLayout({
   // Nonce minted per-request in proxy.ts — required for inline scripts under CSP.
   const nonce = (await headers()).get("x-nonce") ?? undefined;
   return (
-    <html lang="en" className={`${archivo.variable} ${hanken.variable} ${jetbrains.variable}`}>
+    <html
+      lang="en"
+      className={`${archivo.variable} ${anton.variable} ${fraunces.variable} ${hanken.variable} ${jetbrains.variable}`}
+    >
       <body>
         <script nonce={nonce} dangerouslySetInnerHTML={{ __html: themeBootstrap }} />
         {children}
