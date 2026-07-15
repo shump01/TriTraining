@@ -31,6 +31,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
     const now = new Date();
     const series = buildPlanSeries(plan, now);
+    const currentWeekMs = startOfWeek(now, plan.weekStartDay).getTime();
+    // The current week's wellness check-in (if any) — same lookup as the page.
+    const checkin =
+      plan.weeklyCheckins.find((c) => c.weekStartDate.getTime() === currentWeekMs) ?? null;
     return NextResponse.json(
       {
         plan: {
@@ -39,9 +43,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
           weekStartDay: plan.weekStartDay,
           capMultiple: plan.capMultiple,
           taperWeeks: plan.taperWeeks,
+          priority: plan.priority,
+          shareToken: plan.shareToken,
           eventDateMs: plan.eventDate.getTime(),
           startDateMs: planStartWeek(plan).getTime(),
-          currentWeekMs: startOfWeek(now, plan.weekStartDay).getTime(),
+          currentWeekMs,
           disciplines: plan.disciplines.map((d) => ({
             discipline: d.discipline,
             startingWeeklyMeters: d.startingWeeklyMeters,
@@ -50,6 +56,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         },
         series,
         readiness: computeReadiness(series),
+        checkin: checkin && {
+          fatigue: checkin.fatigue,
+          sleep: checkin.sleep,
+          soreness: checkin.soreness,
+          note: checkin.note,
+        },
       },
       { status: 200 },
     );

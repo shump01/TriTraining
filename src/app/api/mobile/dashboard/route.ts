@@ -1,10 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { mapKnownApiError } from "@/lib/api";
-import { buildPlanProgressInputs } from "@/lib/plan-progress";
 import { buildPlanSeries } from "@/lib/plan-series";
 import { prisma } from "@/lib/prisma";
-import { computeProgress } from "@/lib/progress";
 import { computeReadiness, type SeriesReadiness } from "@/lib/readiness";
 import { enforceRateLimit } from "@/lib/security";
 import { getStravaConnectionSummary } from "@/lib/strava/connection";
@@ -58,24 +56,15 @@ export async function GET(req: NextRequest) {
       let minis: { key: string; label: string; pct: number }[] = [];
       let readiness: SeriesReadiness | null = null;
       if (full) {
-        readiness = computeReadiness(buildPlanSeries(full, now)).overall;
-        const inputs = buildPlanProgressInputs(full);
-        const discMinis = inputs.disciplines.map((d) => ({
-          key: d as string,
-          label: d.charAt(0) + d.slice(1).toLowerCase(),
-          pct: computeProgress(inputs.byDiscipline[d] ?? [], now).summary.pctOfTarget ?? 0,
-        }));
-        minis =
-          inputs.disciplines.length > 1
-            ? [
-                {
-                  key: "TOTAL",
-                  label: "Total",
-                  pct: computeProgress(inputs.total, now).summary.pctOfTarget ?? 0,
-                },
-                ...discMinis,
-              ]
-            : discMinis;
+        // One source of truth with the web dashboard: the series drives both
+        // the readiness chip and the minis, which show the CURRENT week's %.
+        const series = buildPlanSeries(full, now);
+        readiness = computeReadiness(series).overall;
+        minis = series.map((s) => {
+          const i = s.weeks.findIndex((w) => w.phase === "current");
+          const curIndex = i >= 0 ? i : s.summary.finished ? s.weeks.length - 1 : 0;
+          return { key: s.key, label: s.label, pct: s.weeks[curIndex]?.pctOfTarget ?? 0 };
+        });
       }
       activePlan = {
         id: active.id,
