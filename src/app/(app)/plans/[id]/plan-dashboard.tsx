@@ -12,6 +12,7 @@ import { ActualCell } from "./actual-cell";
 import { ProgressRing, Sparkline, VolumeChart, type WeekDatum } from "./charts";
 import { ConsistencyCard } from "./consistency-card";
 import { ReadinessPanel } from "./readiness-panel";
+import { SessionsCard } from "./sessions-card";
 
 export interface PlanDashboardProps {
   planId: string;
@@ -279,6 +280,10 @@ function CommandView({
           </div>
         </div>
       </div>
+
+      {active !== "TOTAL" && buildWeek && (
+        <SessionsCard discipline={active} weekMeters={buildWeek.target} color={data.color} />
+      )}
 
       <div className="mt-[18px] hidden overflow-hidden rounded-[16px] border border-border bg-card app:block">
         <table className="w-full border-collapse text-[14px]">
