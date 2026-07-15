@@ -89,3 +89,52 @@ export function aggregateActivitiesByWeek(
     meters: Math.floor(v.meters),
   }));
 }
+
+/** An activity with the fields training load needs (heart rate + duration). */
+export interface ActivityHrInput {
+  id: string;
+  sportType: string | undefined;
+  startDateLocal: string;
+  movingSeconds: number;
+  avgHr: number | null;
+}
+
+export interface ActivityLoadRow {
+  stravaActivityId: string;
+  date: Date; // UTC-midnight of the activity's LOCAL calendar day
+  discipline: Discipline;
+  movingSeconds: number;
+  avgHr: number;
+}
+
+/**
+ * Build per-activity training-load rows from synced activities. Keeps only
+ * mapped disciplines that recorded HR and moving time — activities without a
+ * heart rate can't be scored (hrTSS) and are dropped. The date is the activity's
+ * LOCAL calendar day (from start_date_local), so load lands on the day trained.
+ */
+export function buildActivityLoadRows(activities: ActivityHrInput[]): ActivityLoadRow[] {
+  const rows: ActivityLoadRow[] = [];
+  for (const a of activities) {
+    const discipline = mapSportTypeToDiscipline(a.sportType);
+    if (!discipline) continue;
+    if (!a.id) continue;
+    if (!(a.movingSeconds > 0)) continue;
+    if (a.avgHr == null || !(a.avgHr > 0)) continue;
+
+    const parsed = new Date(a.startDateLocal);
+    if (Number.isNaN(parsed.getTime())) continue;
+    const date = new Date(
+      Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate()),
+    );
+
+    rows.push({
+      stravaActivityId: a.id,
+      date,
+      discipline,
+      movingSeconds: Math.round(a.movingSeconds),
+      avgHr: Math.round(a.avgHr),
+    });
+  }
+  return rows;
+}

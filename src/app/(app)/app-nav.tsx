@@ -10,6 +10,7 @@ const NAV = [
   { href: "/dashboard", label: "Dashboard", short: "Home", icon: "◧" },
   { href: "/plans", label: "Plans", short: "Plans", icon: "▦" },
   { href: "/plans/new", label: "New plan", short: "New", icon: "＋" },
+  { href: "/load", label: "Load", short: "Load", icon: "♥" },
   { href: "/groups", label: "Groups", short: "Group", icon: "◎" },
 ];
 
@@ -39,6 +40,7 @@ function useMobileTitle(): string {
   if (pathname === "/plans/new") return "New plan";
   if (pathname.endsWith("/edit")) return "Edit plan";
   if (pathname.startsWith("/plans/")) return "Plan";
+  if (pathname === "/load") return "Training load";
   if (pathname === "/groups") return "Groups";
   if (pathname.startsWith("/groups/join")) return "Join group";
   if (pathname.startsWith("/groups/")) return "Group";

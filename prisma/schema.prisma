@@ -28,14 +28,38 @@ model User {
   emailVerified    DateTime?
   image            String?
   passwordHash     String? // argon2id hash; null for users without a password
+  // Lactate-threshold heart rate (bpm) — required to compute HR-based training
+  // load (hrTSS). Null until the athlete sets it. See src/lib/training-load.ts.
+  thresholdHr      Int?
   accounts         Account[]
   sessions         Session[]
   trainingPlans    TrainingPlan[]
+  activityLoads    ActivityLoad[]
   stravaConnection StravaConnection?
   ownedGroups      Group[]           @relation("GroupOwner")
   groupMemberships GroupMembership[]
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
+}
+
+// Per-activity heart-rate data for training load (hrTSS → CTL/ATL/TSB). Populated
+// by the Strava sync for activities that recorded HR; whole-athlete (not tied to
+// a plan). TSS is NOT stored — it's derived from movingSeconds + avgHr + the
+// user's current thresholdHr at read time, so changing threshold recomputes.
+model ActivityLoad {
+  id               String     @id @default(cuid())
+  userId           String
+  stravaActivityId String // Strava activity id — idempotency key for re-syncs
+  date             DateTime   @db.Date // local activity date (for daily bucketing)
+  discipline       Discipline
+  movingSeconds    Int
+  avgHr            Int // only activities with recorded HR are stored
+  createdAt        DateTime   @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, stravaActivityId])
+  @@index([userId, date])
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

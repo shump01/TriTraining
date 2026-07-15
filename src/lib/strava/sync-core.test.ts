@@ -3,8 +3,51 @@ import { describe, expect, it } from "vitest";
 import {
   activitiesAfterSeconds,
   aggregateActivitiesByWeek,
+  buildActivityLoadRows,
   mapSportTypeToDiscipline,
+  type ActivityHrInput,
 } from "./sync-core";
+
+describe("buildActivityLoadRows", () => {
+  const base: ActivityHrInput = {
+    id: "1",
+    sportType: "Run",
+    startDateLocal: "2026-01-05T07:30:00Z",
+    movingSeconds: 3600,
+    avgHr: 150,
+  };
+
+  it("keeps HR-recorded, mapped activities and dates them by their local day", () => {
+    const rows = buildActivityLoadRows([base]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      stravaActivityId: "1",
+      discipline: "RUN",
+      movingSeconds: 3600,
+      avgHr: 150,
+    });
+    // Local day 2026-01-05 → UTC midnight.
+    expect(rows[0]!.date.toISOString()).toBe("2026-01-05T00:00:00.000Z");
+  });
+
+  it("drops activities without heart rate (can't compute hrTSS)", () => {
+    expect(buildActivityLoadRows([{ ...base, avgHr: null }])).toEqual([]);
+    expect(buildActivityLoadRows([{ ...base, avgHr: 0 }])).toEqual([]);
+  });
+
+  it("drops unmapped sports, zero duration, and missing ids", () => {
+    expect(buildActivityLoadRows([{ ...base, sportType: "WeightTraining" }])).toEqual([]);
+    expect(buildActivityLoadRows([{ ...base, movingSeconds: 0 }])).toEqual([]);
+    expect(buildActivityLoadRows([{ ...base, id: "" }])).toEqual([]);
+  });
+
+  it("maps ride/virtual variants to the right discipline", () => {
+    expect(buildActivityLoadRows([{ ...base, sportType: "VirtualRide" }])[0]?.discipline).toBe(
+      "BIKE",
+    );
+    expect(buildActivityLoadRows([{ ...base, sportType: "Swim" }])[0]?.discipline).toBe("SWIM");
+  });
+});
 
 describe("activitiesAfterSeconds", () => {
   const NOW_MS = Date.UTC(2026, 5, 20); // 2026-06-20

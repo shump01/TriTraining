@@ -169,6 +169,15 @@ export type CheckinInput = z.infer<typeof checkinSchema>;
 /** Toggle a plan's public read-only share link. */
 export const shareSchema = z.object({ enabled: z.boolean() });
 
+/** Set the athlete's lactate-threshold heart rate (bpm) for training load. */
+export const thresholdHrSchema = z.object({
+  thresholdHr: z.coerce
+    .number({ message: "Enter a number" })
+    .int()
+    .min(100, "Must be between 100 and 220 bpm")
+    .max(220, "Must be between 100 and 220 bpm"),
+});
+
 // ── Apple Health ingest ──────────────────────────────────────────────────────
 
 /**

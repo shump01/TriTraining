@@ -128,6 +128,12 @@ export interface StravaActivitySummary {
   sportType: string | undefined;
   distanceMeters: number;
   startDateLocal: string;
+  /** Strava activity id (idempotency key for training-load rows). */
+  id: string;
+  /** Moving time in seconds (for hrTSS). */
+  movingSeconds: number;
+  /** Average heart rate, or null when the activity recorded no HR. */
+  avgHr: number | null;
 }
 
 export interface FetchActivitiesResult {
@@ -137,10 +143,13 @@ export interface FetchActivitiesResult {
 }
 
 interface RawActivity {
+  id?: number;
   sport_type?: string;
   type?: string;
   distance?: number;
   start_date_local?: string;
+  moving_time?: number;
+  average_heartrate?: number;
 }
 
 interface FetchActivitiesOptions {
@@ -215,6 +224,9 @@ export async function fetchRecentActivities(
         sportType: a.sport_type ?? a.type,
         distanceMeters: a.distance ?? 0,
         startDateLocal: a.start_date_local ?? "",
+        id: a.id != null ? String(a.id) : "",
+        movingSeconds: a.moving_time ?? 0,
+        avgHr: a.average_heartrate != null ? Math.round(a.average_heartrate) : null,
       });
     }
 

@@ -3,7 +3,11 @@ import { planStartWeek, startOfWeek } from "@/lib/weekly-targets";
 
 import { fetchRecentActivities } from "./client";
 import { getValidStravaAccessToken } from "./connection";
-import { activitiesAfterSeconds, aggregateActivitiesByWeek } from "./sync-core";
+import {
+  activitiesAfterSeconds,
+  aggregateActivitiesByWeek,
+  buildActivityLoadRows,
+} from "./sync-core";
 
 export interface SyncResult {
   ok: boolean;
@@ -69,6 +73,7 @@ export async function syncStravaActivities(userId: string): Promise<SyncResult> 
   }
 
   const earliestMs = Math.min(...planRanges.map((r) => r.startMs));
+  const earliestDay = new Date(earliestMs); // already a UTC-midnight week start
   const afterEpochSeconds = activitiesAfterSeconds(earliestMs);
 
   const { activities, rateLimited } = await fetchRecentActivities(accessToken, {
@@ -98,12 +103,21 @@ export async function syncStravaActivities(userId: string): Promise<SyncResult> 
       })),
   );
 
+  // Per-activity HR data for training load (whole-athlete, from the same fetch
+  // window). Only activities that recorded HR are kept (see buildActivityLoadRows).
+  const loadRows = buildActivityLoadRows(activities);
+
   const planIds = planRanges.map((r) => r.id);
   await prisma.$transaction(async (tx) => {
     // Replace (not accumulate) STRAVA-sourced actuals — keeps sync idempotent.
     await tx.weeklyActual.deleteMany({ where: { planId: { in: planIds }, source: "STRAVA" } });
     if (rows.length > 0) {
       await tx.weeklyActual.createMany({ data: rows });
+    }
+    // Idempotently replace training-load rows in the same window.
+    await tx.activityLoad.deleteMany({ where: { userId, date: { gte: earliestDay } } });
+    if (loadRows.length > 0) {
+      await tx.activityLoad.createMany({ data: loadRows.map((r) => ({ userId, ...r })) });
     }
     await tx.stravaConnection.update({ where: { userId }, data: { lastSyncedAt: new Date() } });
   });
