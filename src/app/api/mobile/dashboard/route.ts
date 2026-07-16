@@ -42,18 +42,25 @@ export async function GET(req: NextRequest) {
     const active =
       plans.find((p) => p.eventDate.getTime() >= now.getTime()) ?? plans.at(-1) ?? null;
 
+    type Mini = {
+      key: string;
+      label: string;
+      pct: number;
+      actualMeters: number;
+      targetMeters: number;
+    };
     let activePlan: {
       id: string;
       name: string;
       eventDate: Date;
       weeksToGo: number;
-      minis: { key: string; label: string; pct: number }[];
+      minis: Mini[];
       readiness: SeriesReadiness | null;
     } | null = null;
 
     if (active) {
       const full = await getTrainingPlan(active.id);
-      let minis: { key: string; label: string; pct: number }[] = [];
+      let minis: Mini[] = [];
       let readiness: SeriesReadiness | null = null;
       if (full) {
         // One source of truth with the web dashboard: the series drives both
@@ -63,7 +70,16 @@ export async function GET(req: NextRequest) {
         minis = series.map((s) => {
           const i = s.weeks.findIndex((w) => w.phase === "current");
           const curIndex = i >= 0 ? i : s.summary.finished ? s.weeks.length - 1 : 0;
-          return { key: s.key, label: s.label, pct: s.weeks[curIndex]?.pctOfTarget ?? 0 };
+          const week = s.weeks[curIndex];
+          return {
+            key: s.key,
+            label: s.label,
+            pct: week?.pctOfTarget ?? 0,
+            // Raw meters so clients (the watch complication) can show
+            // distance done / remaining, not just the percentage.
+            actualMeters: week?.actual ?? 0,
+            targetMeters: week?.target ?? 0,
+          };
         });
       }
       activePlan = {
