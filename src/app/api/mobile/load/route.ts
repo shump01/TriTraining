@@ -9,9 +9,10 @@ export const dynamic = "force-dynamic";
 
 /**
  * GET /api/mobile/load — JSON mirror of the training-load page's server data
- * (src/app/(app)/load/page.tsx): threshold HR, the daily CTL/ATL/TSB series,
- * and the current summary. Empty series/summary until a threshold is set and
- * HR-recorded activities have been synced.
+ * (src/app/(app)/load/page.tsx): threshold HR, the daily CTL/ATL/TSB series, the
+ * current summary, and the recent intensity distribution (time-in-zone + the
+ * polarized easy/grey/hard split). Empty series/summary/intensity until a
+ * threshold is set and HR-recorded activities have been synced.
  */
 export async function GET(req: NextRequest) {
   const limited = enforceRateLimit(req, "mobile:read", 120, 60_000);

@@ -7,12 +7,19 @@ import {
   type LoadSummary,
 } from "@/lib/training-load";
 import { requireUserId } from "@/lib/training-plan";
+import {
+  INTENSITY_WINDOW_DAYS,
+  buildIntensityDistribution,
+  type IntensityDistribution,
+} from "@/lib/zones";
 
 /**
  * User-scoped read/write for HR training load. TSS is computed at read time from
  * stored movingSeconds + avgHr and the athlete's *current* thresholdHr, so
  * updating the threshold recomputes the whole history.
  */
+
+const DAY_MS = 86_400_000;
 
 export interface TrainingLoad {
   /** The athlete's lactate-threshold HR, or null if not set. */
@@ -21,6 +28,8 @@ export interface TrainingLoad {
   hasActivities: boolean;
   series: LoadPoint[];
   summary: LoadSummary | null;
+  /** Time-in-zone over the last INTENSITY_WINDOW_DAYS. Null with nothing to score. */
+  intensity: IntensityDistribution | null;
 }
 
 /** Read + compute a specific user's training load. Shared by the callers below. */
@@ -39,16 +48,28 @@ async function readUserLoad(userId: string): Promise<TrainingLoad> {
 
   // Nothing to chart until both a threshold and some HR activities exist.
   if (!thresholdHr || !hasActivities) {
-    return { thresholdHr, hasActivities, series: [], summary: null };
+    return { thresholdHr, hasActivities, series: [], summary: null, intensity: null };
   }
 
+  const now = Date.now();
   const daily = loads.map((l) => ({
     dateMs: l.date.getTime(),
     tss: activityTss(l.movingSeconds, l.avgHr, thresholdHr),
   }));
-  const series = buildLoadSeries(daily, Date.now());
+  const series = buildLoadSeries(daily, now);
 
-  return { thresholdHr, hasActivities, series, summary: summarizeLoad(series) };
+  // The intensity distribution looks at a recent block only — "am I training at
+  // the right intensities *lately*" — and reuses the rows already fetched above.
+  const windowStart = now - INTENSITY_WINDOW_DAYS * DAY_MS;
+  const recent = loads.filter((l) => l.date.getTime() >= windowStart);
+
+  return {
+    thresholdHr,
+    hasActivities,
+    series,
+    summary: summarizeLoad(series),
+    intensity: buildIntensityDistribution(recent, thresholdHr),
+  };
 }
 
 export async function getTrainingLoad(): Promise<TrainingLoad> {

@@ -4,6 +4,7 @@ import { getTrainingLoad } from "@/lib/load-data";
 import type { FormStatus } from "@/lib/training-load";
 import { translucent } from "@/lib/ui/theme";
 
+import { IntensityCard } from "./intensity-card";
 import { LoadChart } from "./load-chart";
 import { ThresholdForm } from "./threshold-form";
 
@@ -144,6 +145,8 @@ export default async function LoadPage() {
             </div>
             <LoadChart series={load.summary ? load.series : []} />
           </div>
+
+          {load.intensity && <IntensityCard intensity={load.intensity} />}
 
           <div className="mt-5 flex flex-wrap items-end justify-between gap-4 rounded-[16px] border border-border bg-card p-5">
             <ThresholdForm initial={load.thresholdHr} cta="Update" />

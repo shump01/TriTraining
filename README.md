@@ -231,6 +231,19 @@ hard **cap** of `capMultiple × eventDistance` (per-plan, default 1.5×).
   outrunning fitness, it surfaces the objective override — the "you feel fresh,
   but your Form is −35" insight.
 
+- **Intensity distribution** ([src/lib/zones.ts](src/lib/zones.ts)). Training load
+  answers _how much_; this answers _how hard_. Activities are banded into Friel
+  LTHR zones (Z1–Z5) off the same `thresholdHr`, then collapsed to the three bands
+  the polarized-training model cares about — easy (Z1–Z2), grey/tempo (Z3), hard
+  (Z4–Z5) — and shown on `/load` against the ~80/20 reference over a 28-day window.
+  **Read it with its method in mind:** Strava gives us a session's _average_ HR,
+  not its HR trace, so each activity is scored whole. Steady sessions score
+  honestly; an interval session averages its warm-up and reps into Z3, which biases
+  the distribution toward the middle. It's a read on where efforts sat, not true
+  time-in-zone — the card says so, and the verdicts are worded as prompts rather
+  than instructions. True time-in-zone would need per-activity HR streams. (Like
+  hrTSS, it also uses one `thresholdHr` across all three sports.)
+
 ## Database
 
 Postgres via Prisma 7. For quick local iteration `npm run db:push` is fine; for any
