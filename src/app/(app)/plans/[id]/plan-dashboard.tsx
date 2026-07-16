@@ -62,6 +62,25 @@ function StatusPill({ statusKey, small }: { statusKey: StatusKey; small?: boolea
   );
 }
 
+/** A week's pill — time off reads as "Paused", not as a missed target. */
+function WeekPill({ w, small }: { w: WeekRow; small?: boolean }) {
+  if (w.paused) {
+    return (
+      <span
+        className={`rounded-[20px] font-bold ${small ? "px-2 py-0.5 text-[10.5px]" : "px-[10px] py-1 text-[12px]"}`}
+        style={{
+          color: "var(--muted)",
+          background: "color-mix(in srgb, var(--muted) 14%, transparent)",
+        }}
+        title={w.pauseReason ? `Time off — ${w.pauseReason.toLowerCase()}` : "Time off"}
+      >
+        Paused
+      </span>
+    );
+  }
+  return <StatusPill statusKey={weekStatusKey(w)} small={small} />;
+}
+
 export function PlanDashboard({
   planId,
   planName,
@@ -240,7 +259,7 @@ function CommandView({
                 >
                   {s.label}
                 </span>
-                <StatusPill statusKey={cur ? weekStatusKey(cur) : "upcoming"} small />
+                {cur ? <WeekPill w={cur} small /> : <StatusPill statusKey="upcoming" small />}
               </div>
               <div className="font-display text-[30px] leading-none font-black">
                 {pct}
@@ -336,7 +355,7 @@ function CommandView({
                   {w.pctOfTarget == null ? "—" : `${w.pctOfTarget}%`}
                 </td>
                 <td className="px-[18px] py-3">
-                  <StatusPill statusKey={weekStatusKey(w)} small />
+                  <WeekPill w={w} small />
                   {w.phase === "current" && (
                     <span className="ml-1.5 font-mono text-[11px] text-faint">now</span>
                   )}
@@ -383,8 +402,8 @@ function CommandView({
                 <div className="grid place-items-center">
                   <span
                     className="h-2 w-2 rounded-full"
-                    style={{ background: STATUS_META[statusKey].color }}
-                    title={STATUS_META[statusKey].label}
+                    style={{ background: w.paused ? "var(--muted)" : STATUS_META[statusKey].color }}
+                    title={w.paused ? "Time off" : STATUS_META[statusKey].label}
                   />
                 </div>
               </button>
@@ -494,7 +513,7 @@ function TimelineView({
                     {w.phase === "future" ? "—" : formatDistance(w.actual ?? 0, data.key)}
                     <span className="text-faint"> / {formatDistance(w.target, data.key)}</span>
                   </span>
-                  <StatusPill statusKey={weekStatusKey(w)} small />
+                  <WeekPill w={w} small />
                 </div>
                 <div className="h-1.5 overflow-hidden rounded-[6px] bg-card2">
                   <div

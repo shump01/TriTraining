@@ -3,12 +3,15 @@ import { describe, expect, it } from "vitest";
 import {
   BLOCK_WEEKS,
   CAP_MULTIPLE,
+  DETRAIN_PER_WEEK,
   MAX_WEEKLY_INCREASE,
+  MIN_RETURN_FACTOR,
   TAPER_FLOOR,
   computeAdaptedFutureTargets,
   computeWeeklyTargets,
   firstWeekStartOnOrAfter,
   planStartWeek,
+  returnToTrainingFactor,
   startOfWeek,
   type WeeklyTargetInput,
 } from "./weekly-targets";
@@ -639,5 +642,113 @@ describe("computeAdaptedFutureTargets", () => {
     // The re-ramp still tapers into race day: the last week is well under the peak.
     expect(vals.at(-1)!).toBeLessThan(peak);
     expect(vals.at(-1)!).toBeLessThanOrEqual(peak * 0.6);
+  });
+});
+
+describe("returnToTrainingFactor", () => {
+  it("leaves the baseline untouched with no layoff", () => {
+    expect(returnToTrainingFactor(0)).toBe(1);
+    expect(returnToTrainingFactor(-2)).toBe(1);
+    expect(returnToTrainingFactor(NaN)).toBe(1);
+  });
+
+  it("detrains the baseline by the documented amount per week off", () => {
+    expect(returnToTrainingFactor(1)).toBeCloseTo(1 - DETRAIN_PER_WEEK, 6);
+    expect(returnToTrainingFactor(3)).toBeCloseTo(1 - 3 * DETRAIN_PER_WEEK, 6);
+  });
+
+  it("never restarts below the floor, however long the layoff", () => {
+    expect(returnToTrainingFactor(20)).toBe(MIN_RETURN_FACTOR);
+    expect(returnToTrainingFactor(100)).toBe(MIN_RETURN_FACTOR);
+  });
+
+  it("is monotonic — a longer layoff never returns higher", () => {
+    for (let w = 1; w < 10; w++) {
+      expect(returnToTrainingFactor(w + 1)).toBeLessThanOrEqual(returnToTrainingFactor(w));
+    }
+  });
+});
+
+describe("computeAdaptedFutureTargets — returning from paused weeks", () => {
+  const currentWeekStart = mondayPlusWeeks(3);
+  const disciplines = [
+    {
+      discipline: "RUN",
+      eventDistanceMeters: 100_000,
+      lastCompletedActual: 10_000,
+      lastCompletedTarget: 9_000,
+    },
+  ];
+  const common = { currentWeekStart, eventDate: mondayPlusWeeks(20), capMultiple: 1.5 };
+
+  it("restarts the first week back AT the detrained baseline (not a growth step above it)", () => {
+    // Two weeks off: the baseline week is the last week trained, at +0.
+    const rows = computeAdaptedFutureTargets({
+      ...common,
+      lastCompletedWeekStart: mondayPlusWeeks(0),
+      pausedWeeks: 2,
+      disciplines,
+    });
+    const first = rows.find((r) => r.weekStartDate.getTime() === currentWeekStart.getTime())!;
+    // 10,000 actual × returnToTrainingFactor(2) = 8,000 — the week back IS the baseline.
+    expect(first.targetMeters).toBe(Math.floor(10_000 * returnToTrainingFactor(2)));
+  });
+
+  it("comes back lower than it left off — and lower the longer the layoff", () => {
+    const ramp = (pausedWeeks: number) =>
+      computeAdaptedFutureTargets({
+        ...common,
+        lastCompletedWeekStart: mondayPlusWeeks(3 - pausedWeeks - 1),
+        pausedWeeks,
+        disciplines,
+      })[0]!.targetMeters;
+
+    // Without a pause the ramp continues UP from the 10,000 actual…
+    const noPause = computeAdaptedFutureTargets({
+      ...common,
+      lastCompletedWeekStart: mondayPlusWeeks(2),
+      disciplines,
+    })[0]!.targetMeters;
+    expect(noPause).toBeGreaterThan(10_000);
+
+    // …whereas returning from time off restarts below it, and keeps dropping.
+    expect(ramp(1)).toBeLessThan(10_000);
+    expect(ramp(3)).toBeLessThan(ramp(1));
+  });
+
+  it("still rebuilds toward the cap after the reduced restart", () => {
+    const rows = computeAdaptedFutureTargets({
+      ...common,
+      lastCompletedWeekStart: mondayPlusWeeks(0),
+      pausedWeeks: 3,
+      disciplines,
+    });
+    const vals = rows.map((r) => r.targetMeters);
+    // The return ramp climbs back up rather than staying flat at the reduced level.
+    expect(vals.at(-1)!).toBeGreaterThan(vals[0]!);
+    for (const v of vals) expect(v).toBeLessThanOrEqual(1.5 * 100_000);
+  });
+
+  it("stacks with a fatigued check-in (both eases apply)", () => {
+    const args = { ...common, lastCompletedWeekStart: mondayPlusWeeks(1), pausedWeeks: 1 };
+    const plain = computeAdaptedFutureTargets({ ...args, disciplines })[0]!.targetMeters;
+    const eased = computeAdaptedFutureTargets({
+      ...args,
+      readinessFactor: 0.8,
+      disciplines,
+    })[0]!.targetMeters;
+    expect(eased).toBeLessThan(plain);
+  });
+
+  it("returns nothing when the comeback lands in the race week itself", () => {
+    // Anchoring at the current week would need a start strictly before the event.
+    const rows = computeAdaptedFutureTargets({
+      ...common,
+      eventDate: currentWeekStart,
+      lastCompletedWeekStart: mondayPlusWeeks(1),
+      pausedWeeks: 1,
+      disciplines,
+    });
+    expect(rows).toEqual([]);
   });
 });

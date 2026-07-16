@@ -27,6 +27,10 @@ export interface WeekRow {
   cumulativeTarget: number;
   manualMeters: number | null;
   effectiveSource: ActualSource | null;
+  /** Marked as time off (ill / injured / away) — see WeeklyPause. */
+  paused: boolean;
+  /** Why the week was paused, when it was. */
+  pauseReason: string | null;
 }
 
 export interface SeriesData {
@@ -62,12 +66,20 @@ interface PlanForSeries {
   disciplines: { discipline: string; startingWeeklyMeters: number }[];
   weeklyTargets: { discipline: string; weekStartDate: Date; targetMeters: number }[];
   weeklyActuals: ActualRow[];
+  /** Weeks marked as time off. Optional so callers predating pauses still work. */
+  weeklyPauses?: { weekStartDate: Date; reason: string }[];
 }
 
 /** Ordered series: [TOTAL?, ...present disciplines]. TOTAL only for multi-sport plans. */
 export function buildPlanSeries(plan: PlanForSeries, now: Date): SeriesData[] {
   const inputs = buildPlanProgressInputs(plan);
   const effective = resolveEffectiveActuals(plan.weeklyActuals);
+
+  // Pauses are per-plan, so every series marks the same weeks as time off.
+  const pauseByWeek = new Map<number, string>();
+  for (const p of plan.weeklyPauses ?? []) {
+    pauseByWeek.set(p.weekStartDate.getTime(), p.reason);
+  }
 
   const manualByKey = new Map<string, number>();
   for (const a of plan.weeklyActuals) {
@@ -92,6 +104,7 @@ export function buildPlanSeries(plan: PlanForSeries, now: Date): SeriesData[] {
     const weeks: WeekRow[] = prog.weeks.map((w) => {
       const k = key === "TOTAL" ? null : effectiveActualKey(key, w.weekStartDate);
       const eff = k ? effective.get(k) : undefined;
+      const pauseReason = pauseByWeek.get(w.weekStartDate.getTime()) ?? null;
       return {
         ms: w.weekStartDate.getTime(),
         dateStr: isoDate(w.weekStartDate),
@@ -104,6 +117,8 @@ export function buildPlanSeries(plan: PlanForSeries, now: Date): SeriesData[] {
         cumulativeTarget: w.cumulativeTarget,
         manualMeters: k ? (manualByKey.get(k) ?? null) : null,
         effectiveSource: eff ? eff.source : null,
+        paused: pauseReason != null,
+        pauseReason,
       };
     });
     return { key, ...KEY_META[key], startVol, weeks, summary: prog.summary };

@@ -36,6 +36,13 @@ export interface ReadinessSeriesInput {
     /** Effective actual (MANUAL over synced), or null for future weeks. */
     actual: number | null;
     phase: "past" | "current" | "future";
+    /**
+     * A week the athlete was ill / injured / away (see WeeklyPause). Time off is
+     * not a shortfall, so paused weeks are excluded from both the trend and
+     * adherence — otherwise a fortnight sick would read as "at risk" and the plan
+     * would tell the athlete to train *more* on their way back.
+     */
+    paused?: boolean;
   }[];
 }
 
@@ -94,10 +101,11 @@ function computeSeriesReadiness(s: ReadinessSeriesInput): SeriesReadiness {
   });
 
   // Completed-week actuals feed the trend — exclude the partial current week so
-  // a mid-week reading doesn't drag the slope down.
+  // a mid-week reading doesn't drag the slope down, and paused weeks (time off)
+  // so a layoff doesn't flatten the projected build.
   const points: TrendPoint[] = [];
   weeks.forEach((w, i) => {
-    if (w.phase === "past" && w.actual != null) points.push({ x: i, y: w.actual });
+    if (w.phase === "past" && w.actual != null && !w.paused) points.push({ x: i, y: w.actual });
   });
 
   const anchorIndex = currentIndex >= 0 ? currentIndex : n - 1;
@@ -128,11 +136,12 @@ function computeSeriesReadiness(s: ReadinessSeriesInput): SeriesReadiness {
   }
 
   // Peak reached/passed (taper) or plan finished → adherence accrued to date.
+  // Paused weeks are left out of both sides: nothing was expected, so nothing is owed.
   if (started) {
     let cumulativeActual = 0;
     let cumulativeTarget = 0;
     for (const w of weeks) {
-      if (w.phase !== "future") {
+      if (w.phase !== "future" && !w.paused) {
         cumulativeActual += w.actual ?? 0;
         cumulativeTarget += w.target;
       }

@@ -166,6 +166,22 @@ export const checkinSchema = z.object({
 
 export type CheckinInput = z.infer<typeof checkinSchema>;
 
+// ── Weekly pause (time off: ill / injured / away) ────────────────────────────
+
+/** Mark a week as time off. Mirrors the PauseReason enum in the schema. */
+export const pauseSchema = z.object({
+  weekStartDate: z.coerce.date({ message: "Enter a valid date" }),
+  reason: z.enum(["ILLNESS", "INJURY", "TRAVEL", "OTHER"], { message: "Pick a reason" }),
+  note: z.string().trim().max(500, "Note is too long").optional(),
+});
+
+export type PauseInput = z.infer<typeof pauseSchema>;
+
+/** Un-pause a week. */
+export const clearPauseSchema = z.object({
+  weekStartDate: z.coerce.date({ message: "Enter a valid date" }),
+});
+
 /** Toggle a plan's public read-only share link. */
 export const shareSchema = z.object({ enabled: z.boolean() });
 

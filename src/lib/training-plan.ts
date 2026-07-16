@@ -3,7 +3,7 @@ import { randomBytes } from "crypto";
 import { headers } from "next/headers";
 
 import { auth } from "@/auth";
-import { ActualSource, Discipline } from "@/generated/prisma/client";
+import { ActualSource, Discipline, type PauseReason } from "@/generated/prisma/client";
 import { effectiveActualKey, resolveEffectiveActuals } from "@/lib/actuals";
 import { checkinReadinessFactor } from "@/lib/checkin";
 import { getUserFormTsb } from "@/lib/load-data";
@@ -162,6 +162,7 @@ export async function getTrainingPlan(planId: string) {
       weeklyTargets: { orderBy: { weekStartDate: "asc" } },
       weeklyActuals: true,
       weeklyCheckins: true,
+      weeklyPauses: true,
     },
   });
 }
@@ -193,6 +194,50 @@ export async function recordCheckin(
     where: { planId_weekStartDate: { planId: plan.id, weekStartDate: weekStart } },
     create: { planId: plan.id, weekStartDate: weekStart, ...data },
     update: data,
+  });
+}
+
+/**
+ * Mark (upsert) a week as time off — ill, injured, or away. Scoped to the owning
+ * user; the week is aligned to the plan's week-start day. A paused week is left
+ * out of the readiness trend/adherence, and the next re-ramp returns from a
+ * detrained baseline (see returnToTrainingFactor + maybeRecalculatePlan).
+ */
+export async function recordPause(
+  planId: string,
+  input: { weekStartDate: Date; reason: PauseReason; note?: string },
+) {
+  const userId = await requireUserId();
+  const plan = await prisma.trainingPlan.findFirst({
+    where: { id: planId, userId },
+    select: { id: true, weekStartDay: true },
+  });
+  if (!plan) throw new NotFoundError();
+
+  const weekStart = startOfWeek(input.weekStartDate, plan.weekStartDay);
+  const data = { reason: input.reason, note: input.note ?? null };
+  return prisma.weeklyPause.upsert({
+    where: { planId_weekStartDate: { planId: plan.id, weekStartDate: weekStart } },
+    create: { planId: plan.id, weekStartDate: weekStart, ...data },
+    update: data,
+  });
+}
+
+/**
+ * Un-pause a week (the athlete trained after all, or marked it by mistake).
+ * Scoped to the owning user; a no-op when the week wasn't paused.
+ */
+export async function clearPause(planId: string, weekStartDate: Date) {
+  const userId = await requireUserId();
+  const plan = await prisma.trainingPlan.findFirst({
+    where: { id: planId, userId },
+    select: { id: true, weekStartDay: true },
+  });
+  if (!plan) throw new NotFoundError();
+
+  const weekStart = startOfWeek(weekStartDate, plan.weekStartDay);
+  await prisma.weeklyPause.deleteMany({
+    where: { planId: plan.id, weekStartDate: weekStart },
   });
 }
 
@@ -544,6 +589,7 @@ export async function maybeRecalculatePlan(planId: string): Promise<boolean> {
       weeklyCheckins: {
         select: { weekStartDate: true, fatigue: true, sleep: true, soreness: true },
       },
+      weeklyPauses: { select: { weekStartDate: true } },
     },
   });
   if (!plan) return false;
@@ -566,7 +612,21 @@ export async function maybeRecalculatePlan(planId: string): Promise<boolean> {
 
   const lastCompletedWeekStart = new Date(currentWeekStart.getTime() - WEEK_MS);
 
-  // Effective actual (MANUAL over STRAVA) + original target for the completed week.
+  // Skip back over any run of paused weeks (ill / injured / away) to the last
+  // week actually trained — that week, not the stale target of a week spent on
+  // the sofa, is what the return ramp builds from.
+  const pausedWeekMs = new Set(plan.weeklyPauses.map((p) => p.weekStartDate.getTime()));
+  let pausedWeeks = 0;
+  let baselineWeekStart = lastCompletedWeekStart;
+  while (
+    pausedWeekMs.has(baselineWeekStart.getTime()) &&
+    baselineWeekStart.getTime() > planStart.getTime()
+  ) {
+    pausedWeeks += 1;
+    baselineWeekStart = new Date(baselineWeekStart.getTime() - WEEK_MS);
+  }
+
+  // Effective actual (MANUAL over STRAVA) + original target for the baseline week.
   const effective = resolveEffectiveActuals(plan.weeklyActuals);
   const targetByKey = new Map<string, number>();
   for (const t of plan.weeklyTargets) {
@@ -574,7 +634,7 @@ export async function maybeRecalculatePlan(planId: string): Promise<boolean> {
   }
 
   const disciplines: AdaptiveDisciplineInput[] = plan.disciplines.map((d) => {
-    const key = effectiveActualKey(d.discipline, lastCompletedWeekStart);
+    const key = effectiveActualKey(d.discipline, baselineWeekStart);
     return {
       discipline: d.discipline,
       eventDistanceMeters: d.eventDistanceMeters,
@@ -597,12 +657,13 @@ export async function maybeRecalculatePlan(planId: string): Promise<boolean> {
 
   const newRows = computeAdaptedFutureTargets({
     disciplines,
-    lastCompletedWeekStart,
+    lastCompletedWeekStart: baselineWeekStart,
     currentWeekStart,
     eventDate: plan.eventDate,
     capMultiple: plan.capMultiple,
     taperWeeks: plan.taperWeeks,
     readinessFactor,
+    pausedWeeks,
   });
 
   // Only replace future targets for disciplines that produced a fresh ramp.

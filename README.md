@@ -207,6 +207,18 @@ hard **cap** of `capMultiple × eventDistance` (per-plan, default 1.5×).
   plan. The recompute is view-driven (no scheduler required) and uses UTC for the
   "today is the start day" check, consistent with the rest of the week math.
 
+- **Life happens — pauses and the return ramp.** A week the athlete couldn't train
+  can be marked as time off (`WeeklyPause`: ill / injured / away). That changes two
+  things. It's excluded from the readiness trend **and** adherence, so a fortnight
+  sick never reads as "at risk" — without this the plan would tell someone to train
+  _more_ on their way back from illness. And on return, `maybeRecalculatePlan` skips
+  back over the run of paused weeks to the last week actually **trained**, detrains
+  that baseline via `returnToTrainingFactor` (10% per week off, floored at 50%), and
+  restarts the ramp **at the current week** — so the first week back _is_ the reduced
+  volume and the plan rebuilds from there, instead of resuming at the stale
+  pre-illness target. One week off is a ~10% haircut the 12%/week ramp wins straight
+  back; a long layoff starts meaningfully lower.
+
 - **Two readiness signals ease the ramp.** On top of _how much_ you trained, the
   re-ramp folds in _how ready you are_ via a volume multiplier: a **subjective**
   one from the weekly wellness check-in (`checkinReadinessFactor` — fatigue /

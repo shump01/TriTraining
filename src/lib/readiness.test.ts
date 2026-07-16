@@ -113,6 +113,75 @@ describe("computeReadiness — overall vs disciplines", () => {
   });
 });
 
+describe("computeReadiness — paused weeks (time off)", () => {
+  const pausedWk = (target: number) => ({
+    target,
+    actual: 0,
+    phase: "past" as const,
+    paused: true,
+  });
+
+  it("ignores a paused week in the trend instead of reading it as a collapse", () => {
+    // Three good weeks, then a week off sick — the projection should follow the
+    // build, not be dragged to zero by the layoff.
+    const withPause = computeReadiness([
+      series("RUN", [
+        wk(100, 100, "past"),
+        wk(110, 110, "past"),
+        wk(120, 120, "past"),
+        pausedWk(130),
+        wk(140, 0, "current"),
+        wk(150, null, "future"), // peak
+      ]),
+    ]);
+    expect(withPause.overall?.status).toBe("onTrack");
+    // Without the pause flag the same zero week would drag the slope down…
+    const asMissed = computeReadiness([
+      series("RUN", [
+        wk(100, 100, "past"),
+        wk(110, 110, "past"),
+        wk(120, 120, "past"),
+        wk(130, 0, "past"),
+        wk(140, 0, "current"),
+        wk(150, null, "future"),
+      ]),
+    ]);
+    expect(asMissed.overall!.pct!).toBeLessThan(withPause.overall!.pct!);
+  });
+
+  it("does not tell the athlete to train more on the way back from a layoff", () => {
+    const { overall } = computeReadiness([
+      series("RUN", [
+        wk(100, 100, "past"),
+        wk(110, 110, "past"),
+        wk(120, 120, "past"),
+        pausedWk(130),
+        pausedWk(140),
+        wk(150, 0, "current"),
+        wk(160, null, "future"), // peak
+      ]),
+    ]);
+    expect(overall?.status).not.toBe("atRisk");
+    expect(overall?.recommendedPerWeekMeters).toBeNull();
+  });
+
+  it("excludes paused weeks from adherence — nothing expected, nothing owed", () => {
+    // Peak passed, so this reports plan-to-date. The paused week must not count
+    // against the athlete on either side of the ratio.
+    const { overall } = computeReadiness([
+      series("RUN", [
+        wk(100, 100, "past"),
+        wk(150, 150, "past"), // peak
+        pausedWk(120), // ill — 0 done, but nothing was expected
+        wk(90, 90, "current"),
+      ]),
+    ]);
+    expect(overall?.basis).toBe("toDate");
+    expect(overall?.pct).toBe(100); // 340/340 — the paused week is out of both sums
+    expect(overall?.status).toBe("onTrack");
+  });
+});
+
 describe("computeFormReadiness", () => {
   it("maps Form to a status and rounds the TSB", () => {
     const f = computeFormReadiness(12.6);

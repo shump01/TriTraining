@@ -177,6 +177,13 @@ enum ActualSource {
   APPLE_HEALTH
 }
 
+enum PauseReason {
+  ILLNESS
+  INJURY
+  TRAVEL
+  OTHER
+}
+
 model TrainingPlan {
   id             String    @id @default(cuid())
   userId         String
@@ -212,6 +219,7 @@ model TrainingPlan {
   weeklyTargets  WeeklyTarget[]
   weeklyActuals  WeeklyActual[]
   weeklyCheckins WeeklyCheckin[]
+  weeklyPauses   WeeklyPause[]
 
   @@index([userId])
 }
@@ -269,6 +277,27 @@ model WeeklyCheckin {
   note          String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+
+  plan TrainingPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, weekStartDate])
+  @@index([planId, weekStartDate])
+}
+
+// A week the athlete could not train (illness / injury / travel). Marks the week
+// as "no training expected" rather than "missed", which changes two behaviours:
+// the week is excluded from the readiness trend and adherence (so time off never
+// reads as being behind), and on return the plan re-ramps from a *detrained*
+// baseline instead of the stale pre-pause target — see returnToTrainingFactor +
+// maybeRecalculatePlan. One per plan+week.
+model WeeklyPause {
+  id            String      @id @default(cuid())
+  planId        String
+  weekStartDate DateTime    @db.Date
+  reason        PauseReason
+  note          String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
 
   plan TrainingPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
 

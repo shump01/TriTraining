@@ -9,6 +9,7 @@ import { planStartWeek, startOfWeek } from "@/lib/weekly-targets";
 
 import { CheckinCard } from "./checkin-card";
 import { DeletePlanButton } from "./delete-plan-button";
+import { PauseCard, type PauseReasonKey } from "./pause-card";
 import { PlanDashboard } from "./plan-dashboard";
 import { SharePlanButton } from "./share-plan-button";
 
@@ -38,6 +39,7 @@ export default async function PlanPage({ params }: { params: Promise<{ id: strin
   const currentCheckin = plan.weeklyCheckins.find(
     (c) => c.weekStartDate.getTime() === currentWeekMs,
   );
+  const currentPause = plan.weeklyPauses.find((p) => p.weekStartDate.getTime() === currentWeekMs);
 
   // Objective Form (TSB) from HR training load, cross-checked against this week's
   // check-in. Null until the athlete has set an LTHR and synced HR activities.
@@ -59,7 +61,8 @@ export default async function PlanPage({ params }: { params: Promise<{ id: strin
         formSignal={formSignal}
       />
 
-      {isActiveWeek && (
+      {/* A paused week has nothing to rate — the pause card replaces the check-in. */}
+      {isActiveWeek && !currentPause && (
         <CheckinCard
           planId={plan.id}
           weekStartDate={new Date(currentWeekMs).toISOString().slice(0, 10)}
@@ -71,6 +74,18 @@ export default async function PlanPage({ params }: { params: Promise<{ id: strin
                   soreness: currentCheckin.soreness,
                   note: currentCheckin.note,
                 }
+              : null
+          }
+        />
+      )}
+
+      {isActiveWeek && (
+        <PauseCard
+          planId={plan.id}
+          weekStartDate={new Date(currentWeekMs).toISOString().slice(0, 10)}
+          initial={
+            currentPause
+              ? { reason: currentPause.reason as PauseReasonKey, note: currentPause.note }
               : null
           }
         />

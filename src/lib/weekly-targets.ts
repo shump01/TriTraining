@@ -253,13 +253,37 @@ export function computeWeeklyTargets({
   return targets;
 }
 
+/**
+ * Volume lost per whole week of a training layoff, applied when returning from
+ * paused (ill / injured / travelling) weeks. Detraining is gradual, so this is a
+ * deliberately gentle haircut — at 12%/week the ramp wins a one-week layoff back
+ * almost immediately, while a long absence starts meaningfully lower.
+ */
+export const DETRAIN_PER_WEEK = 0.1;
+
+/** Floor on the return baseline: never restart below half the pre-pause volume. */
+export const MIN_RETURN_FACTOR = 0.5;
+
+/**
+ * Volume multiplier applied to the pre-pause baseline when coming back from
+ * `weeksOff` consecutive paused weeks: 1 week off → 0.9, 3 → 0.7, 5+ → the 0.5
+ * floor. Zero/negative (no layoff) leaves the baseline untouched.
+ *
+ * This is what stops a plan resuming at its stale pre-illness target — fitness
+ * decayed while you were off, so the ramp has to restart lower and build back.
+ */
+export function returnToTrainingFactor(weeksOff: number): number {
+  if (!Number.isFinite(weeksOff) || weeksOff <= 0) return 1;
+  return Math.max(MIN_RETURN_FACTOR, 1 - DETRAIN_PER_WEEK * Math.floor(weeksOff));
+}
+
 /** One discipline's inputs for the adaptive re-ramp. */
 export interface AdaptiveDisciplineInput {
   discipline: string;
   eventDistanceMeters: number;
-  /** Effective actual (MANUAL over STRAVA) for the last completed week, or null. */
+  /** Effective actual (MANUAL over STRAVA) for the baseline week, or null. */
   lastCompletedActual: number | null;
-  /** The current stored target for the last completed week — the no-signal fallback. */
+  /** The current stored target for the baseline week — the no-signal fallback. */
   lastCompletedTarget: number;
 }
 
@@ -276,12 +300,17 @@ export interface AdaptedTargetRow {
  * (`computeWeeklyTargets`). This is how a plan adapts week-to-week to real
  * training rather than staying pinned to its original projection.
  *
- * - Baseline = the last completed week's effective actual. **Adapt both ways**:
+ * - Baseline = the baseline week's effective actual. **Adapt both ways**:
  *   a higher actual ramps future weeks up (still capped), a lower one ramps them
  *   down.
  * - **No-signal fallback**: if that week's actual is missing or 0 (a fully
  *   skipped week), the baseline falls back to that week's existing target, so a
  *   blank week doesn't collapse the rest of the plan to zero.
+ * - **Returning from a layoff** (`pausedWeeks > 0`): the baseline week is the last
+ *   week actually *trained* (the caller skips back over the paused weeks), the
+ *   baseline is detrained by `returnToTrainingFactor`, and the ramp restarts **at
+ *   the current week** — so the first week back *is* the reduced volume and the
+ *   plan builds up from there, rather than resuming at the stale pre-pause target.
  * - Only rows on/after `currentWeekStart` are returned; the completed week and
  *   earlier stay as historical targets.
  *
@@ -289,6 +318,7 @@ export interface AdaptedTargetRow {
  */
 export function computeAdaptedFutureTargets(args: {
   disciplines: AdaptiveDisciplineInput[];
+  /** The week the baseline came from — the last completed week *not* paused. */
   lastCompletedWeekStart: Date;
   currentWeekStart: Date;
   eventDate: Date;
@@ -296,29 +326,47 @@ export function computeAdaptedFutureTargets(args: {
   /** Taper weeks; the re-ramp ends at `eventDate` so the taper stays on race week. */
   taperWeeks?: number;
   /**
-   * Volume multiplier from the last completed week's wellness check-in (see
-   * checkinReadinessFactor). < 1 eases the following weeks toward recovery; 1
-   * (default) leaves the ramp untouched.
+   * Volume multiplier from the last completed week's wellness check-in and the
+   * athlete's current Form (see checkinReadinessFactor / formLoadFactor). < 1
+   * eases the following weeks toward recovery; 1 (default) leaves it untouched.
    */
   readinessFactor?: number;
+  /**
+   * Consecutive paused weeks immediately before the current week (0 = none).
+   * Drives the detrained return baseline and restarts the ramp at the current week.
+   */
+  pausedWeeks?: number;
 }): AdaptedTargetRow[] {
   const currentMs = args.currentWeekStart.getTime();
   const rows: AdaptedTargetRow[] = [];
   const readinessFactor = args.readinessFactor ?? 1;
+  const pausedWeeks = args.pausedWeeks ?? 0;
+  const returning = pausedWeeks > 0;
+
+  // Coming back from a layoff the ramp restarts AT the current week (its first
+  // week back is the detrained baseline itself); otherwise it continues from the
+  // last completed week as usual.
+  const anchorStart = returning ? args.currentWeekStart : args.lastCompletedWeekStart;
+  // computeWeeklyTargets needs a start strictly before the event — in the race
+  // week itself there is nothing left to re-ramp.
+  if (anchorStart.getTime() >= args.eventDate.getTime()) return rows;
+
+  const returnFactor = returning ? returnToTrainingFactor(pausedWeeks) : 1;
 
   for (const d of args.disciplines) {
     // Real, non-zero actual drives the ramp; otherwise treat the week as no
     // signal and re-ramp from its original target instead of from zero. A
-    // fatigued check-in scales the baseline down so the plan eases off.
+    // fatigued check-in scales the baseline down so the plan eases off, and a
+    // layoff detrains it further.
     const raw =
       d.lastCompletedActual && d.lastCompletedActual > 0
         ? d.lastCompletedActual
         : d.lastCompletedTarget;
-    const baseline = raw * readinessFactor;
+    const baseline = raw * readinessFactor * returnFactor;
     if (!(baseline > 0)) continue;
 
     const targets = computeWeeklyTargets({
-      startDate: args.lastCompletedWeekStart,
+      startDate: anchorStart,
       eventDate: args.eventDate,
       startingWeeklyMeters: baseline,
       eventDistanceMeters: d.eventDistanceMeters,
