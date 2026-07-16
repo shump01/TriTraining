@@ -113,7 +113,17 @@ function GhostWord({ text, y, color }: { text: string; y: number; color: string 
   );
 }
 
-function SportTag({ num, name, accent, t }: { num: string; name: string; accent: string; t: number }) {
+function SportTag({
+  num,
+  name,
+  accent,
+  t,
+}: {
+  num: string;
+  name: string;
+  accent: string;
+  t: number;
+}) {
   const slide = seg(t, 0.15, 0.65, Ease.easeOutCubic);
   return (
     <div

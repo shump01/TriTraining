@@ -1,4 +1,9 @@
-import type { FormReadiness, PlanReadiness, ReadinessStatus, SeriesReadiness } from "@/lib/readiness";
+import type {
+  FormReadiness,
+  PlanReadiness,
+  ReadinessStatus,
+  SeriesReadiness,
+} from "@/lib/readiness";
 import type { FormStatus } from "@/lib/training-load";
 import {
   DISCIPLINE_META,
