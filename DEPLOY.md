@@ -78,6 +78,7 @@ by `server.js`; or use the host's environment-variable settings). See
 | `SMTP_USER` / `SMTP_PASS`                   | mailbox credentials. On Hetzner, create a mailbox (e.g. `noreply@richysdev.co.uk`) in KonsoleH                                                                                         |
 | `MAIL_FROM`                                 | from address, e.g. `TriTrainer <noreply@richysdev.co.uk>`                                                                                                                              |
 | `TRUSTED_PROXY_COUNT`                       | number of reverse proxies that append to `X-Forwarded-For`. Set to `1` behind Passenger/nginx so rate-limit IPs can't be spoofed. Default `0` (throttles fall back to a shared bucket) |
+| `APPLE_TEAM_ID`                             | Apple Developer Team ID (10 chars) — enables `/.well-known/apple-app-site-association` so group-invite links open the iOS app. Optional; the route 404s until set                      |
 | `NODE_ENV`                                  | `production` (set the host's "Application mode" to production)                                                                                                                         |
 
 ---
