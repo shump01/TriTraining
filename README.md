@@ -196,16 +196,33 @@ hard **cap** of `capMultiple × eventDistance` (per-plan, default 1.5×).
   `firstWeekStartOnOrAfter`) are the shared helpers; existing plans default to
   Monday, matching their stored data.
 
-- **Adaptive roll-forward.** When a plan is viewed **on its week-start day** (and
-  not already recalculated that week — guarded by `lastRecalcWeek`),
-  `maybeRecalculatePlan` re-ramps the current and future weeks from the **last
-  completed week's actual** volume, per discipline, using the same engine. It
-  **adapts both ways** — a strong week pushes the remaining plan up (still capped),
-  a light one eases it down. Past weeks and the just-completed week keep their
-  historical targets. A fully missed week (zero / no data) is treated as "no signal"
-  and falls back to that week's original target, so a blank week never collapses the
-  plan. The recompute is view-driven (no scheduler required) and uses UTC for the
-  "today is the start day" check, consistent with the rest of the week math.
+- **Adaptive roll-forward.** On the **first view of a new training week** (guarded
+  by `lastRecalcWeek`, so at most once per week), `maybeRecalculatePlan` re-ramps
+  the current and future weeks from the **last completed week's actual** volume,
+  per discipline, using the same engine. It **adapts both ways** — a strong week
+  pushes the remaining plan up (still capped), a light one eases it down. Past
+  weeks and the just-completed week keep their historical targets. A fully missed
+  week (zero / no data) is treated as "no signal" and falls back to that week's
+  original target, so a blank week never collapses the plan. The recompute is
+  view-driven (no scheduler required).
+
+  It deliberately does **not** require the view to land on the week-start day. It
+  used to, which quietly made the whole engine a coin flip: open the plan on a
+  Tuesday and a Thursday but not the Monday, and that week never rolled forward —
+  `lastRecalcWeek` then locked it out for good and the week's actuals, check-in and
+  Form were silently discarded. `lastRecalcWeek` alone answers the real question
+  ("has this week rolled forward yet?") on any view.
+
+- **The taper is never re-ramped.** Once the current week is inside the taper,
+  `computeAdaptedFutureTargets` returns no rows and the taper stands as computed.
+  That's the domain rule (adapting a taper week _upward_ because last week went
+  well is backwards) and it closes a real defect: `computeWeeklyTargets` re-derives
+  `weekCount` from the start it is handed, and the re-ramp hands it a _sliding_
+  anchor — so near race day the taper clamp `min(taperWeeks, weekCount - 2)`
+  collapsed and `peakIndex` walked onto the race week. A 2-week taper regenerated
+  on race week produced `effectiveTaper = 0`, rewriting race day as a **+12% build
+  off the peak** rather than 50% of it. Plans with `taperWeeks: 0` are unaffected
+  and keep adapting to race day, which is what "no taper" means.
 
 - **Which plan the dashboard leads with** ([src/lib/featured-plan.ts](src/lib/featured-plan.ts)).
   With several races on the calendar, `rankLivePlans` orders the live ones: plans

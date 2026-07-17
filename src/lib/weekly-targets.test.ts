@@ -645,6 +645,95 @@ describe("computeAdaptedFutureTargets", () => {
   });
 });
 
+describe("computeAdaptedFutureTargets — the taper is never re-ramped", () => {
+  // A real plan shape: 11 weeks, racing on week 11, with a 2-week taper. The
+  // suite's other taper test re-ramps 17 weeks out, which never reaches the
+  // clamp that made this go wrong — these sit in the last weeks on purpose.
+  const eventDate = mondayPlusWeeks(10);
+  const disciplines = [
+    {
+      discipline: "RUN",
+      eventDistanceMeters: 100_000,
+      lastCompletedActual: 40_000, // a big week, which is what pushes the ramp up
+      lastCompletedTarget: 30_000,
+    },
+  ];
+  const reramp = (currentWeek: number, taperWeeks = 2) =>
+    computeAdaptedFutureTargets({
+      disciplines,
+      lastCompletedWeekStart: mondayPlusWeeks(currentWeek - 1),
+      currentWeekStart: mondayPlusWeeks(currentWeek),
+      eventDate,
+      capMultiple: 1.5,
+      taperWeeks,
+    });
+
+  it("leaves race week alone instead of rewriting it as a build", () => {
+    // Regression: weekCount was re-derived from the sliding anchor, so a 2-week
+    // taper clamped to 0 and race day came out as a +12% build off the peak.
+    expect(reramp(10)).toEqual([]);
+  });
+
+  it("leaves the first taper week alone instead of making it the peak", () => {
+    // Regression: this rewrote the week to the plan's all-time peak (+33%).
+    expect(reramp(9)).toEqual([]);
+  });
+
+  it("stops re-ramping across the whole taper window, however long", () => {
+    for (const taper of [1, 2, 3, 4]) {
+      for (let weeksOut = 0; weeksOut < taper; weeksOut++) {
+        const current = 10 - weeksOut; // 10 = race week
+        expect(reramp(current, taper)).toEqual([]);
+      }
+    }
+  });
+
+  it("still re-ramps right up to the taper's edge, and lands the taper correctly", () => {
+    // The last build week before a 2-week taper: this one MUST still adapt.
+    const rows = reramp(8);
+    expect(rows.length).toBeGreaterThan(0);
+
+    const vals = rows.map((r) => r.targetMeters);
+    const peak = Math.max(...vals);
+    // Race day ends at the taper floor, not at the peak — the shape is intact.
+    expect(vals.at(-1)!).toBeLessThanOrEqual(peak * TAPER_FLOOR + 1);
+    // ...and it strictly descends into race day rather than building.
+    expect(vals.at(-1)!).toBeLessThan(vals.at(-2)!);
+  });
+
+  it("a plan with no taper keeps adapting all the way to race day", () => {
+    // taperWeeks: 0 means "peak on the event week" — the guard must not fire.
+    const rows = reramp(10, 0);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.targetMeters).toBeGreaterThan(0);
+  });
+
+  it("never lets a re-ramp exceed the volume the taper had planned", () => {
+    // The property that actually matters: whatever week you open the plan on,
+    // the re-ramp must not raise a taper week above what the plan intended.
+    const original = computeWeeklyTargets({
+      startDate: MONDAY,
+      eventDate,
+      startingWeeklyMeters: 20_000,
+      eventDistanceMeters: 100_000,
+      capMultiple: 1.5,
+      taperWeeks: 2,
+    });
+    const plannedFor = new Map(original.map((t) => [t.weekStartDate.getTime(), t.targetMeters]));
+
+    for (let current = 1; current <= 10; current++) {
+      for (const row of reramp(current)) {
+        const planned = plannedFor.get(row.weekStartDate.getTime());
+        if (planned == null) continue;
+        const isTaperWeek = current >= 9;
+        if (isTaperWeek) {
+          expect(row.targetMeters).toBeLessThanOrEqual(planned);
+        }
+      }
+    }
+  });
+});
+
 describe("returnToTrainingFactor", () => {
   it("leaves the baseline untouched with no layoff", () => {
     expect(returnToTrainingFactor(0)).toBe(1);

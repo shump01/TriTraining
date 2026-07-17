@@ -559,11 +559,18 @@ export async function getPlanByShareToken(token: string) {
  * **last completed week's actual** volume, using the same progression engine
  * (see [computeAdaptedFutureTargets](src/lib/weekly-targets.ts)).
  *
- * Runs **only** when the plan is viewed **on its week-start day** and hasn't
- * already recalculated this week (the `lastRecalcWeek` guard) — so it's a cheap
- * no-op on every other view. Past weeks and the just-completed week keep their
- * historical targets; only weeks on/after the current week are rewritten, and
- * only for disciplines that produced a new ramp (no data is dropped otherwise).
+ * Runs at most **once per training week**, on the first view of a new week
+ * (guarded by `lastRecalcWeek`) — a cheap no-op on every later view that week.
+ * It deliberately does NOT require the view to land on the week-start day: the
+ * athlete's training week shouldn't adapt only if they happen to open the app on
+ * a Monday. A single roll-forward from the last completed week also covers an
+ * athlete who was away for several weeks — that week's actuals are the honest
+ * baseline, and replaying the gap would compound the easing factors.
+ *
+ * Past weeks and the just-completed week keep their historical targets; only
+ * weeks on/after the current week are rewritten, and only for disciplines that
+ * produced a new ramp (no data is dropped otherwise). Weeks inside the taper are
+ * never touched — see computeAdaptedFutureTargets.
  *
  * Scoped to the session user. Returns whether it recalculated.
  */
@@ -595,12 +602,20 @@ export async function maybeRecalculatePlan(planId: string): Promise<boolean> {
   if (!plan) return false;
 
   const now = new Date();
-  // Trigger only on the plan's week-start day (UTC — consistent with all week math).
-  if (now.getUTCDay() !== plan.weekStartDay) return false;
-
   const currentWeekStart = startOfWeek(now, plan.weekStartDay);
-  // Already rolled forward for this week.
-  if (plan.lastRecalcWeek && plan.lastRecalcWeek.getTime() === currentWeekStart.getTime()) {
+
+  // Roll forward on the FIRST view of a new training week, whenever that lands.
+  //
+  // This used to also require `now.getUTCDay() === plan.weekStartDay`, which
+  // quietly made the whole adaptive engine a coin flip: open the plan on Tuesday
+  // and Thursday but not on Monday and that week never rolled forward — and the
+  // guard below then locked it out for good, silently discarding the week's
+  // actuals, check-in and Form. `lastRecalcWeek` alone is the honest question
+  // ("has this week been rolled forward yet?"), and it answers it on any view.
+  //
+  // `>=` rather than `===` so a lastRecalcWeek somehow ahead of the current week
+  // (clock skew, a restored backup) can't re-trigger the roll-forward every view.
+  if (plan.lastRecalcWeek && plan.lastRecalcWeek.getTime() >= currentWeekStart.getTime()) {
     return false;
   }
 

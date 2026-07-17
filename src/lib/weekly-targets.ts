@@ -323,7 +323,11 @@ export function computeAdaptedFutureTargets(args: {
   currentWeekStart: Date;
   eventDate: Date;
   capMultiple: number;
-  /** Taper weeks; the re-ramp ends at `eventDate` so the taper stays on race week. */
+  /**
+   * The plan's taper length. Weeks inside the taper are never re-ramped — once
+   * the current week is within `taperWeeks` of race day this returns no rows and
+   * the existing taper stands.
+   */
   taperWeeks?: number;
   /**
    * Volume multiplier from the last completed week's wellness check-in and the
@@ -337,18 +341,38 @@ export function computeAdaptedFutureTargets(args: {
    */
   pausedWeeks?: number;
 }): AdaptedTargetRow[] {
-  const currentMs = args.currentWeekStart.getTime();
+  const currentMs = utcMidnightMs(args.currentWeekStart);
   const rows: AdaptedTargetRow[] = [];
   const readinessFactor = args.readinessFactor ?? 1;
   const pausedWeeks = args.pausedWeeks ?? 0;
   const returning = pausedWeeks > 0;
+  const taperWeeks = Math.max(0, Math.floor(args.taperWeeks ?? 0));
+
+  // THE TAPER IS NOT RE-RAMPED. Two reasons, and both matter:
+  //
+  //  1. Domain: the taper exists to arrive fresh. Adapting a taper week *upward*
+  //     because last week went well is precisely backwards.
+  //  2. Mechanics: computeWeeklyTargets re-derives `weekCount` from the start it
+  //     is handed, and the re-ramp hands it the *sliding* anchor. As the anchor
+  //     nears race day weekCount shrinks, so the taper clamp
+  //     (`min(taperWeeks, weekCount - 2)`) collapses and `peakIndex` walks onto
+  //     the race week — regenerating a 2-week taper on race week yields
+  //     effectiveTaper = 0 and rewrites race day as a +12% BUILD off the peak.
+  //
+  // So once the current week is inside the taper the ramp is over: return no
+  // rows and the taper stands as computed. Weeks are counted the same way
+  // computeWeeklyTargets counts them, inclusive of the event's own week.
+  const weeksToRaceInclusive =
+    Math.floor((utcMidnightMs(args.eventDate) - currentMs) / MS_PER_WEEK) + 1;
+  if (taperWeeks > 0 && weeksToRaceInclusive <= taperWeeks) return rows;
 
   // Coming back from a layoff the ramp restarts AT the current week (its first
   // week back is the detrained baseline itself); otherwise it continues from the
   // last completed week as usual.
   const anchorStart = returning ? args.currentWeekStart : args.lastCompletedWeekStart;
-  // computeWeeklyTargets needs a start strictly before the event — in the race
-  // week itself there is nothing left to re-ramp.
+  // computeWeeklyTargets needs a start strictly before the event. (Only reachable
+  // on the returning path, where the anchor *is* the current week, and only for a
+  // plan with no taper — the guard above already covers every tapered plan.)
   if (anchorStart.getTime() >= args.eventDate.getTime()) return rows;
 
   const returnFactor = returning ? returnToTrainingFactor(pausedWeeks) : 1;
