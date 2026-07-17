@@ -65,3 +65,46 @@ describe("buildHeatmap", () => {
     expect(h.bestStreak).toBe(0);
   });
 });
+
+describe("buildHeatmap — paused weeks (time off)", () => {
+  const paused = (): HeatmapWeek => ({ ...wk("past", "behind", 0), paused: true });
+
+  it("does not count time off as a completed week or a miss", () => {
+    const h = buildHeatmap([wk("past", "onTrack"), paused(), wk("past", "onTrack")]);
+    // Two weeks were expected, two were hit — the illness is not a 0/3.
+    expect(h.weeksCompleted).toBe(2);
+    expect(h.weeksHit).toBe(2);
+  });
+
+  it("keeps a streak alive across time off rather than breaking it", () => {
+    // The pause feature promises time off never counts against you; a streak
+    // reset would contradict the "Paused" pill the same page renders.
+    const h = buildHeatmap([
+      wk("past", "onTrack"),
+      wk("past", "onTrack"),
+      paused(),
+      paused(),
+      wk("past", "onTrack"),
+    ]);
+    expect(h.currentStreak).toBe(3);
+    expect(h.bestStreak).toBe(3);
+  });
+
+  it("still breaks a streak on a genuinely missed week", () => {
+    const h = buildHeatmap([wk("past", "onTrack"), wk("past", "behind"), wk("past", "onTrack")]);
+    expect(h.currentStreak).toBe(1);
+  });
+
+  it("marks the cell as paused so it can render as neither hit nor miss", () => {
+    const h = buildHeatmap([paused()]);
+    expect(h.cells[0]!.paused).toBe(true);
+    expect(h.cells[0]!.hit).toBe(false);
+  });
+
+  it("a plan spent entirely on the sofa reports nothing expected, not total failure", () => {
+    const h = buildHeatmap([paused(), paused()]);
+    expect(h.weeksCompleted).toBe(0);
+    expect(h.weeksHit).toBe(0);
+    expect(h.currentStreak).toBe(0);
+  });
+});

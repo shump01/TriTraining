@@ -5,6 +5,14 @@ function cellStyle(cell: HeatmapCell): React.CSSProperties {
   if (cell.phase === "future") {
     return { background: "var(--card2)", border: "1px solid var(--border)" };
   }
+  // Time off reads as a neutral, hatched gap — neither a hit nor a miss, matching
+  // the "Paused" pill the week's row carries and the fact it scores as neither.
+  if (cell.paused) {
+    return {
+      background: `repeating-linear-gradient(135deg, ${translucent("var(--muted)", 30)} 0 3px, transparent 3px 6px)`,
+      border: "1px solid var(--border)",
+    };
+  }
   const key: StatusKey = cell.status ?? "behind";
   const color = STATUS_META[key].color;
   const current = cell.phase === "current";
@@ -12,6 +20,12 @@ function cellStyle(cell: HeatmapCell): React.CSSProperties {
     background: translucent(color, current ? 28 : 72),
     border: current ? `1.5px solid ${color}` : "1px solid transparent",
   };
+}
+
+function cellTitle(cell: HeatmapCell, index: number): string {
+  const week = `Week ${index + 1}`;
+  if (cell.paused) return `${week} · time off`;
+  return `${week}${cell.pctOfTarget != null ? ` · ${cell.pctOfTarget}% of target` : ""}`;
 }
 
 /**
@@ -42,7 +56,7 @@ export function ConsistencyCard({ heatmap }: { heatmap: Heatmap }) {
         {heatmap.cells.map((c, i) => (
           <div
             key={c.ms}
-            title={`Week ${i + 1}${c.pctOfTarget != null ? ` · ${c.pctOfTarget}% of target` : ""}`}
+            title={cellTitle(c, i)}
             className="h-[18px] w-[18px] rounded-[4px]"
             style={cellStyle(c)}
           />

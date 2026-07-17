@@ -6,6 +6,12 @@
  * A week "hits" when its status is onTrack or ahead (i.e. not behind). Only
  * COMPLETED (past) weeks count toward streaks and totals — the in-progress
  * current week is still open, and future weeks have no data.
+ *
+ * Weeks marked as time off (see WeeklyPause) are **transparent**: nothing was
+ * expected of them, so they neither count toward the totals nor break a streak —
+ * a fortnight ill leaves a run of good weeks intact. Anything else would
+ * contradict the pause feature, and the plan page renders a "Paused" pill on the
+ * very week this used to score as missed.
  */
 
 export type WeekStatus = "ahead" | "onTrack" | "behind" | null;
@@ -16,6 +22,8 @@ export interface HeatmapWeek {
   phase: WeekPhase;
   pctOfTarget: number | null;
   status: WeekStatus;
+  /** Marked as time off — ill / injured / away. */
+  paused?: boolean;
 }
 
 export interface HeatmapCell {
@@ -23,8 +31,10 @@ export interface HeatmapCell {
   phase: WeekPhase;
   pctOfTarget: number | null;
   status: WeekStatus;
-  /** A completed week whose status is onTrack/ahead. */
+  /** A completed, non-paused week whose status is onTrack/ahead. */
   hit: boolean;
+  /** Time off: rendered distinctly, and excluded from totals and streaks. */
+  paused: boolean;
 }
 
 export interface Heatmap {
@@ -38,7 +48,7 @@ export interface Heatmap {
 }
 
 function isHit(w: HeatmapWeek): boolean {
-  return w.phase === "past" && (w.status === "onTrack" || w.status === "ahead");
+  return !w.paused && w.phase === "past" && (w.status === "onTrack" || w.status === "ahead");
 }
 
 export function buildHeatmap(weeks: HeatmapWeek[]): Heatmap {
@@ -48,9 +58,12 @@ export function buildHeatmap(weeks: HeatmapWeek[]): Heatmap {
     pctOfTarget: w.pctOfTarget,
     status: w.status,
     hit: isHit(w),
+    paused: Boolean(w.paused),
   }));
 
-  const completed = weeks.filter((w) => w.phase === "past");
+  // Paused weeks are dropped from the sequence entirely rather than scored as a
+  // miss, so a streak simply continues across the time off.
+  const completed = weeks.filter((w) => w.phase === "past" && !w.paused);
   const weeksCompleted = completed.length;
   const weeksHit = completed.filter(isHit).length;
 

@@ -1,8 +1,10 @@
 import { randomBytes } from "crypto";
 
+import { pickFeaturedPlan } from "@/lib/featured-plan";
 import { buildMemberDisciplineStats } from "@/lib/group-stats";
 import { prisma } from "@/lib/prisma";
 import { NotFoundError, requireUserId } from "@/lib/training-plan";
+import { planStartWeek } from "@/lib/weekly-targets";
 
 /**
  * User-scoped data access for training groups.
@@ -157,6 +159,10 @@ export async function getGroupMemberStats(groupId: string): Promise<MemberStat[]
               name: true,
               eventDate: true,
               weekStartDay: true,
+              // Needed to rank with pickFeaturedPlan, exactly as the dashboard does.
+              priority: true,
+              startDate: true,
+              createdAt: true,
               weeklyTargets: {
                 select: { discipline: true, weekStartDate: true, targetMeters: true },
               },
@@ -171,9 +177,18 @@ export async function getGroupMemberStats(groupId: string): Promise<MemberStat[]
   });
 
   return members.map((m) => {
-    const plans = m.user.trainingPlans;
-    const active =
-      plans.find((p) => p.eventDate.getTime() >= now.getTime()) ?? plans.at(-1) ?? null;
+    // The same featured-plan rule the dashboard uses, from the shared module —
+    // this used to carry its own copy of the retired "nearest upcoming event"
+    // logic, so a group could show a member training for a C-race tune-up while
+    // their own dashboard led with their A-race build.
+    const active = pickFeaturedPlan(
+      m.user.trainingPlans.map((p) => ({
+        ...p,
+        eventMs: p.eventDate.getTime(),
+        startMs: planStartWeek(p).getTime(),
+      })),
+      now.getTime(),
+    );
     return {
       userId: m.userId,
       name: displayName(m.user.email),

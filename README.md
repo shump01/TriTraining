@@ -235,10 +235,15 @@ hard **cap** of `capMultiple × eventDistance` (per-plan, default 1.5×).
   same pure module, so the two can't disagree about what you're training for.
 
 - **Life happens — pauses and the return ramp.** A week the athlete couldn't train
-  can be marked as time off (`WeeklyPause`: ill / injured / away). That changes two
-  things. It's excluded from the readiness trend **and** adherence, so a fortnight
-  sick never reads as "at risk" — without this the plan would tell someone to train
-  _more_ on their way back from illness. And on return, `maybeRecalculatePlan` skips
+  can be marked as time off (`WeeklyPause`: ill / injured / away). Time off never
+  counts against the athlete, anywhere: it's excluded from the readiness trend
+  **and** adherence (so a fortnight sick never reads as "at risk" — without this the
+  plan would tell someone to train _more_ on their way back from illness), and the
+  consistency heatmap treats it as transparent — neither a hit nor a miss, and a
+  streak survives it. `PlanForSeries.weeklyPauses` is deliberately **required**, so
+  a reader can't silently forget to load it; that exact omission once had a shared
+  link reporting "at risk" on a plan its owner's page called "on track". And on
+  return, `maybeRecalculatePlan` skips
   back over the run of paused weeks to the last week actually **trained**, detrains
   that baseline via `returnToTrainingFactor` (10% per week off, floored at 50%), and
   restarts the ramp **at the current week** — so the first week back _is_ the reduced

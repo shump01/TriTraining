@@ -66,8 +66,13 @@ interface PlanForSeries {
   disciplines: { discipline: string; startingWeeklyMeters: number }[];
   weeklyTargets: { discipline: string; weekStartDate: Date; targetMeters: number }[];
   weeklyActuals: ActualRow[];
-  /** Weeks marked as time off. Optional so callers predating pauses still work. */
-  weeklyPauses?: { weekStartDate: Date; reason: string }[];
+  /**
+   * Weeks marked as time off. Deliberately REQUIRED: this was optional once, and
+   * the share-link reader quietly forgot to load it — so a public link reported
+   * "at risk" on a plan its owner's page called "on track". Every reader has to
+   * answer the question, even if the answer is `[]`.
+   */
+  weeklyPauses: { weekStartDate: Date; reason: string }[];
 }
 
 /** Ordered series: [TOTAL?, ...present disciplines]. TOTAL only for multi-sport plans. */
@@ -77,7 +82,7 @@ export function buildPlanSeries(plan: PlanForSeries, now: Date): SeriesData[] {
 
   // Pauses are per-plan, so every series marks the same weeks as time off.
   const pauseByWeek = new Map<number, string>();
-  for (const p of plan.weeklyPauses ?? []) {
+  for (const p of plan.weeklyPauses) {
     pauseByWeek.set(p.weekStartDate.getTime(), p.reason);
   }
 

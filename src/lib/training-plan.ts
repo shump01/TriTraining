@@ -550,6 +550,9 @@ export async function getPlanByShareToken(token: string) {
       disciplines: true,
       weeklyTargets: { orderBy: { weekStartDate: "asc" } },
       weeklyActuals: true,
+      // Without these the shared view reads time off as missed weeks and reports
+      // "at risk" on a plan the owner's own page calls "on track".
+      weeklyPauses: true,
     },
   });
 }
@@ -659,12 +662,18 @@ export async function maybeRecalculatePlan(planId: string): Promise<boolean> {
   });
 
   // Two easing signals, combined multiplicatively:
-  //  • subjective — a fatigued/sore check-in for the just-completed week;
+  //  • subjective — a fatigued/sore check-in for the week the baseline came from;
   //  • objective — the athlete's current Form (TSB) from HR training load. When
   //    Form is deep in the overreaching band, ease the ramp even if no check-in
   //    was logged, and stack with a fatigued check-in when both agree.
+  //
+  // The check-in is read from the BASELINE week, not the last completed one. On a
+  // return from illness those differ, and reading the paused week charged the same
+  // illness twice — once as returnToTrainingFactor's detraining, and again as the
+  // fatigued check-in that very illness produced. The baseline week's check-in is
+  // the one that describes the training the baseline is built from.
   const lastCheckin = plan.weeklyCheckins.find(
-    (c) => c.weekStartDate.getTime() === lastCompletedWeekStart.getTime(),
+    (c) => c.weekStartDate.getTime() === baselineWeekStart.getTime(),
   );
   const checkinFactor = lastCheckin ? checkinReadinessFactor(lastCheckin) : 1;
   const formTsb = await getUserFormTsb(userId);
