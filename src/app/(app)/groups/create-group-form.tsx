@@ -1,10 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
-
-const inputClass =
-  "w-full rounded-[10px] border border-border bg-input px-3 py-[10px] text-[14px] text-text outline-none focus:border-brand";
+import { useState, type CSSProperties, type FormEvent } from "react";
 
 /** Inline "create a group" form. Posts to /api/groups and routes to the new group. */
 export function CreateGroupForm() {
@@ -49,28 +46,32 @@ export function CreateGroupForm() {
   return (
     <form
       onSubmit={onSubmit}
-      className="rounded-[16px] border border-border bg-card p-4 sm:flex sm:items-end sm:gap-3"
+      className="card lit"
+      style={{ "--accent": "var(--swim)" } as CSSProperties}
     >
-      <div className="flex-1">
-        <label className="mb-1.5 block text-[12.5px] font-semibold text-muted">
-          Create a group
-        </label>
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          maxLength={80}
-          placeholder="Tuesday Club"
-          className={inputClass}
-        />
+      <div className="sm:flex sm:items-end sm:gap-3.5">
+        <div className="flex-1">
+          <label className="label" htmlFor="group-name">
+            Start a group
+          </label>
+          <input
+            id="group-name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            maxLength={80}
+            placeholder="Tuesday Club"
+            className="input"
+          />
+        </div>
+        <button
+          type="submit"
+          disabled={busy || !name.trim()}
+          className="btn mt-3 w-full sm:mt-0 sm:w-auto"
+        >
+          <span>{busy ? "Creating…" : "Create"}</span>
+        </button>
       </div>
-      <button
-        type="submit"
-        disabled={busy || !name.trim()}
-        className="mt-3 w-full cursor-pointer rounded-[11px] bg-brand px-[18px] py-[11px] font-display text-[14px] font-bold text-white hover:brightness-110 disabled:opacity-60 sm:mt-0 sm:w-auto"
-      >
-        {busy ? "Creating…" : "Create"}
-      </button>
-      {error && <p className="mt-2 mb-0 text-[12.5px] text-behind sm:w-full">{error}</p>}
+      {error && <p className="err">{error}</p>}
     </form>
   );
 }

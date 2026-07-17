@@ -46,11 +46,12 @@ export function JoinButton({ token }: { token: string }) {
         type="button"
         onClick={join}
         disabled={busy}
-        className="w-full cursor-pointer rounded-[11px] bg-brand px-[22px] py-[13px] font-display text-[15px] font-bold text-white hover:brightness-110 disabled:opacity-60"
+        className="btn"
+        style={{ fontSize: 16, padding: "15px 30px" }}
       >
-        {busy ? "Joining…" : "Join group"}
+        <span>{busy ? "Joining…" : "Join group"}</span>
       </button>
-      {error && <p className="mt-2 mb-0 text-[13px] text-behind">{error}</p>}
+      {error && <p className="err">{error}</p>}
     </div>
   );
 }

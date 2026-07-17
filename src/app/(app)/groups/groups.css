@@ -1,0 +1,429 @@
+/* Groups — the marketing aesthetic (near-black, Anton/Fraunces, sport accents)
+   brought inside the authenticated app shell.
+
+   This is NOT a copy of auth.css / about.css, and it can't be: those style a
+   whole standalone page, with `position: fixed` glows and a grain overlay across
+   the viewport. Groups renders inside the padded <main> next to the 74px nav
+   rail, so fixed atmosphere would paint straight over the rail. Here the panel
+   bleeds out to the edges of the content column and the glows/grain are absolute
+   *within* it — the cinematic surface stops where the app chrome starts.
+
+   Deliberately dark in both themes: the near-black canvas is the aesthetic, so it
+   doesn't follow the app's light/dark toggle. Scoped under .groupspage so none of
+   it leaks into the rest of the app. */
+
+.groupspage {
+  --ink: #f3ede1;
+  --ink-dim: #a7a294;
+  --ink-faint: #6b6a63;
+  --void: #08090b;
+  /* Re-point the sport accents at the marketing palette. Anything inside that
+     resolves var(--swim|--bike|--run) — the member discipline chips come through
+     DISCIPLINE_META as exactly that — re-tints to these for free. */
+  --swim: #1fe3cf;
+  --bike: #ffb020;
+  --run: #ff4d64;
+  --paper: #f3ede1;
+  --line: rgba(243, 237, 225, 0.09);
+  --gp-ease: cubic-bezier(0.22, 1, 0.36, 1);
+
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  /* Break out of <main>'s padding so the surface spans the whole content column. */
+  margin: -14px -14px -48px;
+  padding: 30px 20px 64px;
+  min-height: calc(100vh - 56px); /* below the mobile app bar */
+  background: var(--void);
+  color: var(--ink);
+  font-family: var(--font-hanken), sans-serif;
+  letter-spacing: normal;
+}
+@media (min-width: 820px) {
+  .groupspage {
+    margin: -22px -28px -56px;
+    padding: 46px 40px 80px;
+    min-height: 100vh;
+  }
+}
+
+/* Atmosphere — absolute, so it's clipped to the panel and never touches the rail. */
+.groupspage .glows {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(46vw 46vw at 6% 0%, rgba(31, 227, 207, 0.15), transparent 60%),
+    radial-gradient(52vw 52vw at 92% 30%, rgba(255, 176, 32, 0.1), transparent 62%),
+    radial-gradient(46vw 46vw at 50% 100%, rgba(255, 77, 100, 0.12), transparent 60%);
+  animation: gp-breathe 16s var(--gp-ease) infinite alternate;
+}
+@keyframes gp-breathe {
+  to {
+    transform: scale(1.1) translateY(-2%);
+    opacity: 0.82;
+  }
+}
+.groupspage .grain {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  opacity: 0.045;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.groupspage .wrap {
+  position: relative;
+  z-index: 1;
+  max-width: 1000px;
+}
+
+/* ── Shared type + motifs (mirrors auth.css / about.css) ── */
+.groupspage .mono {
+  font-family: var(--font-jetbrains), monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 12px;
+  color: var(--ink-dim);
+}
+.groupspage .dot3 {
+  display: inline-flex;
+  gap: 3px;
+}
+.groupspage .dot3 i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: block;
+}
+.groupspage .dot3 i:nth-child(1) {
+  background: var(--swim);
+}
+.groupspage .dot3 i:nth-child(2) {
+  background: var(--bike);
+}
+.groupspage .dot3 i:nth-child(3) {
+  background: var(--run);
+}
+.groupspage .eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+.groupspage .pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--run);
+  box-shadow: 0 0 0 0 rgba(255, 77, 100, 0.6);
+  animation: gp-pulse 2.4s infinite;
+}
+@keyframes gp-pulse {
+  70% {
+    box-shadow: 0 0 0 12px rgba(255, 77, 100, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 77, 100, 0);
+  }
+}
+
+.groupspage .gp-h1 {
+  font-family: var(--font-anton), sans-serif;
+  text-transform: uppercase;
+  font-size: clamp(2.6rem, 6vw, 4.6rem);
+  line-height: 0.88;
+  letter-spacing: -0.015em;
+  margin: 0 0 18px;
+}
+.groupspage .gp-h1 em {
+  font-family: var(--font-fraunces), serif;
+  font-style: italic;
+  text-transform: none;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  background: linear-gradient(100deg, var(--swim), var(--bike) 55%, var(--run));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+/* A group's own name: the same face, sized for a title rather than a hero. */
+.groupspage .gp-title {
+  font-family: var(--font-anton), sans-serif;
+  text-transform: uppercase;
+  font-size: clamp(2rem, 4.4vw, 3.2rem);
+  line-height: 0.92;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+.groupspage .lede {
+  color: var(--ink-dim);
+  font-size: clamp(15px, 1.3vw, 17px);
+  line-height: 1.6;
+  max-width: 48ch;
+  margin: 0;
+}
+.groupspage .lede b {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.groupspage .backlink {
+  display: inline-block;
+  margin-bottom: 20px;
+  font-family: var(--font-jetbrains), monospace;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  text-decoration: none;
+  transition: color 0.25s;
+}
+.groupspage .backlink:hover {
+  color: var(--ink);
+}
+
+/* ── Buttons ── */
+.groupspage .btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  font-family: var(--font-hanken), sans-serif;
+  font-weight: 700;
+  font-size: 14.5px;
+  text-decoration: none;
+  color: var(--void);
+  background: var(--paper);
+  padding: 12px 22px;
+  border: none;
+  border-radius: 100px;
+  overflow: hidden;
+  isolation: isolate;
+  cursor: pointer;
+  transition: transform 0.3s var(--gp-ease);
+}
+.groupspage .btn span {
+  position: relative;
+  z-index: 1;
+}
+.groupspage .btn::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: linear-gradient(100deg, var(--swim), var(--bike), var(--run));
+  transform: translateY(101%);
+  transition: transform 0.4s var(--gp-ease);
+}
+.groupspage .btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+}
+.groupspage .btn:hover:not(:disabled)::before {
+  transform: translateY(0);
+}
+.groupspage .btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.groupspage .btn.ghost {
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid var(--line);
+}
+.groupspage .btn.ghost::before {
+  display: none;
+}
+.groupspage .btn.ghost:hover:not(:disabled) {
+  border-color: var(--ink);
+}
+.groupspage .btn.small {
+  padding: 9px 16px;
+  font-size: 13px;
+}
+.groupspage .btn.danger {
+  color: var(--run);
+  background: transparent;
+  border: 1px solid var(--line);
+}
+.groupspage .btn.danger::before {
+  display: none;
+}
+.groupspage .btn.danger:hover:not(:disabled) {
+  border-color: var(--run);
+}
+
+/* ── Cards: the about page's accent-bar-on-hover treatment ── */
+.groupspage .card {
+  position: relative;
+  display: block;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 22px 22px;
+  background: linear-gradient(165deg, rgba(255, 255, 255, 0.035), transparent);
+  overflow: hidden;
+  text-decoration: none;
+  color: inherit;
+  transition:
+    transform 0.5s var(--gp-ease),
+    border-color 0.5s;
+}
+.groupspage .card::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--accent, var(--ink-faint));
+  transform: scaleY(0);
+  transform-origin: top;
+  transition: transform 0.5s var(--gp-ease);
+}
+/* Only cards that link somewhere lift — a static panel shouldn't invite a click. */
+.groupspage a.card:hover {
+  transform: translateY(-5px);
+  border-color: rgba(243, 237, 225, 0.22);
+}
+.groupspage a.card:hover::before,
+.groupspage .card.lit::before {
+  transform: scaleY(1);
+}
+
+.groupspage .card-name {
+  font-family: var(--font-anton), sans-serif;
+  text-transform: uppercase;
+  font-size: 22px;
+  letter-spacing: 0.01em;
+  line-height: 1.05;
+}
+
+/* ── Chips ── */
+.groupspage .chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 100px;
+  border: 1px solid var(--line);
+  padding: 3px 10px;
+  font-family: var(--font-jetbrains), monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  white-space: nowrap;
+}
+.groupspage .chip.me {
+  color: var(--void);
+  background: var(--paper);
+  border-color: transparent;
+  font-weight: 700;
+}
+
+/* ── Form fields ── */
+.groupspage .label {
+  display: block;
+  font-family: var(--font-jetbrains), monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 11px;
+  color: var(--ink-dim);
+  margin-bottom: 9px;
+}
+.groupspage .input {
+  width: 100%;
+  background: rgba(243, 237, 225, 0.03);
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  padding: 12px 14px;
+  font-size: 15px;
+  color: var(--ink);
+  font-family: var(--font-hanken), sans-serif;
+  outline: none;
+  transition:
+    border-color 0.25s,
+    background 0.25s;
+}
+.groupspage .input::placeholder {
+  color: var(--ink-faint);
+}
+.groupspage .input:focus {
+  border-color: var(--swim);
+  background: rgba(243, 237, 225, 0.055);
+}
+.groupspage .input.mono-field {
+  font-family: var(--font-jetbrains), monospace;
+  font-size: 12.5px;
+}
+.groupspage .err {
+  color: var(--run);
+  font-size: 13px;
+  margin: 10px 0 0;
+}
+.groupspage .hint {
+  color: var(--ink-faint);
+  font-size: 12px;
+  line-height: 1.5;
+  margin: 10px 0 0;
+}
+
+/* ── Section rule ── */
+.groupspage .rule {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: 40px 0 0;
+}
+.groupspage .section-label {
+  font-family: var(--font-jetbrains), monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 11px;
+  color: var(--ink-faint);
+  margin: 26px 0 14px;
+}
+
+/* Member avatar — the sport triad as a gradient rather than the app's blue. */
+.groupspage .avatar {
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-family: var(--font-anton), sans-serif;
+  font-size: 15px;
+  color: var(--void);
+  background: linear-gradient(140deg, var(--swim), var(--bike) 60%, var(--run));
+}
+
+/* A staggered reveal on load — one orchestrated moment, not scattered fidgets. */
+.groupspage .rise {
+  opacity: 0;
+  animation: gp-rise 0.7s var(--gp-ease) forwards;
+}
+@keyframes gp-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .groupspage *,
+  .groupspage *::before,
+  .groupspage *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+  .groupspage .rise {
+    opacity: 1;
+  }
+}

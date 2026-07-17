@@ -1,7 +1,9 @@
 import Link from "next/link";
+import type { CSSProperties } from "react";
 
 import { getGroupByToken } from "@/lib/groups";
 
+import "../../groups.css";
 import { JoinButton } from "./join-button";
 
 export const dynamic = "force-dynamic";
@@ -11,47 +13,71 @@ export default async function JoinGroupPage({ params }: { params: Promise<{ toke
   const info = await getGroupByToken(token);
 
   return (
-    <div className="mx-auto max-w-[480px] pt-6">
-      <div className="rounded-[18px] border border-border bg-card p-6 text-center">
-        {!info ? (
-          <>
-            <div className="font-display text-[20px] font-extrabold">Invite not found</div>
-            <p className="mt-2 mb-4 text-[14px] text-muted">
-              This invite link is invalid or has been reset.
-            </p>
-            <Link
-              href="/groups"
-              className="inline-block rounded-[11px] border border-border px-[18px] py-[11px] text-[14px] font-bold text-text hover:border-brand"
-            >
-              Go to your groups
-            </Link>
-          </>
-        ) : info.alreadyMember ? (
-          <>
-            <div className="font-display text-[20px] font-extrabold">{info.name}</div>
-            <p className="mt-2 mb-4 text-[14px] text-muted">You&apos;re already a member.</p>
-            <Link
-              href={`/groups/${info.id}`}
-              className="inline-block rounded-[11px] bg-brand px-[18px] py-[11px] text-[14px] font-bold text-white hover:brightness-110"
-            >
-              Open group
-            </Link>
-          </>
-        ) : (
-          <>
-            <div className="mb-1 font-mono text-[11px] tracking-[0.14em] text-brand uppercase">
-              You&apos;re invited to join
-            </div>
-            <div className="font-display text-[24px] font-black tracking-[-0.02em]">
-              {info.name}
-            </div>
-            <p className="mt-2 mb-5 text-[13.5px] text-muted">
-              {info.memberCount} {info.memberCount === 1 ? "member" : "members"} · they&apos;ll be
-              able to see your weekly progress per sport.
-            </p>
-            <JoinButton token={token} />
-          </>
-        )}
+    <div className="groupspage">
+      <div className="glows" />
+      <div className="grain" />
+
+      <div className="wrap" style={{ maxWidth: 560, margin: "0 auto" }}>
+        <div
+          className="card lit rise"
+          style={
+            {
+              "--accent": "var(--swim)",
+              animationDelay: "0.05s",
+              textAlign: "center",
+              padding: "44px 28px",
+            } as CSSProperties
+          }
+        >
+          <span className="dot3" style={{ marginBottom: 20 }}>
+            <i />
+            <i />
+            <i />
+          </span>
+
+          {!info ? (
+            <>
+              <h1 className="gp-title" style={{ fontSize: "clamp(1.8rem, 5vw, 2.4rem)" }}>
+                Invite not found
+              </h1>
+              <p className="lede" style={{ margin: "14px auto 26px", maxWidth: "32ch" }}>
+                This link is invalid, or it&apos;s been reset by the group owner.
+              </p>
+              <Link href="/groups" className="btn ghost">
+                <span>Go to your groups</span>
+              </Link>
+            </>
+          ) : info.alreadyMember ? (
+            <>
+              <div className="mono" style={{ marginBottom: 12 }}>
+                Already in
+              </div>
+              <h1 className="gp-title" style={{ fontSize: "clamp(1.8rem, 5vw, 2.6rem)" }}>
+                {info.name}
+              </h1>
+              <p className="lede" style={{ margin: "14px auto 26px", maxWidth: "32ch" }}>
+                You&apos;re already a member of this group.
+              </p>
+              <Link href={`/groups/${info.id}`} className="btn">
+                <span>Open group</span>
+              </Link>
+            </>
+          ) : (
+            <>
+              <div className="mono" style={{ marginBottom: 12 }}>
+                You&apos;re invited to join
+              </div>
+              <h1 className="gp-title" style={{ fontSize: "clamp(1.9rem, 5.5vw, 2.8rem)" }}>
+                {info.name}
+              </h1>
+              <p className="lede" style={{ margin: "14px auto 26px", maxWidth: "36ch" }}>
+                {info.memberCount} {info.memberCount === 1 ? "member" : "members"}. Joining lets
+                them see your <b>weekly progress per sport</b> — nothing more.
+              </p>
+              <JoinButton token={token} />
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

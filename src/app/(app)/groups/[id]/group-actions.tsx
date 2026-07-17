@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useSyncExternalStore } from "react";
+import { useState, useSyncExternalStore, type CSSProperties } from "react";
 
 function useOrigin(): string {
   // SSR-safe read of window.location.origin without a set-state-in-effect.
@@ -49,34 +49,31 @@ export function InvitePanel({ groupId, token }: { groupId: string; token: string
   }
 
   return (
-    <div className="rounded-[16px] border border-border bg-card p-4">
-      <div className="mb-2 text-[12.5px] font-semibold text-muted">Invite link</div>
-      <div className="flex flex-col gap-2 sm:flex-row">
+    <div className="card lit" style={{ "--accent": "var(--bike)" } as CSSProperties}>
+      <div className="label">Invite link</div>
+      <div className="flex flex-col gap-2.5 sm:flex-row">
         <input
           readOnly
           value={url}
           onFocus={(e) => e.currentTarget.select()}
-          className="min-w-0 flex-1 rounded-[10px] border border-border bg-input px-3 py-[9px] font-mono text-[12.5px] text-text outline-none"
+          className="input mono-field min-w-0 flex-1"
         />
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={copy}
-            className="cursor-pointer rounded-[10px] bg-brand px-3.5 py-[9px] text-[13px] font-bold text-white hover:brightness-110"
-          >
-            {copied ? "Copied!" : "Copy"}
+        <div className="flex gap-2.5">
+          <button type="button" onClick={copy} className="btn small">
+            <span>{copied ? "Copied!" : "Copy"}</span>
           </button>
           <button
             type="button"
             onClick={regenerate}
             disabled={busy}
-            className="cursor-pointer rounded-[10px] border border-border px-3.5 py-[9px] text-[13px] font-bold text-muted hover:border-brand hover:text-text disabled:opacity-60"
+            className="btn ghost small"
+            title="Revoke old links by issuing a new one"
           >
-            {busy ? "…" : "Reset"}
+            <span>{busy ? "…" : "Reset"}</span>
           </button>
         </div>
       </div>
-      <p className="mt-2 mb-0 text-[11.5px] text-faint">
+      <p className="hint">
         Anyone signed in who opens this link joins the group. Reset it to revoke old links.
       </p>
     </div>
@@ -117,9 +114,10 @@ export function RemoveMemberButton({
       type="button"
       onClick={remove}
       disabled={busy}
-      className="cursor-pointer rounded-[8px] border border-border px-2.5 py-1 text-[11.5px] font-bold text-faint hover:border-behind hover:text-behind disabled:opacity-60"
+      className="btn danger"
+      style={{ padding: "6px 13px", fontSize: 11.5 }}
     >
-      Remove
+      <span>Remove</span>
     </button>
   );
 }
@@ -150,13 +148,8 @@ export function LeaveOrDeleteButton({ groupId, isOwner }: { groupId: string; isO
   }
 
   return (
-    <button
-      type="button"
-      onClick={run}
-      disabled={busy}
-      className="cursor-pointer rounded-[10px] border border-border px-[14px] py-[9px] text-[13px] font-bold text-behind hover:border-behind disabled:opacity-60"
-    >
-      {isOwner ? "Delete group" : "Leave group"}
+    <button type="button" onClick={run} disabled={busy} className="btn danger small">
+      <span>{isOwner ? "Delete group" : "Leave group"}</span>
     </button>
   );
 }
