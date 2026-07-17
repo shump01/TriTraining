@@ -10,7 +10,8 @@ import type { DiscKey, PlanFormValues } from "./plan-form-values";
 
 export type { PlanFormValues } from "./plan-form-values";
 
-const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+const ONE_WEEK_MS = 7 * ONE_DAY_MS;
 
 const DISC = [
   {
@@ -73,14 +74,90 @@ const PRIORITIES = [
   { value: "C", label: "C — tune-up" },
 ] as const;
 
+/**
+ * The earliest race day the picker should offer.
+ *
+ * Care is needed on the units: the rule (client and server alike) compares the
+ * *instant* of the chosen day — UTC midnight — against now + 1 week. Truncating
+ * `now + 1 week` down to its UTC day therefore names a day that is itself short
+ * of a week away, and the picker would be offering a date its own rule rejects.
+ * Round UP to the next UTC day boundary instead. At exactly UTC midnight the two
+ * agree, and this still returns that day rather than needlessly skipping one.
+ */
 function minEventDate(): string {
-  return new Date(Date.now() + ONE_WEEK_MS).toISOString().slice(0, 10);
+  const earliest = Date.now() + ONE_WEEK_MS;
+  const ceilToUtcDay = Math.ceil(earliest / ONE_DAY_MS) * ONE_DAY_MS;
+  return new Date(ceilToUtcDay).toISOString().slice(0, 10);
 }
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
 function shortDate(ms: number): string {
   return new Date(ms).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+// Mirrors the server's limits (see createPlanSchema in src/lib/validation.ts) so
+// the same rule is caught here, against the field, instead of coming back as an
+// anonymous "Validation failed" after a round trip.
+const MAX_NAME = 120;
+const MAX_METERS = 2_000_000_000; // PostgreSQL INTEGER ceiling
+
+/** Every error key, in the order the fields appear — drives "jump to the first problem". */
+const FIELD_ORDER = [
+  "name",
+  "startDate",
+  "eventDate",
+  "capMultiple",
+  "taperWeeks",
+  "disciplines",
+  "SWIM.event",
+  "SWIM.start",
+  "BIKE.event",
+  "BIKE.start",
+  "RUN.event",
+  "RUN.start",
+] as const;
+
+/** DOM id for an error key ("SWIM.event" → "pf-SWIM-event"). */
+const fieldId = (key: string) => `pf-${key.replace(".", "-")}`;
+const errorId = (key: string) => `${fieldId(key)}-err`;
+
+/**
+ * Map a server issue path onto the field it belongs to, so a rule only the server
+ * knows about (a too-large distance, say) still lands under the right input:
+ *   "disciplines.SWIM.eventDistanceMeters" → "SWIM.event"
+ */
+function serverIssueKey(path: string): string {
+  const parts = path.split(".");
+  if (parts[0] === "disciplines") {
+    if (parts.length === 3) {
+      if (parts[2] === "eventDistanceMeters") return `${parts[1]}.event`;
+      if (parts[2] === "startingWeeklyMeters") return `${parts[1]}.start`;
+    }
+    return "disciplines";
+  }
+  return path;
+}
+
+/** Scroll to and focus the first field with a problem, so a failed submit is never silent. */
+function focusFirstError(errs: Record<string, string>) {
+  const key = FIELD_ORDER.find((k) => errs[k]);
+  if (!key) return;
+  const el = document.getElementById(fieldId(key));
+  if (!el) return;
+  const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  el.scrollIntoView({ behavior: still ? "auto" : "smooth", block: "center" });
+  el.focus({ preventScroll: true });
+}
+
+/** A field-level message. role=alert so it's announced, id so the input can point at it. */
+function FieldError({ forKey, msg }: { forKey: string; msg?: string }) {
+  if (!msg) return null;
+  return (
+    <p id={errorId(forKey)} role="alert" className="mt-1 mb-0 text-[12px] text-behind">
+      {msg}
+    </p>
+  );
 }
 
 /**
@@ -119,7 +196,16 @@ export function PlanForm({
     BIKE: initial.disciplines.BIKE.enabled,
     RUN: initial.disciplines.RUN.enabled,
   }));
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  // "Now", frozen at mount: the date rules below run inside a memo, which has to
+  // be pure — reading the clock mid-render makes it unstable. Good enough for
+  // "is race day a week out?", and the server re-checks against the real clock.
+  const [nowMs] = useState(() => Date.now());
+  // Field problems the server found (rules the client can't check, e.g. a name
+  // clash of limits) — cleared as soon as the athlete edits anything.
+  const [serverErrors, setServerErrors] = useState<Record<string, string>>({});
+  // Client errors stay hidden until the first submit, so the form doesn't nag
+  // while it's still being filled in — then they show, and update live.
+  const [submitted, setSubmitted] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -170,6 +256,7 @@ export function PlanForm({
 
   function set(key: DiscKey, field: Field, value: string) {
     setValues((prev) => ({ ...prev, [key]: { ...prev[key], [field]: value } }));
+    clearServerErrors();
     if (field === "start" && autofilled[key]) {
       setAutofilled((prev) => ({ ...prev, [key]: false }));
     }
@@ -179,6 +266,7 @@ export function PlanForm({
   // it never touches the (personal) starting weekly volumes.
   function applyPreset(key: string) {
     setPreset(key);
+    clearServerErrors();
     const p = RACE_PRESETS.find((x) => x.key === key);
     if (!p) return;
     setValues((prev) => ({
@@ -240,60 +328,115 @@ export function PlanForm({
     return { rows: chartRows, startVol: chartRows[0]?.target ?? null };
   }, [startDate, eventDate, weekStartDay, capMultiple, taperWeeks, values, enabled]);
 
-  function validate(): Record<string, string> {
+  // Recomputed as the athlete types, so a message disappears the moment its field
+  // is fixed rather than lingering until the next submit.
+  const clientErrors = useMemo(() => {
     const next: Record<string, string> = {};
-    if (!name.trim()) next.name = "Name is required";
+
+    if (!name.trim()) next.name = "Give the plan a name — e.g. “Ironman Nice 2026”.";
+    else if (name.trim().length > MAX_NAME) {
+      next.name = `Keep the name under ${MAX_NAME} characters (it's ${name.trim().length}).`;
+    }
+
     if (!eventDate) {
-      next.eventDate = "Event date is required";
+      next.eventDate = "Pick your race day — the whole plan counts back from it.";
     } else {
       const d = new Date(eventDate);
-      if (Number.isNaN(d.getTime())) next.eventDate = "Enter a valid date";
-      else if (d.getTime() <= Date.now()) next.eventDate = "Must be in the future";
-      else if (d.getTime() - Date.now() < ONE_WEEK_MS) next.eventDate = "At least 1 week away";
+      if (Number.isNaN(d.getTime())) next.eventDate = "That isn't a date we can read.";
+      else if (d.getTime() <= nowMs) next.eventDate = "Race day needs to be in the future.";
+      else if (d.getTime() - nowMs < ONE_WEEK_MS) {
+        next.eventDate = "Race day must be at least a week away to build a plan worth having.";
+      }
     }
+
     if (!startDate) {
-      next.startDate = "Start date is required";
+      next.startDate = "Pick when the plan starts.";
     } else if (Number.isNaN(new Date(startDate).getTime())) {
-      next.startDate = "Enter a valid date";
+      next.startDate = "That isn't a date we can read.";
     } else if (eventDate && new Date(startDate).getTime() >= new Date(eventDate).getTime()) {
-      next.startDate = "Must be before the event date";
+      next.startDate = "The start date has to come before race day.";
     }
+
     if (capMultiple.trim() === "") {
-      next.capMultiple = "Required";
-    } else {
-      const n = Number(capMultiple);
-      if (!(n >= 1 && n <= 5)) next.capMultiple = "Must be between 1× and 5×";
+      next.capMultiple = "Enter a cap, or use the default of 1.5×.";
+    } else if (!(Number(capMultiple) >= 1 && Number(capMultiple) <= 5)) {
+      next.capMultiple = "The cap has to be between 1× and 5× your event distance.";
     }
+
     if (taperWeeks.trim() === "") {
-      next.taperWeeks = "Required";
+      next.taperWeeks = "Enter a taper length, or 0 for none.";
     } else {
       const n = Number(taperWeeks);
-      if (!Number.isInteger(n) || n < 0 || n > 4) next.taperWeeks = "Must be 0–4 weeks";
+      if (!Number.isInteger(n) || n < 0 || n > 4) {
+        next.taperWeeks = "Taper has to be a whole number of weeks, 0 to 4.";
+      }
     }
+
     if (!DISC.some((d) => enabled[d.key])) {
-      next.disciplines = "Select at least one sport";
+      next.disciplines = "Pick at least one sport to train for.";
     }
+
     for (const d of DISC) {
       if (!enabled[d.key]) continue;
       for (const f of ["event", "start"] as const) {
         const raw = values[d.key][f];
         const key = `${d.key}.${f}`;
-        if (raw.trim() === "") next[key] = "Required";
-        else if (!(Number(raw) > 0)) next[key] = "Must be greater than 0";
+        const what = f === "event" ? `${d.label} race distance` : `${d.label} starting weekly`;
+        if (raw.trim() === "") {
+          next[key] = `${what} is needed — untick ${d.label} if you're not training it.`;
+        } else if (Number.isNaN(Number(raw))) {
+          next[key] = "Enter a number.";
+        } else if (!(Number(raw) > 0)) {
+          next[key] = "Must be more than 0.";
+        } else if (Math.round(Number(raw) * d.factor) < 1) {
+          // Both bounds are checked against the *rounded meters* we actually send,
+          // not the display value — otherwise a positive-but-tiny entry (0.4 m)
+          // rounds to 0 and only the server's .positive() catches it.
+          next[key] = "Too small — that rounds down to nothing.";
+        } else if (Math.round(Number(raw) * d.factor) > MAX_METERS) {
+          next[key] = "That distance is unrealistically large.";
+        }
       }
     }
     return next;
+  }, [name, eventDate, startDate, capMultiple, taperWeeks, values, enabled, nowMs]);
+
+  // Server problems win where both exist (they're the stricter, final word), but
+  // any edit clears them — they'll be re-checked on the next submit anyway.
+  const errors: Record<string, string> = {
+    ...(submitted ? clientErrors : {}),
+    ...serverErrors,
+  };
+  const errorCount = FIELD_ORDER.filter((k) => errors[k]).length;
+
+  /**
+   * Any edit invalidates what the server last told us, so drop it — the next
+   * submit re-checks. Done here in the event path rather than an effect, which
+   * would just cascade an extra render.
+   */
+  function clearServerErrors() {
+    setServerErrors((prev) => (Object.keys(prev).length ? {} : prev));
+  }
+
+  /** Wraps a setter so editing the field also drops any stale server message. */
+  function edit<T>(setter: (v: T) => void): (v: T) => void {
+    return (v: T) => {
+      setter(v);
+      clearServerErrors();
+    };
   }
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     setFormError(null);
-    const clientErrors = validate();
+    setSubmitted(true);
     if (Object.keys(clientErrors).length > 0) {
-      setErrors(clientErrors);
+      // Without this the messages can render off-screen and the click reads as
+      // "nothing happened" — the form is long and the button sits at the bottom.
+      focusFirstError(clientErrors);
       return;
     }
-    setErrors({});
+    setServerErrors({});
     setSubmitting(true);
     try {
       const disciplines = Object.fromEntries(
@@ -333,13 +476,33 @@ export function PlanForm({
         window.location.href = `/login?callbackUrl=${back}`;
         return;
       }
+      // The API reports each problem with the path it came from — put them back
+      // on their fields rather than dropping one anonymous message at the bottom.
       const data = (await res.json().catch(() => ({}))) as {
         error?: string;
-        issues?: { message: string }[];
+        issues?: { path?: string; message: string }[];
       };
-      setFormError(data.issues?.[0]?.message ?? data.error ?? "Something went wrong.");
+      const mapped: Record<string, string> = {};
+      const unplaceable: string[] = [];
+      for (const issue of data.issues ?? []) {
+        const key = serverIssueKey(issue.path ?? "");
+        if ((FIELD_ORDER as readonly string[]).includes(key)) {
+          mapped[key] ??= issue.message;
+        } else {
+          unplaceable.push(issue.message);
+        }
+      }
+      setServerErrors(mapped);
+      // Anything with no field to sit against still has to be said somewhere.
+      setFormError(
+        unplaceable[0] ??
+          (Object.keys(mapped).length === 0
+            ? (data.error ?? "Something went wrong — the plan wasn't saved.")
+            : null),
+      );
+      focusFirstError(mapped);
     } catch {
-      setFormError("Something went wrong.");
+      setFormError("Couldn't reach the server — check your connection and try again.");
     } finally {
       setSubmitting(false);
     }
@@ -391,14 +554,19 @@ export function PlanForm({
         )}
       <div className="grid gap-4">
         <div>
-          <label className={labelClass}>Plan name</label>
+          <label className={labelClass} htmlFor={fieldId("name")}>
+            Plan name
+          </label>
           <input
+            id={fieldId("name")}
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => edit(setName)(e.target.value)}
             placeholder="Ironman Nice 2026"
             className={inputClass}
+            aria-invalid={Boolean(errors.name)}
+            aria-describedby={errors.name ? errorId("name") : undefined}
           />
-          {errors.name && <p className="mt-1 mb-0 text-[12px] text-behind">{errors.name}</p>}
+          <FieldError forKey="name" msg={errors.name} />
         </div>
         <div>
           <label className={labelClass}>Race preset (optional)</label>
@@ -421,16 +589,21 @@ export function PlanForm({
         </div>
         <div className="grid gap-4 app:grid-cols-2">
           <div>
-            <label className={labelClass}>Start date</label>
+            <label className={labelClass} htmlFor={fieldId("startDate")}>
+              Start date
+            </label>
             <input
+              id={fieldId("startDate")}
               type="date"
               value={startDate}
               max={eventDate || undefined}
-              onChange={(e) => setStartDate(e.target.value)}
+              onChange={(e) => edit(setStartDate)(e.target.value)}
               className={inputClass}
+              aria-invalid={Boolean(errors.startDate)}
+              aria-describedby={errors.startDate ? errorId("startDate") : undefined}
             />
             {errors.startDate ? (
-              <p className="mt-1 mb-0 text-[12px] text-behind">{errors.startDate}</p>
+              <FieldError forKey="startDate" msg={errors.startDate} />
             ) : (
               <p className="mt-1 mb-0 text-[12px] text-faint">
                 Defaults to this week. Set it earlier if you&apos;ve already been training.
@@ -438,33 +611,41 @@ export function PlanForm({
             )}
           </div>
           <div>
-            <label className={labelClass}>Event date</label>
+            <label className={labelClass} htmlFor={fieldId("eventDate")}>
+              Event date
+            </label>
             <input
+              id={fieldId("eventDate")}
               type="date"
               value={eventDate}
               min={minEventDate()}
-              onChange={(e) => setEventDate(e.target.value)}
+              onChange={(e) => edit(setEventDate)(e.target.value)}
               className={inputClass}
+              aria-invalid={Boolean(errors.eventDate)}
+              aria-describedby={errors.eventDate ? errorId("eventDate") : undefined}
             />
-            {errors.eventDate && (
-              <p className="mt-1 mb-0 text-[12px] text-behind">{errors.eventDate}</p>
-            )}
+            <FieldError forKey="eventDate" msg={errors.eventDate} />
           </div>
         </div>
         <div className="grid gap-4 app:grid-cols-2">
           <div>
-            <label className={labelClass}>Peak week cap (×)</label>
+            <label className={labelClass} htmlFor={fieldId("capMultiple")}>
+              Peak week cap (×)
+            </label>
             <input
+              id={fieldId("capMultiple")}
               type="number"
               min={1}
               max={5}
               step="0.1"
               value={capMultiple}
-              onChange={(e) => setCapMultiple(e.target.value)}
+              onChange={(e) => edit(setCapMultiple)(e.target.value)}
               className={`${inputClass} font-mono max-w-[140px]`}
+              aria-invalid={Boolean(errors.capMultiple)}
+              aria-describedby={errors.capMultiple ? errorId("capMultiple") : undefined}
             />
             {errors.capMultiple ? (
-              <p className="mt-1 mb-0 text-[12px] text-behind">{errors.capMultiple}</p>
+              <FieldError forKey="capMultiple" msg={errors.capMultiple} />
             ) : (
               <p className="mt-1 mb-0 text-[12px] text-faint">
                 Weekly volume never exceeds this multiple of each sport&apos;s event distance.
@@ -475,7 +656,7 @@ export function PlanForm({
             <label className={labelClass}>Week starts on</label>
             <select
               value={weekStartDay}
-              onChange={(e) => setWeekStartDay(e.target.value)}
+              onChange={(e) => edit(setWeekStartDay)(e.target.value)}
               className={`${inputClass} cursor-pointer`}
             >
               {WEEKDAYS.map((d) => (
@@ -491,18 +672,23 @@ export function PlanForm({
         </div>
         <div className="grid gap-4 app:grid-cols-2">
           <div>
-            <label className={labelClass}>Race-week taper (weeks)</label>
+            <label className={labelClass} htmlFor={fieldId("taperWeeks")}>
+              Race-week taper (weeks)
+            </label>
             <input
+              id={fieldId("taperWeeks")}
               type="number"
               min={0}
               max={4}
               step="1"
               value={taperWeeks}
-              onChange={(e) => setTaperWeeks(e.target.value)}
+              onChange={(e) => edit(setTaperWeeks)(e.target.value)}
               className={`${inputClass} font-mono max-w-[140px]`}
+              aria-invalid={Boolean(errors.taperWeeks)}
+              aria-describedby={errors.taperWeeks ? errorId("taperWeeks") : undefined}
             />
             {errors.taperWeeks ? (
-              <p className="mt-1 mb-0 text-[12px] text-behind">{errors.taperWeeks}</p>
+              <FieldError forKey="taperWeeks" msg={errors.taperWeeks} />
             ) : (
               <p className="mt-1 mb-0 text-[12px] text-faint">
                 The final weeks ramp down from your peak into race day so you arrive fresh. 0 = no
@@ -514,7 +700,7 @@ export function PlanForm({
             <label className={labelClass}>Season priority</label>
             <select
               value={priority}
-              onChange={(e) => setPriority(e.target.value)}
+              onChange={(e) => edit(setPriority)(e.target.value)}
               className={`${inputClass} cursor-pointer`}
             >
               {PRIORITIES.map((p) => (
@@ -530,7 +716,13 @@ export function PlanForm({
         </div>
       </div>
 
-      <div className="mt-[22px] mb-2 flex items-baseline justify-between">
+      {/* tabIndex=-1 so "pick at least one sport" — which has no input of its own —
+          can still be scrolled to and focused like any other problem. */}
+      <div
+        id={fieldId("disciplines")}
+        tabIndex={-1}
+        className="mt-[22px] mb-2 flex items-baseline justify-between outline-none"
+      >
         <span className={labelClass}>Sports</span>
         <span className="text-[12px] text-faint">Uncheck any you&apos;re not training for.</span>
       </div>
@@ -547,7 +739,10 @@ export function PlanForm({
                 <input
                   type="checkbox"
                   checked={on}
-                  onChange={(e) => setEnabled((p) => ({ ...p, [d.key]: e.target.checked }))}
+                  onChange={(e) => {
+                    setEnabled((p) => ({ ...p, [d.key]: e.target.checked }));
+                    clearServerErrors();
+                  }}
                   className="h-4 w-4 cursor-pointer accent-[var(--brand)]"
                 />
                 <span
@@ -560,8 +755,11 @@ export function PlanForm({
               {on && (
                 <div className="mt-3 grid grid-cols-2 gap-3.5">
                   <div>
-                    <label className={subLabelClass}>Event distance ({d.unit})</label>
+                    <label className={subLabelClass} htmlFor={fieldId(`${d.key}.event`)}>
+                      Event distance ({d.unit})
+                    </label>
                     <input
+                      id={fieldId(`${d.key}.event`)}
                       type="number"
                       min={0}
                       step={d.unit === "km" ? "0.1" : "1"}
@@ -569,15 +767,15 @@ export function PlanForm({
                       placeholder={d.event}
                       onChange={(e) => set(d.key, "event", e.target.value)}
                       className={`${inputClass} font-mono`}
+                      aria-invalid={Boolean(errors[`${d.key}.event`])}
+                      aria-describedby={
+                        errors[`${d.key}.event`] ? errorId(`${d.key}.event`) : undefined
+                      }
                     />
-                    {errors[`${d.key}.event`] && (
-                      <p className="mt-1 mb-0 text-[12px] text-behind">
-                        {errors[`${d.key}.event`]}
-                      </p>
-                    )}
+                    <FieldError forKey={`${d.key}.event`} msg={errors[`${d.key}.event`]} />
                   </div>
                   <div>
-                    <label className={subLabelClass}>
+                    <label className={subLabelClass} htmlFor={fieldId(`${d.key}.start`)}>
                       Starting weekly ({d.unit})
                       {autofilled[d.key] && (
                         <span className="ml-1.5 text-[11px] font-normal text-[#fc4c02]">
@@ -586,6 +784,7 @@ export function PlanForm({
                       )}
                     </label>
                     <input
+                      id={fieldId(`${d.key}.start`)}
                       type="number"
                       min={0}
                       step={d.unit === "km" ? "0.1" : "1"}
@@ -593,12 +792,12 @@ export function PlanForm({
                       placeholder={d.start}
                       onChange={(e) => set(d.key, "start", e.target.value)}
                       className={`${inputClass} font-mono`}
+                      aria-invalid={Boolean(errors[`${d.key}.start`])}
+                      aria-describedby={
+                        errors[`${d.key}.start`] ? errorId(`${d.key}.start`) : undefined
+                      }
                     />
-                    {errors[`${d.key}.start`] && (
-                      <p className="mt-1 mb-0 text-[12px] text-behind">
-                        {errors[`${d.key}.start`]}
-                      </p>
-                    )}
+                    <FieldError forKey={`${d.key}.start`} msg={errors[`${d.key}.start`]} />
                   </div>
                 </div>
               )}
@@ -607,7 +806,9 @@ export function PlanForm({
         })}
       </div>
       {errors.disciplines && (
-        <p className="mt-2 mb-0 text-[12px] text-behind">{errors.disciplines}</p>
+        <div className="mt-2">
+          <FieldError forKey="disciplines" msg={errors.disciplines} />
+        </div>
       )}
 
       {preview && (
@@ -630,7 +831,29 @@ export function PlanForm({
         </div>
       )}
 
-      {formError && <p className="mt-4 mb-0 text-[13.5px] text-behind">{formError}</p>}
+      {formError && (
+        <p role="alert" className="mt-4 mb-0 text-[13.5px] text-behind">
+          {formError}
+        </p>
+      )}
+
+      {/* The messages themselves sit against their fields, which can be far off
+          screen — this makes the failure visible right where the click happened. */}
+      {submitted && errorCount > 0 && (
+        <p role="alert" className="mt-4 mb-0 text-[13.5px] text-behind">
+          {errorCount === 1
+            ? "One field needs fixing before this can be saved — "
+            : `${errorCount} fields need fixing before this can be saved — `}
+          <button
+            type="button"
+            onClick={() => focusFirstError(errors)}
+            className="cursor-pointer font-bold underline underline-offset-2"
+          >
+            jump to the first
+          </button>
+          .
+        </p>
+      )}
 
       <button
         type="submit"
