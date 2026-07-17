@@ -1,9 +1,8 @@
 import Link from "next/link";
 
+import { SeasonTimeline, toSeasonPlans } from "@/components/season-timeline";
 import { listTrainingPlansWithProgress } from "@/lib/training-plan";
-import { DISCIPLINE_META, STATUS_META, translucent, type StatusKey } from "@/lib/ui/theme";
-
-import { SeasonTimeline, type SeasonPlan } from "./season-timeline";
+import { DISCIPLINE_META, STATUS_META, planStatusKey, translucent } from "@/lib/ui/theme";
 
 export const dynamic = "force-dynamic";
 
@@ -11,21 +10,9 @@ function eventLabel(date: Date): string {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
-function statusKeyOf(p: { summary: { started: boolean; status: StatusKey | null } }): StatusKey {
-  return p.summary.started ? (p.summary.status ?? "onTrack") : "upcoming";
-}
-
 export default async function PlansPage() {
   const plans = await listTrainingPlansWithProgress();
-
-  const seasonPlans: SeasonPlan[] = plans.map((p) => ({
-    id: p.id,
-    name: p.name,
-    startMs: p.startDateMs,
-    eventMs: p.eventDate.getTime(),
-    priority: p.priority,
-    color: STATUS_META[statusKeyOf(p)].color,
-  }));
+  const seasonPlans = toSeasonPlans(plans);
 
   return (
     <div className="max-w-[980px]">
@@ -54,7 +41,7 @@ export default async function PlansPage() {
       ) : (
         <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
           {plans.map((p) => {
-            const status = STATUS_META[statusKeyOf(p)];
+            const status = STATUS_META[planStatusKey(p.summary)];
             const pct = p.summary.pctOfTarget ?? 0;
             return (
               <Link

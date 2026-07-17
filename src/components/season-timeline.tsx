@@ -1,10 +1,12 @@
 import Link from "next/link";
 
+import { STATUS_META, planStatusKey, type StatusKey } from "@/lib/ui/theme";
+
 /**
  * A compact season Gantt: every plan as a bar on a shared time axis, from its
  * start to its event date. Bar color follows the plan's status; height/opacity
  * encode its priority (A goal race → tallest, C tune-up → slightest). Purely
- * presentational — rendered by the server plans page.
+ * presentational — rendered by the server plans page and the dashboard.
  */
 export interface SeasonPlan {
   id: string;
@@ -14,6 +16,27 @@ export interface SeasonPlan {
   priority: string;
   /** Status color (CSS var string). */
   color: string;
+}
+
+/** Shape plans-with-progress into timeline bars. Structural, so any caller fits. */
+export function toSeasonPlans(
+  plans: {
+    id: string;
+    name: string;
+    startDateMs: number;
+    eventDate: Date;
+    priority: string;
+    summary: { started: boolean; status: StatusKey | null };
+  }[],
+): SeasonPlan[] {
+  return plans.map((p) => ({
+    id: p.id,
+    name: p.name,
+    startMs: p.startDateMs,
+    eventMs: p.eventDate.getTime(),
+    priority: p.priority,
+    color: STATUS_META[planStatusKey(p.summary)].color,
+  }));
 }
 
 const DEFAULT_STYLE = { height: 11, opacity: 0.62 };

@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { mapKnownApiError } from "@/lib/api";
+import { pickFeaturedPlan } from "@/lib/featured-plan";
 import { buildPlanSeries } from "@/lib/plan-series";
 import { prisma } from "@/lib/prisma";
 import { computeReadiness, type SeriesReadiness } from "@/lib/readiness";
@@ -12,6 +13,7 @@ import {
   listTrainingPlans,
   requireUserId,
 } from "@/lib/training-plan";
+import { planStartWeek } from "@/lib/weekly-targets";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -38,9 +40,17 @@ export async function GET(req: NextRequest) {
       listRecentActuals(4),
     ]);
 
-    // The dashboard's active-plan rule: nearest upcoming event, else most recent.
-    const active =
-      plans.find((p) => p.eventDate.getTime() >= now.getTime()) ?? plans.at(-1) ?? null;
+    // The same featured-plan rule the web dashboard uses (goal race first), from
+    // the shared pure module so the two can't drift. Null once every race has
+    // passed — the app shouldn't show a finished plan as active.
+    const active = pickFeaturedPlan(
+      plans.map((p) => ({
+        ...p,
+        eventMs: p.eventDate.getTime(),
+        startMs: planStartWeek(p).getTime(),
+      })),
+      now.getTime(),
+    );
 
     type Mini = {
       key: string;

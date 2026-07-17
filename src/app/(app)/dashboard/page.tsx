@@ -1,10 +1,16 @@
 import Link from "next/link";
 
 import { auth } from "@/auth";
+import { SeasonTimeline, toSeasonPlans } from "@/components/season-timeline";
+import { rankLivePlans } from "@/lib/featured-plan";
 import { buildPlanSeries } from "@/lib/plan-series";
 import { computeReadiness, type ReadinessStatus } from "@/lib/readiness";
 import { getStravaConnectionSummary } from "@/lib/strava/connection";
-import { getTrainingPlan, listRecentActuals, listTrainingPlans } from "@/lib/training-plan";
+import {
+  getTrainingPlan,
+  listRecentActuals,
+  listTrainingPlansWithProgress,
+} from "@/lib/training-plan";
 import {
   DISCIPLINE_META,
   STATUS_META,
@@ -13,11 +19,10 @@ import {
   type DisciplineKey,
 } from "@/lib/ui/theme";
 
+import { OtherPlans } from "./other-plans";
 import { StravaCard } from "./strava-card";
 
 export const dynamic = "force-dynamic";
-
-const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
 // Compact readiness chip text/color, reusing the plan status palette.
 const READINESS_TEXT: Record<Exclude<ReadinessStatus, "insufficient">, string> = {
@@ -45,15 +50,20 @@ export default async function DashboardPage() {
   const userId = session!.user.id;
 
   const now = new Date();
-  const plans = await listTrainingPlans();
-  const active = plans.find((p) => p.eventDate.getTime() >= now.getTime()) ?? plans.at(-1) ?? null;
+  // One query for every plan + its progress — the strip and the season bars are
+  // served from it, so listing them costs no extra round trips.
+  const plans = await listTrainingPlansWithProgress();
+  // Live plans, best first: the goal race leads, then whatever else is running.
+  const [active, ...others] = rankLivePlans(
+    plans.map((p) => ({ ...p, eventMs: p.eventDate.getTime(), startMs: p.startDateMs })),
+    now.getTime(),
+  );
 
   const strava = await getStravaConnectionSummary(userId);
   const recent = await listRecentActuals(4);
 
-  // Per-discipline + total "% of target" for the active plan.
+  // Per-discipline + total "% of target" for the featured plan.
   let minis: { key: string; label: string; color: string; pct: number }[] = [];
-  let weeksToGo = 0;
   let readinessChip: { label: string; color: string } | null = null;
   if (active) {
     const full = await getTrainingPlan(active.id);
@@ -81,7 +91,6 @@ export default async function DashboardPage() {
         };
       });
     }
-    weeksToGo = Math.max(0, Math.ceil((active.eventDate.getTime() - now.getTime()) / WEEK_MS));
   }
 
   return (
@@ -112,10 +121,20 @@ export default async function DashboardPage() {
             <div className="mb-[18px] flex items-center justify-between">
               <div>
                 <div className="mb-1.5 font-mono text-[11px] tracking-[0.14em] text-brand uppercase">
-                  Active plan
+                  {others.length > 0 ? "Your focus" : "Active plan"}
                 </div>
-                <div className="font-display text-[23px] font-extrabold tracking-[-0.02em]">
-                  {active.name}
+                <div className="flex items-center gap-2">
+                  {others.length > 0 && (
+                    <span
+                      className="rounded-[6px] border border-border px-1.5 py-0.5 font-mono text-[10.5px] font-bold text-muted"
+                      title={`Priority ${active.priority}`}
+                    >
+                      {active.priority}
+                    </span>
+                  )}
+                  <div className="font-display text-[23px] font-extrabold tracking-[-0.02em]">
+                    {active.name}
+                  </div>
                 </div>
                 {readinessChip && (
                   <span
@@ -130,7 +149,9 @@ export default async function DashboardPage() {
                 )}
               </div>
               <div className="text-right">
-                <div className="font-display text-[30px] leading-none font-black">{weeksToGo}</div>
+                <div className="font-display text-[30px] leading-none font-black">
+                  {active.weeksToGo}
+                </div>
                 <div className="text-[12px] text-muted">weeks to go</div>
               </div>
             </div>
@@ -156,22 +177,43 @@ export default async function DashboardPage() {
           </Link>
         ) : (
           <div className="flex flex-col items-start justify-center rounded-[18px] border border-border bg-card p-6">
-            <div className="font-display text-[20px] font-extrabold">No active plan yet</div>
+            <div className="font-display text-[20px] font-extrabold">
+              {plans.length > 0 ? "No plan in progress" : "No active plan yet"}
+            </div>
             <p className="mt-1 mb-4 text-[14px] text-muted">
-              Create a plan and we&apos;ll build progressive weekly targets to race day.
+              {plans.length > 0
+                ? "Every race on your calendar has been and gone. Set the next one and we'll build the weeks back up to it."
+                : "Create a plan and we'll build progressive weekly targets to race day."}
             </p>
-            <Link
-              href="/plans/new"
-              className="cursor-pointer rounded-[11px] bg-brand px-[18px] py-[11px] font-display text-[14.5px] font-bold text-white hover:brightness-110"
-            >
-              + New plan
-            </Link>
+            <div className="flex flex-wrap gap-2.5">
+              <Link
+                href="/plans/new"
+                className="cursor-pointer rounded-[11px] bg-brand px-[18px] py-[11px] font-display text-[14.5px] font-bold text-white hover:brightness-110"
+              >
+                + New plan
+              </Link>
+              {plans.length > 0 && (
+                <Link
+                  href="/plans"
+                  className="cursor-pointer rounded-[11px] border border-border px-[18px] py-[11px] font-display text-[14.5px] font-bold text-text hover:border-brand"
+                >
+                  Past plans
+                </Link>
+              )}
+            </div>
           </div>
         )}
 
         <StravaCard
           connection={strava ? { lastSyncedAt: strava.lastSyncedAt?.toISOString() ?? null } : null}
         />
+      </div>
+
+      {/* Both of these render nothing for a single-plan athlete: the strip is
+          empty, and the timeline hides itself below two plans. */}
+      <OtherPlans plans={others} />
+      <div className="mt-[30px]">
+        <SeasonTimeline plans={toSeasonPlans(plans)} nowMs={now.getTime()} />
       </div>
 
       <h2 className="mt-[30px] mb-3.5 font-display text-[16px] font-bold text-muted">

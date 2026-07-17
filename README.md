@@ -207,6 +207,16 @@ hard **cap** of `capMultiple × eventDistance` (per-plan, default 1.5×).
   plan. The recompute is view-driven (no scheduler required) and uses UTC for the
   "today is the start day" check, consistent with the rest of the week math.
 
+- **Which plan the dashboard leads with** ([src/lib/featured-plan.ts](src/lib/featured-plan.ts)).
+  With several races on the calendar, `rankLivePlans` orders the live ones: plans
+  already underway first, then by **priority** (A goal race → B → C tune-up), then
+  by nearest race. The head is the featured plan; the rest are listed beside it,
+  with the season Gantt below. This replaced a "nearest upcoming event" rule that
+  featured the _least_ important plan — a June C-race would hide a September A-race
+  — and that showed a finished plan as "active" at 0 weeks to go once every event
+  had passed. Both the web dashboard and `/api/mobile/dashboard` rank through the
+  same pure module, so the two can't disagree about what you're training for.
+
 - **Life happens — pauses and the return ramp.** A week the athlete couldn't train
   can be marked as time off (`WeeklyPause`: ill / injured / away). That changes two
   things. It's excluded from the readiness trend **and** adherence, so a fortnight

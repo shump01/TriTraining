@@ -26,6 +26,11 @@ export const STATUS_META: Record<StatusKey, { label: string; color: string }> = 
   upcoming: { label: "Upcoming", color: "var(--upcoming)" },
 };
 
+/** The status pill for a plan/series summary — "upcoming" until it has started. */
+export function planStatusKey(summary: { started: boolean; status: StatusKey | null }): StatusKey {
+  return summary.started ? (summary.status ?? "onTrack") : "upcoming";
+}
+
 /** A translucent version of any CSS color (works with var() colors + the theme). */
 export function translucent(color: string, percent: number): string {
   return `color-mix(in srgb, ${color} ${percent}%, transparent)`;
