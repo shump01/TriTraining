@@ -46,10 +46,10 @@ export default async function LoadPage() {
     <div className="max-w-[1000px]">
       <h1 className="m-0 font-display text-[32px] font-black tracking-[-0.025em]">Training load</h1>
       <p className="mt-1.5 mb-6 max-w-[62ch] text-[14.5px] text-muted">
-        Heart-rate training load from your Strava activities — <b className="text-text">Fitness</b>{" "}
+        Heart-rate training load from your synced activities — <b className="text-text">Fitness</b>{" "}
         (42-day load), <b className="text-text">Fatigue</b> (7-day load), and{" "}
         <b className="text-text">Form</b> (Fitness − Fatigue). Set your threshold heart rate and it
-        scores every HR-recorded session.
+        scores every HR-recorded session, from Strava or the TriTrainer app’s Apple Health sync.
       </p>
 
       {!load.thresholdHr ? (
@@ -75,7 +75,8 @@ export default async function LoadPage() {
             <Link href="/dashboard" className="font-semibold text-brand">
               Strava
             </Link>{" "}
-            activities that captured heart rate — sync once you have some, and this chart fills in.
+            activities that captured heart rate — or from Apple Health via the TriTrainer app — sync
+            once you have some, and this chart fills in.
           </p>
           <ThresholdForm initial={load.thresholdHr} cta="Update" />
         </div>
@@ -151,8 +152,9 @@ export default async function LoadPage() {
           <div className="mt-5 flex flex-wrap items-end justify-between gap-4 rounded-[16px] border border-border bg-card p-5">
             <ThresholdForm initial={load.thresholdHr} cta="Update" />
             <p className="m-0 max-w-[42ch] text-[12.5px] leading-[1.5] text-faint">
-              hrTSS from average heart rate: an hour at threshold = 100. Only Strava activities that
-              recorded HR are scored.
+              hrTSS from average heart rate: an hour at threshold = 100. Only activities that
+              recorded HR are scored
+              {load.loadSource === "STRAVA" ? " — from Strava" : " — from Apple Health"}.
             </p>
           </div>
         </>

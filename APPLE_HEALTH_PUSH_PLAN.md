@@ -159,3 +159,65 @@ Each phase ships independently, but the order is load-bearing:
 - Phase 3 alone (skipping 1–2) would give push of today's weekly distances with **zero
   server change** — a valid minimal path, at the cost of the training-load win.
 - Recommended: 1 → 2 → 3 → 4.
+
+## 7. Status + implementation notes (July 2026)
+
+All four phases are **implemented**: Phase 1 in this repo; Phases 2–4 in the app repo
+(`TriTrainerApp`), which migrated the HealthKit layer from `react-native-health` to
+`@kingstinct/react-native-healthkit` v14 in the process (the old library was already
+bypassed for New-Architecture breakage, and is unmaintained).
+
+Two v14.0.2 traps discovered during implementation, and how the code routes around them:
+
+- The **published config plugin does not inject the AppDelegate re-registration** its
+  repo's source suggests (verified by executing the shipped plugin's mods: it registers
+  entitlements + Info.plist only). No local AppDelegate patch was added — instead the app
+  re-asserts `configureBackgroundTypes` on every JS boot, which re-creates the observer
+  queries in-process; the OS-side `enableBackgroundDelivery` registration is what makes
+  iOS relaunch the app, and it persists regardless.
+- The **change subscription can't see the workout that caused a background wake** (it
+  only observes samples saved after it registers, and the natively queued pre-JS events
+  are never drained). The design is therefore **boot-driven**: every JS boot — including
+  a background launch — runs the shared headless sync when Apple Health is connected;
+  the subscription only covers workouts saved while the process is already alive. The
+  idempotent full-replace ingest makes a spurious sync a no-op.
+
+## 8. Deploying the whole change (single deployment)
+
+Server first, then the app — the server is backward compatible with old app builds
+(all new ingest fields are optional), but the new app build needs the new server.
+
+**Web (`TriTrainer`) — on the server:**
+
+```
+git pull
+npm ci                     # regenerates the Prisma client (postinstall)
+npm run build
+npx prisma migrate deploy  # REQUIRED: adds ActivityLoad.source — code selects it
+# then Restart the app (Plesk / Passenger)
+```
+
+**App (`TriTrainerApp`) — a NEW NATIVE BUILD is required** (new native module +
+entitlement; an OTA/JS-only update cannot ship this):
+
+```
+eas build --profile development --platform ios   # dev build for on-device testing
+# …verify (below), then:
+eas build --profile production --platform ios    # TestFlight / App Store
+```
+
+Because the HealthKit permission scope grew (heart rate read), existing installs will
+show the permission sheet again on next connect; already-connected users keep working
+but only gain HR once they grant it (Settings → re-connect, or iOS Settings → Privacy →
+Health → TriTrainer).
+
+**On-device verification (physical device only — background delivery doesn't work in
+the Simulator):**
+
+1. Connect Apple Health in the app → permission sheet lists **Workouts and Heart Rate**.
+2. "Sync now" with a real Watch workout → the status line reports workouts, weeks, and
+   "N scored for training load"; the Load tab fills in (with no Strava connection).
+3. Add a manual workout in the Health app with the TriTrainer app **killed** → wait a
+   minute or two with the phone unlocked → the workout appears on the website without
+   opening the app. (First delivery after a fresh install can take one app open to arm.)
+4. Strava users: confirm a Strava sync still shows Strava-sourced load (one-source rule).
