@@ -14,11 +14,15 @@
    Unlike Home, `--brand` is deliberately NOT re-pointed here: these pages carry
    `bg-brand text-white` actions deep inside shared components (PlanForm submit,
    check-in save, actual-cell), and paper-with-white-text would be illegible.
-   Brand-blue on the void is precisely the app's dark-theme brand — coherent.
+   Brand-blue works on both canvases — coherent.
 
-   Deliberately dark in both themes (the canvas IS the aesthetic — same doctrine
-   as Groups and Home). Page chrome speaks marketing (Anton/Fraunces/mono);
-   data components inherit the palette and keep their own type. */
+   THEME-AWARE: dark is ink-on-void (the race poster); light is void-on-paper —
+   warm cream stock, print grain, the same chrome, sport accents deepened for
+   contrast (see the [data-theme="light"] block at the end). The variable system
+   does the flipping: these surfaces use --void as "canvas + text-on-accent" and
+   --paper as "action surface", so the light block swaps the palette and nearly
+   everything follows. Page chrome speaks marketing (Anton/Fraunces/mono); data
+   components inherit the palette and keep their own type. */
 
 .mkpage {
   /* Marketing palette. */
@@ -282,4 +286,50 @@
   .mkpage .rise {
     opacity: 1;
   }
+}
+
+/* ── Light theme: void-on-paper ─────────────────────────────────────────────
+   The same brand on cream stock. --void becomes the paper canvas and --paper
+   becomes ink (they name ROLES — canvas / action surface — not colors), so
+   buttons, chips and on-accent text flip themselves. Sport accents deepen so
+   mono labels and chips keep contrast on cream; glows soften; grain multiplies
+   like print. [data-theme="light"] .mkpage out-specifies the base block. */
+[data-theme="light"] .mkpage {
+  --ink: #171410;
+  --ink-dim: #5f594c;
+  --ink-faint: #948c7c;
+  --void: #f0eadf;
+  --paper: #171410;
+  --line: rgba(23, 20, 16, 0.12);
+
+  --bg: var(--void);
+  --bg2: #ede6d9;
+  --card: #f7f2e9;
+  --card2: #eae3d4;
+  --input: #faf6ee;
+  --border: rgba(23, 20, 16, 0.1);
+  --grid: rgba(23, 20, 16, 0.08);
+  --text: var(--ink);
+  --muted: var(--ink-dim);
+  --faint: var(--ink-faint);
+  --swim: #0b9d8c;
+  --bike: #b97e06;
+  --run: #dd2f4d;
+}
+[data-theme="light"] .mkpage .glows {
+  background:
+    radial-gradient(46vw 46vw at 8% 0%, rgba(11, 157, 140, 0.07), transparent 60%),
+    radial-gradient(50vw 50vw at 96% 30%, rgba(185, 126, 6, 0.06), transparent 62%),
+    radial-gradient(46vw 46vw at 42% 100%, rgba(221, 47, 77, 0.05), transparent 60%);
+}
+[data-theme="light"] .mkpage .grain {
+  mix-blend-mode: multiply;
+  opacity: 0.05;
+}
+[data-theme="light"] .mkpage .pulse {
+  box-shadow: 0 0 0 0 rgba(221, 47, 77, 0.5);
+}
+/* .btn flips via --paper/--void; the ghost's hover border follows ink. */
+[data-theme="light"] .mkpage .btn.ghost:hover {
+  border-color: var(--ink);
 }

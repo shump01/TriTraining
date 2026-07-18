@@ -11,10 +11,11 @@
    status pills, translucent() chips). Rather than fork them with bespoke
    classes, the surface re-points the app's own CSS variables for its subtree:
    every `bg-card` / `border-border` / `text-muted` inside .homepage resolves to
-   the marketing palette, in BOTH app themes (element-level vars beat the
-   :root/[data-theme] definitions for this subtree). Deliberately dark in both
-   themes — the near-black canvas is the aesthetic, same doctrine as Groups.
-   Scoped under .homepage so nothing leaks. */
+   the marketing palette (element-level vars beat the :root/[data-theme]
+   definitions for this subtree). THEME-AWARE: dark is ink-on-void, light is
+   void-on-paper — see the [data-theme="light"] block at the end, which swaps
+   the role variables (--void = canvas, --paper = action surface) and deepens
+   the accents for cream. Scoped under .homepage so nothing leaks. */
 
 .homepage {
   /* Marketing palette. */
@@ -305,4 +306,53 @@
   .homepage .rise {
     opacity: 1;
   }
+}
+
+/* ── Light theme: void-on-paper (see surface.css for the doctrine) ── */
+[data-theme="light"] .homepage {
+  --ink: #171410;
+  --ink-dim: #5f594c;
+  --ink-faint: #948c7c;
+  --void: #f0eadf;
+  --paper: #171410;
+  --line: rgba(23, 20, 16, 0.12);
+
+  --bg: var(--void);
+  --bg2: #ede6d9;
+  --card: #f7f2e9;
+  --card2: #eae3d4;
+  --input: #faf6ee;
+  --border: rgba(23, 20, 16, 0.1);
+  --grid: rgba(23, 20, 16, 0.08);
+  --text: var(--ink);
+  --muted: var(--ink-dim);
+  --faint: var(--ink-faint);
+  --swim: #0b9d8c;
+  --bike: #b97e06;
+  --run: #dd2f4d;
+  /* Home's brand moments (kickers, TOTAL, the timeline's today marker) read as
+     ink on paper, mirroring paper-on-void in dark. */
+  --brand: #171410;
+}
+[data-theme="light"] .homepage .glows {
+  background:
+    radial-gradient(48vw 48vw at 90% 0%, rgba(11, 157, 140, 0.07), transparent 60%),
+    radial-gradient(52vw 52vw at 0% 38%, rgba(185, 126, 6, 0.05), transparent 62%),
+    radial-gradient(46vw 46vw at 60% 100%, rgba(221, 47, 77, 0.05), transparent 60%);
+}
+[data-theme="light"] .homepage .grain {
+  mix-blend-mode: multiply;
+  opacity: 0.05;
+}
+[data-theme="light"] .homepage .pulse {
+  box-shadow: 0 0 0 0 rgba(221, 47, 77, 0.5);
+}
+[data-theme="light"] .homepage .hero-card {
+  background: linear-gradient(165deg, rgba(23, 20, 16, 0.035), transparent);
+}
+[data-theme="light"] .homepage a.hero-card:hover {
+  border-color: rgba(23, 20, 16, 0.25);
+}
+[data-theme="light"] .homepage .mini {
+  background: rgba(23, 20, 16, 0.025);
 }
