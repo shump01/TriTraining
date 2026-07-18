@@ -114,10 +114,16 @@ export async function syncStravaActivities(userId: string): Promise<SyncResult> 
     if (rows.length > 0) {
       await tx.weeklyActual.createMany({ data: rows });
     }
-    // Idempotently replace training-load rows in the same window.
-    await tx.activityLoad.deleteMany({ where: { userId, date: { gte: earliestDay } } });
+    // Idempotently replace training-load rows in the same window — STRAVA rows
+    // only. Without the source scope this delete would wipe Apple Health load
+    // rows on every sync (each writer owns exactly its own source's rows).
+    await tx.activityLoad.deleteMany({
+      where: { userId, source: "STRAVA", date: { gte: earliestDay } },
+    });
     if (loadRows.length > 0) {
-      await tx.activityLoad.createMany({ data: loadRows.map((r) => ({ userId, ...r })) });
+      await tx.activityLoad.createMany({
+        data: loadRows.map((r) => ({ userId, source: "STRAVA" as const, ...r })),
+      });
     }
     await tx.stravaConnection.update({ where: { userId }, data: { lastSyncedAt: new Date() } });
   });

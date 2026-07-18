@@ -24,8 +24,10 @@ const DAY_MS = 86_400_000;
 export interface TrainingLoad {
   /** The athlete's lactate-threshold HR, or null if not set. */
   thresholdHr: number | null;
-  /** Whether any HR-recorded activities have been synced. */
+  /** Whether any HR-recorded activities have been synced (from the chosen source). */
   hasActivities: boolean;
+  /** Which sync feeds the load numbers — see the one-source rule in readUserLoad. */
+  loadSource: "STRAVA" | "APPLE_HEALTH";
   series: LoadPoint[];
   summary: LoadSummary | null;
   /** Time-in-zone over the last INTENSITY_WINDOW_DAYS. Null with nothing to score. */
@@ -34,21 +36,31 @@ export interface TrainingLoad {
 
 /** Read + compute a specific user's training load. Shared by the callers below. */
 async function readUserLoad(userId: string): Promise<TrainingLoad> {
-  const [user, loads] = await Promise.all([
-    prisma.user.findUnique({ where: { id: userId }, select: { thresholdHr: true } }),
-    prisma.activityLoad.findMany({
-      where: { userId },
-      select: { date: true, movingSeconds: true, avgHr: true },
-      orderBy: { date: "asc" },
-    }),
-  ]);
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { thresholdHr: true, stravaConnection: { select: { id: true } } },
+  });
+
+  // ONE source feeds load — the same "never summed" doctrine as weekly actuals,
+  // applied at read time. A workout can reach us from both Strava auto-upload
+  // and Apple Health; summing both would double its TSS into CTL/ATL/TSB, the
+  // zones, and the re-ramp's Form factor. Rule: Strava when connected (it is
+  // the richer, athlete-chosen integration), Apple Health otherwise. A per-user
+  // override is a deliberate non-feature until someone actually needs it.
+  const loadSource = user?.stravaConnection ? ("STRAVA" as const) : ("APPLE_HEALTH" as const);
+
+  const loads = await prisma.activityLoad.findMany({
+    where: { userId, source: loadSource },
+    select: { date: true, movingSeconds: true, avgHr: true },
+    orderBy: { date: "asc" },
+  });
 
   const thresholdHr = user?.thresholdHr ?? null;
   const hasActivities = loads.length > 0;
 
   // Nothing to chart until both a threshold and some HR activities exist.
   if (!thresholdHr || !hasActivities) {
-    return { thresholdHr, hasActivities, series: [], summary: null, intensity: null };
+    return { thresholdHr, hasActivities, loadSource, series: [], summary: null, intensity: null };
   }
 
   const now = Date.now();
@@ -66,6 +78,7 @@ async function readUserLoad(userId: string): Promise<TrainingLoad> {
   return {
     thresholdHr,
     hasActivities,
+    loadSource,
     series,
     summary: summarizeLoad(series),
     intensity: buildIntensityDistribution(recent, thresholdHr),

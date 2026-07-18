@@ -208,6 +208,16 @@ export const healthIngestSchema = z.object({
         sportType: z.string().max(64),
         distanceMeters: z.number().finite().nonnegative().max(MAX_METERS),
         startDateLocal: z.string().max(64),
+        // Optional training-load fields (older app builds omit them; the
+        // workout still counts toward weekly actuals without them). A workout
+        // carrying ALL THREE also produces an ActivityLoad row (hrTSS →
+        // Fitness/Fatigue/Form), mirroring what Strava sync stores.
+        /** HealthKit workout UUID — the per-source idempotency key. */
+        externalId: z.string().min(1).max(64).optional(),
+        /** Duration in seconds. Bounded to a sane 48h. */
+        movingSeconds: z.number().int().positive().max(172_800).optional(),
+        /** Average heart rate over the workout (bpm). */
+        avgHr: z.number().int().positive().max(300).optional(),
       }),
     )
     .max(10_000, "Too many workouts in one batch"),

@@ -92,6 +92,7 @@ export function aggregateActivitiesByWeek(
 
 /** An activity with the fields training load needs (heart rate + duration). */
 export interface ActivityHrInput {
+  /** Source-specific activity id (Strava activity id / HealthKit workout UUID). */
   id: string;
   sportType: string | undefined;
   startDateLocal: string;
@@ -100,7 +101,8 @@ export interface ActivityHrInput {
 }
 
 export interface ActivityLoadRow {
-  stravaActivityId: string;
+  /** The per-source idempotency key — whatever `ActivityHrInput.id` carried. */
+  externalId: string;
   date: Date; // UTC-midnight of the activity's LOCAL calendar day
   discipline: Discipline;
   movingSeconds: number;
@@ -129,7 +131,7 @@ export function buildActivityLoadRows(activities: ActivityHrInput[]): ActivityLo
     );
 
     rows.push({
-      stravaActivityId: a.id,
+      externalId: a.id,
       date,
       discipline,
       movingSeconds: Math.round(a.movingSeconds),

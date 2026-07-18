@@ -21,7 +21,7 @@ describe("buildActivityLoadRows", () => {
     const rows = buildActivityLoadRows([base]);
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
-      stravaActivityId: "1",
+      externalId: "1",
       discipline: "RUN",
       movingSeconds: 3600,
       avgHr: 150,

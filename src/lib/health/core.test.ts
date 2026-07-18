@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { buildAppleHealthRows, type PlanRange } from "./core";
+import { buildActivityLoadRows } from "@/lib/strava/sync-core";
+
+import { buildAppleHealthRows, toActivityHrInputs, type PlanRange } from "./core";
 
 // Mondays (UTC midnight) around a fixed reference period.
 const W1 = new Date("2026-06-08T00:00:00.000Z");
@@ -97,5 +99,66 @@ describe("buildAppleHealthRows", () => {
 
   it("returns no rows for an empty batch (ingest still clears old rows)", () => {
     expect(buildAppleHealthRows([range()], [])).toEqual([]);
+  });
+});
+
+describe("toActivityHrInputs — the training-load side of a workout batch", () => {
+  const full = {
+    ...runTue,
+    externalId: "hk-uuid-1",
+    movingSeconds: 3600,
+    avgHr: 152,
+  };
+
+  it("keeps only workouts carrying id + duration + HR, shaped for buildActivityLoadRows", () => {
+    const inputs = toActivityHrInputs([
+      full,
+      runNextWeek, // legacy shape — distance only, no load fields
+      { ...swimWed, externalId: "hk-uuid-2", movingSeconds: 2400 }, // no avgHr
+      { ...swimWed, externalId: "hk-uuid-3", avgHr: 140 }, // no duration
+      { ...runTue, movingSeconds: 1800, avgHr: 150 }, // no externalId
+    ]);
+    expect(inputs).toEqual([
+      {
+        id: "hk-uuid-1",
+        sportType: "Run",
+        startDateLocal: "2026-06-09T07:00:00",
+        movingSeconds: 3600,
+        avgHr: 152,
+      },
+    ]);
+  });
+
+  it("composes with buildActivityLoadRows into load rows keyed by the HK UUID", () => {
+    // The whole point of the shape: the Strava path's builder applies the
+    // remaining rules (sport mapping, positive values, local-day dating).
+    const rows = buildActivityLoadRows(toActivityHrInputs([full]));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      externalId: "hk-uuid-1",
+      discipline: "RUN",
+      movingSeconds: 3600,
+      avgHr: 152,
+    });
+    expect(rows[0]!.date.toISOString()).toBe("2026-06-09T00:00:00.000Z");
+  });
+
+  it("a legacy distance-only batch yields no load rows at all", () => {
+    expect(toActivityHrInputs([runTue, runNextWeek, swimWed])).toEqual([]);
+  });
+
+  it("unmapped sports survive here but die in the shared builder", () => {
+    const yoga = {
+      sportType: "Yoga",
+      distanceMeters: 0,
+      startDateLocal: "2026-06-11T19:00:00",
+      externalId: "hk-uuid-9",
+      movingSeconds: 3600,
+      avgHr: 120,
+    };
+    // Division of labor: this helper only checks the load fields exist…
+    expect(toActivityHrInputs([yoga])).toHaveLength(1);
+    // …and the shared builder applies the discipline mapping.
+    expect(buildActivityLoadRows(toActivityHrInputs([yoga]))).toEqual([]);
   });
 });

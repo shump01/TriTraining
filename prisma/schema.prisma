@@ -43,22 +43,29 @@ model User {
 }
 
 // Per-activity heart-rate data for training load (hrTSS → CTL/ATL/TSB). Populated
-// by the Strava sync for activities that recorded HR; whole-athlete (not tied to
-// a plan). TSS is NOT stored — it's derived from movingSeconds + avgHr + the
-// user's current thresholdHr at read time, so changing threshold recomputes.
+// by the Strava sync and the Apple Health ingest for activities that recorded HR;
+// whole-athlete (not tied to a plan). TSS is NOT stored — it's derived from
+// movingSeconds + avgHr + the user's current thresholdHr at read time, so changing
+// threshold recomputes. Each writer replaces only its own `source` rows, and reads
+// use ONE source (see readUserLoad) so a workout reaching us from both Strava and
+// Apple Health never double-counts.
 model ActivityLoad {
-  id               String     @id @default(cuid())
-  userId           String
-  stravaActivityId String // Strava activity id — idempotency key for re-syncs
-  date             DateTime   @db.Date // local activity date (for daily bucketing)
-  discipline       Discipline
-  movingSeconds    Int
-  avgHr            Int // only activities with recorded HR are stored
-  createdAt        DateTime   @default(now())
+  id            String       @id @default(cuid())
+  userId        String
+  // Strava activity id or HealthKit workout UUID — the per-source idempotency
+  // key. Maps onto the pre-generalization column name (no data migration).
+  externalId    String       @map("stravaActivityId")
+  // Which sync wrote the row. Reuses ActualSource; MANUAL is never written here.
+  source        ActualSource @default(STRAVA)
+  date          DateTime     @db.Date // local activity date (for daily bucketing)
+  discipline    Discipline
+  movingSeconds Int
+  avgHr         Int // only activities with recorded HR are stored
+  createdAt     DateTime     @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, stravaActivityId])
+  @@unique([userId, source, externalId], map: "ActivityLoad_userId_source_stravaActivityId_key")
   @@index([userId, date])
 }
 

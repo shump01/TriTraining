@@ -1,5 +1,6 @@
 import {
   aggregateActivitiesByWeek,
+  type ActivityHrInput,
   type ActivityInput,
   type Discipline,
 } from "@/lib/strava/sync-core";
@@ -9,6 +10,18 @@ import {
  * bucketing/fan-out in strava/sync.ts, but writes APPLE_HEALTH rows. Kept
  * separate so it is unit-testable in isolation (same pattern as sync-core).
  */
+
+/**
+ * A normalized HealthKit workout as sent by the app. The load fields are
+ * optional — older app builds send distance only, and a workout without HR
+ * still counts toward weekly actuals.
+ */
+export interface HealthWorkoutInput extends ActivityInput {
+  /** HealthKit workout UUID — the per-source idempotency key. */
+  externalId?: string;
+  movingSeconds?: number;
+  avgHr?: number;
+}
 
 export interface PlanRange {
   id: string;
@@ -33,6 +46,27 @@ export interface AppleHealthRow {
  * Bucket workouts into weeks once per distinct week-start day, then fan each
  * plan's day-aligned buckets out to the weeks its range covers.
  */
+/**
+ * The workouts that can be scored for training load: those carrying an id,
+ * a duration and an average HR, shaped into the same ActivityHrInput the
+ * Strava path feeds to buildActivityLoadRows (which applies the remaining
+ * rules — sport mapping, positive values, local-day dating).
+ */
+export function toActivityHrInputs(workouts: HealthWorkoutInput[]): ActivityHrInput[] {
+  return workouts
+    .filter(
+      (w): w is HealthWorkoutInput & { externalId: string; movingSeconds: number; avgHr: number } =>
+        w.externalId != null && w.movingSeconds != null && w.avgHr != null,
+    )
+    .map((w) => ({
+      id: w.externalId,
+      sportType: w.sportType,
+      startDateLocal: w.startDateLocal,
+      movingSeconds: w.movingSeconds,
+      avgHr: w.avgHr,
+    }));
+}
+
 export function buildAppleHealthRows(
   planRanges: PlanRange[],
   workouts: ActivityInput[],

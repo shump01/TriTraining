@@ -276,6 +276,15 @@ hard **cap** of `capMultiple × eventDistance` (per-plan, default 1.5×).
   than instructions. True time-in-zone would need per-activity HR streams. (Like
   hrTSS, it also uses one `thresholdHr` across all three sports.)
 
+- **Training load is per-source, and reads use exactly one source.** `ActivityLoad`
+  rows carry a `source` (Strava sync / Apple Health ingest; see
+  [APPLE_HEALTH_PUSH_PLAN.md](APPLE_HEALTH_PUSH_PLAN.md)), each writer replaces only
+  its own source's rows, and `readUserLoad` feeds CTL/ATL/TSB from **one** source —
+  `STRAVA` when a connection exists, else `APPLE_HEALTH`. Same doctrine as weekly
+  actuals: never summed, because a Watch workout that auto-uploads to Strava would
+  otherwise count its TSS twice — into the Load page, the Form signal, and the
+  re-ramp's easing.
+
 ## Database
 
 Postgres via Prisma 7. For quick local iteration `npm run db:push` is fine; for any
