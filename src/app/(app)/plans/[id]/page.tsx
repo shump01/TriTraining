@@ -13,6 +13,8 @@ import { PauseCard, type PauseReasonKey } from "./pause-card";
 import { PlanDashboard } from "./plan-dashboard";
 import { SharePlanButton } from "./share-plan-button";
 
+import "../../surface.css";
+
 export const dynamic = "force-dynamic";
 
 export default async function PlanPage({ params }: { params: Promise<{ id: string }> }) {
@@ -49,60 +51,65 @@ export default async function PlanPage({ params }: { params: Promise<{ id: strin
     : null;
 
   return (
-    <>
-      <PlanDashboard
-        planId={plan.id}
-        planName={plan.name}
-        eventDateMs={plan.eventDate.getTime()}
-        startDateMs={startWeek.getTime()}
-        currentWeekMs={currentWeekMs}
-        series={series}
-        readiness={readiness}
-        formSignal={formSignal}
-      />
+    <div className="mkpage">
+      <div className="glows" />
+      <div className="grain" />
 
-      {/* A paused week has nothing to rate — the pause card replaces the check-in. */}
-      {isActiveWeek && !currentPause && (
-        <CheckinCard
+      <div className="wrap">
+        <PlanDashboard
           planId={plan.id}
-          weekStartDate={new Date(currentWeekMs).toISOString().slice(0, 10)}
-          initial={
-            currentCheckin
-              ? {
-                  fatigue: currentCheckin.fatigue,
-                  sleep: currentCheckin.sleep,
-                  soreness: currentCheckin.soreness,
-                  note: currentCheckin.note,
-                }
-              : null
-          }
+          planName={plan.name}
+          eventDateMs={plan.eventDate.getTime()}
+          startDateMs={startWeek.getTime()}
+          currentWeekMs={currentWeekMs}
+          series={series}
+          readiness={readiness}
+          formSignal={formSignal}
         />
-      )}
 
-      {isActiveWeek && (
-        <PauseCard
-          planId={plan.id}
-          weekStartDate={new Date(currentWeekMs).toISOString().slice(0, 10)}
-          initial={
-            currentPause
-              ? { reason: currentPause.reason as PauseReasonKey, note: currentPause.note }
-              : null
-          }
-        />
-      )}
+        {/* A paused week has nothing to rate — the pause card replaces the check-in. */}
+        {isActiveWeek && !currentPause && (
+          <CheckinCard
+            planId={plan.id}
+            weekStartDate={new Date(currentWeekMs).toISOString().slice(0, 10)}
+            initial={
+              currentCheckin
+                ? {
+                    fatigue: currentCheckin.fatigue,
+                    sleep: currentCheckin.sleep,
+                    soreness: currentCheckin.soreness,
+                    note: currentCheckin.note,
+                  }
+                : null
+            }
+          />
+        )}
 
-      <div className="mt-8 flex max-w-[1100px] flex-wrap items-center gap-3 border-t border-border pt-5">
-        <Link
-          href={`/plans/${plan.id}/edit`}
-          className="cursor-pointer rounded-[10px] border border-border px-[14px] py-[9px] text-[13.5px] font-bold text-text hover:border-brand"
-        >
-          Edit plan
-        </Link>
-        <DeletePlanButton planId={plan.id} planName={plan.name} />
-        <div className="ml-auto">
-          <SharePlanButton planId={plan.id} initialToken={plan.shareToken} />
+        {isActiveWeek && (
+          <PauseCard
+            planId={plan.id}
+            weekStartDate={new Date(currentWeekMs).toISOString().slice(0, 10)}
+            initial={
+              currentPause
+                ? { reason: currentPause.reason as PauseReasonKey, note: currentPause.note }
+                : null
+            }
+          />
+        )}
+
+        <div className="mt-8 flex max-w-[1100px] flex-wrap items-center gap-3 border-t border-border pt-5">
+          <Link
+            href={`/plans/${plan.id}/edit`}
+            className="cursor-pointer rounded-[10px] border border-border px-[14px] py-[9px] text-[13.5px] font-bold text-text hover:border-brand"
+          >
+            Edit plan
+          </Link>
+          <DeletePlanButton planId={plan.id} planName={plan.name} />
+          <div className="ml-auto">
+            <SharePlanButton planId={plan.id} initialToken={plan.shareToken} />
+          </div>
         </div>
       </div>
-    </>
+    </div>
   );
 }

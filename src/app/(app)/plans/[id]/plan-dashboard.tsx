@@ -107,16 +107,15 @@ export function PlanDashboard({
 
   return (
     <div className="max-w-[1100px]">
-      <Link href="/plans" className="text-[13.5px] text-muted hover:text-text">
+      <Link href="/plans" className="backlink">
         ← All plans
       </Link>
 
       <div className="mt-3 mb-5 flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="m-0 font-display text-[30px] font-black tracking-[-0.025em]">
-              {planName}
-            </h1>
+            {/* mk-title: Anton via the page's .mkpage surface (surface.css). */}
+            <h1 className="mk-title m-0 text-[30px]">{planName}</h1>
             <StatusPill statusKey={summaryStatusKey(activeData.summary)} />
           </div>
           <div className="mt-1.5 font-mono text-[12.5px] text-faint">

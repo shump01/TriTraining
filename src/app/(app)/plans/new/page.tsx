@@ -6,6 +6,8 @@ import { getStravaConnectionSummary } from "@/lib/strava/connection";
 import { PlanForm } from "../plan-form";
 import { emptyPlanFormValues } from "../plan-form-values";
 
+import "../../surface.css";
+
 export const dynamic = "force-dynamic";
 
 export default async function NewPlanPage() {
@@ -15,17 +17,27 @@ export default async function NewPlanPage() {
     : false;
 
   return (
-    <div className="max-w-[680px]">
-      <Link href="/plans" className="text-[13.5px] text-muted hover:text-text">
-        ← All plans
-      </Link>
-      <h1 className="mt-4 mb-1.5 font-display text-[32px] font-black tracking-[-0.025em]">
-        New training plan
-      </h1>
-      <p className="m-0 mb-[26px] text-muted">
-        We&apos;ll build progressive weekly targets up to race day.
-      </p>
-      <PlanForm initial={emptyPlanFormValues()} stravaConnected={stravaConnected} />
+    <div className="mkpage">
+      <div className="glows" />
+      <div className="grain" />
+
+      <div className="wrap max-w-[680px]">
+        <div className="rise" style={{ animationDelay: "0.05s" }}>
+          <Link href="/plans" className="backlink">
+            ← All plans
+          </Link>
+          <h1 className="mk-h1 sm">
+            New training <em>plan.</em>
+          </h1>
+          <p className="lede mb-[26px]">
+            Pick your race and where you&apos;re starting from — we&apos;ll build progressive weekly
+            targets up to race day.
+          </p>
+        </div>
+        <div className="rise" style={{ animationDelay: "0.15s" }}>
+          <PlanForm initial={emptyPlanFormValues()} stravaConnected={stravaConnected} />
+        </div>
+      </div>
     </div>
   );
 }

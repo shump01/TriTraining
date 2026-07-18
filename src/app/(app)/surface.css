@@ -1,0 +1,285 @@
+/* The shared marketing surface for authenticated app pages — the generalized
+   form of the approach proven on Groups and Home: near-black canvas, breathing
+   sport-accent glows, grain, Anton/Fraunces page chrome, and the TOKEN OVERRIDE
+   trick, all scoped under .mkpage.
+
+   Token overrides are the load-bearing part. These pages compose large shared,
+   token-driven components (PlanDashboard with its charts and tables, PlanForm,
+   the readiness/consistency/check-in cards, LoadChart, IntensityCard): instead
+   of forking any of them, the surface re-points the app's CSS variables for its
+   subtree, so every `bg-card` / `border-border` / `text-muted` inside resolves
+   to the marketing palette — in BOTH app themes (element-level vars beat the
+   :root/[data-theme] definitions for the subtree; verified on Home).
+
+   Unlike Home, `--brand` is deliberately NOT re-pointed here: these pages carry
+   `bg-brand text-white` actions deep inside shared components (PlanForm submit,
+   check-in save, actual-cell), and paper-with-white-text would be illegible.
+   Brand-blue on the void is precisely the app's dark-theme brand — coherent.
+
+   Deliberately dark in both themes (the canvas IS the aesthetic — same doctrine
+   as Groups and Home). Page chrome speaks marketing (Anton/Fraunces/mono);
+   data components inherit the palette and keep their own type. */
+
+.mkpage {
+  /* Marketing palette. */
+  --ink: #f3ede1;
+  --ink-dim: #a7a294;
+  --ink-faint: #6b6a63;
+  --void: #08090b;
+  --paper: #f3ede1;
+  --line: rgba(243, 237, 225, 0.09);
+  --mk-ease: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* ── Token overrides: re-skin every token-driven descendant ── */
+  --bg: var(--void);
+  --bg2: #0b0c0f;
+  --card: #101113;
+  --card2: #17181b;
+  --input: #0d0e10;
+  --border: rgba(243, 237, 225, 0.09);
+  --grid: rgba(243, 237, 225, 0.07);
+  --text: var(--ink);
+  --muted: var(--ink-dim);
+  --faint: var(--ink-faint);
+  --swim: #1fe3cf;
+  --bike: #ffb020;
+  --run: #ff4d64;
+
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  /* Bleed out of <main>'s padding so the surface spans the content column. */
+  margin: -14px -14px -48px;
+  padding: 30px 20px 64px;
+  min-height: calc(100vh - 56px); /* below the mobile app bar */
+  background: var(--void);
+  color: var(--ink);
+  font-family: var(--font-hanken), sans-serif;
+  letter-spacing: normal;
+}
+@media (min-width: 820px) {
+  .mkpage {
+    margin: -22px -28px -56px;
+    padding: 46px 40px 80px;
+    min-height: 100vh;
+  }
+}
+
+/* Atmosphere — absolute, clipped to the panel, never over the rail. */
+.mkpage .glows {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(46vw 46vw at 8% 0%, rgba(31, 227, 207, 0.12), transparent 60%),
+    radial-gradient(50vw 50vw at 96% 30%, rgba(255, 176, 32, 0.09), transparent 62%),
+    radial-gradient(46vw 46vw at 42% 100%, rgba(255, 77, 100, 0.1), transparent 60%);
+  animation: mk-breathe 16s var(--mk-ease) infinite alternate;
+}
+@keyframes mk-breathe {
+  to {
+    transform: scale(1.1) translateY(-2%);
+    opacity: 0.82;
+  }
+}
+.mkpage .grain {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  opacity: 0.045;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Pages keep their own max-width utilities; wrap only lifts above the glows. */
+.mkpage .wrap {
+  position: relative;
+  z-index: 1;
+}
+
+/* ── Marketing page chrome ── */
+.mkpage .mono {
+  font-family: var(--font-jetbrains), monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 12px;
+  color: var(--ink-dim);
+}
+.mkpage .eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.mkpage .pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--run);
+  box-shadow: 0 0 0 0 rgba(255, 77, 100, 0.6);
+  animation: mk-pulse 2.4s infinite;
+}
+@keyframes mk-pulse {
+  70% {
+    box-shadow: 0 0 0 12px rgba(255, 77, 100, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 77, 100, 0);
+  }
+}
+.mkpage .mk-h1 {
+  font-family: var(--font-anton), sans-serif;
+  text-transform: uppercase;
+  font-size: clamp(2.2rem, 4.6vw, 3.4rem);
+  line-height: 0.9;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+.mkpage .mk-h1.sm {
+  font-size: clamp(1.9rem, 3.6vw, 2.6rem);
+}
+.mkpage .mk-h1 em {
+  font-family: var(--font-fraunces), serif;
+  font-style: italic;
+  text-transform: none;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  background: linear-gradient(100deg, var(--swim), var(--bike) 55%, var(--run));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+/* A client-component title slot (e.g. the plan name in PlanDashboard). */
+.mkpage .mk-title {
+  font-family: var(--font-anton), sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
+  line-height: 1.02;
+  font-weight: 400;
+}
+.mkpage .lede {
+  color: var(--ink-dim);
+  font-size: 15px;
+  line-height: 1.6;
+  margin: 10px 0 0;
+  max-width: 52ch;
+}
+.mkpage .section-label {
+  font-family: var(--font-jetbrains), monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 11px;
+  color: var(--ink-faint);
+  margin: 30px 0 14px;
+}
+.mkpage .backlink {
+  display: inline-block;
+  margin-bottom: 18px;
+  font-family: var(--font-jetbrains), monospace;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  text-decoration: none;
+  transition: color 0.25s;
+}
+.mkpage .backlink:hover {
+  color: var(--ink);
+}
+
+/* ── Buttons ── */
+.mkpage .btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  font-family: var(--font-hanken), sans-serif;
+  font-weight: 700;
+  font-size: 14.5px;
+  text-decoration: none;
+  color: var(--void);
+  background: var(--paper);
+  padding: 12px 22px;
+  border: none;
+  border-radius: 100px;
+  overflow: hidden;
+  isolation: isolate;
+  cursor: pointer;
+  transition: transform 0.3s var(--mk-ease);
+}
+.mkpage .btn span {
+  position: relative;
+  z-index: 1;
+}
+.mkpage .btn::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: linear-gradient(100deg, var(--swim), var(--bike), var(--run));
+  transform: translateY(101%);
+  transition: transform 0.4s var(--mk-ease);
+}
+.mkpage .btn:hover {
+  transform: translateY(-2px);
+}
+.mkpage .btn:hover::before {
+  transform: translateY(0);
+}
+.mkpage .btn.ghost {
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid var(--line);
+}
+.mkpage .btn.ghost::before {
+  display: none;
+}
+.mkpage .btn.ghost:hover {
+  border-color: var(--ink);
+}
+
+.mkpage .chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 100px;
+  border: 1px solid var(--line);
+  padding: 3px 10px;
+  font-family: var(--font-jetbrains), monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  white-space: nowrap;
+}
+
+/* A staggered reveal on load — one orchestrated moment. */
+.mkpage .rise {
+  opacity: 0;
+  animation: mk-rise 0.7s var(--mk-ease) forwards;
+}
+@keyframes mk-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mkpage *,
+  .mkpage *::before,
+  .mkpage *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+  .mkpage .rise {
+    opacity: 1;
+  }
+}

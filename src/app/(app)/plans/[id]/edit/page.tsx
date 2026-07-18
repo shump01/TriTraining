@@ -6,6 +6,8 @@ import { planStartWeek } from "@/lib/weekly-targets";
 
 import { PlanForm, type PlanFormValues } from "../../plan-form";
 
+import "../../../surface.css";
+
 export const dynamic = "force-dynamic";
 
 function isoDate(date: Date): string {
@@ -53,15 +55,24 @@ export default async function EditPlanPage({ params }: { params: Promise<{ id: s
   };
 
   return (
-    <div className="max-w-[680px]">
-      <Link href={`/plans/${plan.id}`} className="text-[13.5px] text-muted hover:text-text">
-        ← Back to plan
-      </Link>
-      <h1 className="mt-4 mb-1.5 font-display text-[32px] font-black tracking-[-0.025em]">
-        Edit plan
-      </h1>
-      <p className="m-0 mb-[26px] text-muted">Saving changes regenerates your weekly targets.</p>
-      <PlanForm planId={plan.id} initial={initial} />
+    <div className="mkpage">
+      <div className="glows" />
+      <div className="grain" />
+
+      <div className="wrap max-w-[680px]">
+        <div className="rise" style={{ animationDelay: "0.05s" }}>
+          <Link href={`/plans/${plan.id}`} className="backlink">
+            ← Back to plan
+          </Link>
+          <h1 className="mk-h1 sm">
+            Edit <em>plan.</em>
+          </h1>
+          <p className="lede mb-[26px]">Saving changes regenerates your weekly targets.</p>
+        </div>
+        <div className="rise" style={{ animationDelay: "0.15s" }}>
+          <PlanForm planId={plan.id} initial={initial} />
+        </div>
+      </div>
     </div>
   );
 }
