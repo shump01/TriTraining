@@ -21,8 +21,16 @@ import {
 
 import { OtherPlans } from "./other-plans";
 import { StravaCard } from "./strava-card";
+import "./home.css";
 
 export const dynamic = "force-dynamic";
+
+/** The hero card's accent bar follows the featured plan's priority. */
+const PRIORITY_ACCENT: Record<string, string> = {
+  A: "var(--run)",
+  B: "var(--bike)",
+  C: "var(--swim)",
+};
 
 // Compact readiness chip text/color, reusing the plan status palette.
 const READINESS_TEXT: Record<Exclude<ReadinessStatus, "insufficient">, string> = {
@@ -94,170 +102,188 @@ export default async function DashboardPage() {
   }
 
   return (
-    <div>
-      <div className="mb-[26px] flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <div className="mb-2 font-mono text-[12px] tracking-[0.16em] text-faint uppercase">
-            {now.toLocaleDateString("en-US", { weekday: "long" })} · {shortDate(now)}
-          </div>
-          <h1 className="m-0 font-display text-[34px] font-black tracking-[-0.025em]">
-            Welcome back, {name}
-          </h1>
-        </div>
-        <Link
-          href="/plans/new"
-          className="cursor-pointer rounded-[11px] bg-brand px-[18px] py-[11px] font-display text-[14.5px] font-bold text-white hover:brightness-110"
-        >
-          + New plan
-        </Link>
-      </div>
+    <div className="homepage">
+      <div className="glows" />
+      <div className="grain" />
 
-      <div className="grid gap-[18px] app:grid-cols-[1.6fr_1fr]">
-        {active ? (
-          <Link
-            href={`/plans/${active.id}`}
-            className="relative overflow-hidden rounded-[18px] border border-border bg-card p-6 hover:border-brand"
-          >
-            <div className="mb-[18px] flex items-center justify-between">
-              <div>
-                <div className="mb-1.5 font-mono text-[11px] tracking-[0.14em] text-brand uppercase">
-                  {others.length > 0 ? "Your focus" : "Active plan"}
-                </div>
-                <div className="flex items-center gap-2">
-                  {others.length > 0 && (
+      <div className="wrap">
+        <div
+          className="mb-[30px] flex flex-wrap items-end justify-between gap-4 rise"
+          style={{ animationDelay: "0.05s" }}
+        >
+          <div>
+            <span className="eyebrow">
+              <span className="pulse" />
+              <span className="mono">
+                {now.toLocaleDateString("en-US", { weekday: "long" })} · {shortDate(now)}
+              </span>
+            </span>
+            <h1 className="hp-h1">
+              Welcome back,
+              <br />
+              <em>{name}.</em>
+            </h1>
+          </div>
+          <Link href="/plans/new" className="btn">
+            <span>+ New plan</span>
+          </Link>
+        </div>
+
+        <div className="grid gap-[18px] app:grid-cols-[1.6fr_1fr]">
+          {active ? (
+            <Link
+              href={`/plans/${active.id}`}
+              className="hero-card rise"
+              style={
+                {
+                  "--accent": PRIORITY_ACCENT[active.priority] ?? "var(--ink-faint)",
+                  animationDelay: "0.12s",
+                } as React.CSSProperties
+              }
+            >
+              <div className="mb-[18px] flex items-start justify-between gap-4">
+                <div>
+                  <div className="mono" style={{ fontSize: 11, marginBottom: 8, display: "block" }}>
+                    {others.length > 0 ? "Your focus" : "Active plan"}
+                  </div>
+                  <div className="flex items-center gap-2.5">
+                    {others.length > 0 && (
+                      <span className="chip" title={`Priority ${active.priority}`}>
+                        {active.priority}
+                      </span>
+                    )}
+                    <div className="hero-name">{active.name}</div>
+                  </div>
+                  {readinessChip && (
                     <span
-                      className="rounded-[6px] border border-border px-1.5 py-0.5 font-mono text-[10.5px] font-bold text-muted"
-                      title={`Priority ${active.priority}`}
+                      className="mt-2.5 inline-block rounded-[20px] px-[10px] py-1 text-[11.5px] font-bold"
+                      style={{
+                        color: readinessChip.color,
+                        background: translucent(readinessChip.color, 14),
+                      }}
                     >
-                      {active.priority}
+                      {readinessChip.label}
                     </span>
                   )}
-                  <div className="font-display text-[23px] font-extrabold tracking-[-0.02em]">
-                    {active.name}
+                </div>
+                <div className="shrink-0 text-right">
+                  <div className="hero-count">{active.weeksToGo}</div>
+                  <div className="mono" style={{ fontSize: 10, letterSpacing: "0.14em" }}>
+                    weeks to go
                   </div>
                 </div>
-                {readinessChip && (
-                  <span
-                    className="mt-2 inline-block rounded-[20px] px-[10px] py-1 text-[11.5px] font-bold"
-                    style={{
-                      color: readinessChip.color,
-                      background: translucent(readinessChip.color, 14),
-                    }}
-                  >
-                    {readinessChip.label}
-                  </span>
+              </div>
+              <div
+                className="grid gap-3"
+                style={{ gridTemplateColumns: `repeat(${minis.length}, minmax(0, 1fr))` }}
+              >
+                {minis.map((m) => (
+                  <div key={m.key} className="mini">
+                    <div
+                      className="mono"
+                      style={{ fontSize: 10, letterSpacing: "0.14em", color: m.color }}
+                    >
+                      {m.label}
+                    </div>
+                    <div className="pct" style={{ marginTop: 7 }}>
+                      {m.pct}
+                      <span style={{ fontSize: 13, color: "var(--ink-dim)" }}>%</span>
+                    </div>
+                    <div className="mt-[3px] text-[11px] text-faint">of target</div>
+                  </div>
+                ))}
+              </div>
+            </Link>
+          ) : (
+            <div
+              className="hero-card rise flex flex-col items-start justify-center"
+              style={
+                { "--accent": "var(--ink-faint)", animationDelay: "0.12s" } as React.CSSProperties
+              }
+            >
+              <div className="hero-name">
+                {plans.length > 0 ? "No plan in progress" : "No active plan yet"}
+              </div>
+              <p className="mt-2 mb-5 max-w-[46ch] text-[14px] leading-[1.55] text-muted">
+                {plans.length > 0
+                  ? "Every race on your calendar has been and gone. Set the next one and we'll build the weeks back up to it."
+                  : "Create a plan and we'll build progressive weekly targets to race day."}
+              </p>
+              <div className="flex flex-wrap gap-2.5">
+                <Link href="/plans/new" className="btn">
+                  <span>+ New plan</span>
+                </Link>
+                {plans.length > 0 && (
+                  <Link href="/plans" className="btn ghost">
+                    <span>Past plans</span>
+                  </Link>
                 )}
               </div>
-              <div className="text-right">
-                <div className="font-display text-[30px] leading-none font-black">
-                  {active.weeksToGo}
-                </div>
-                <div className="text-[12px] text-muted">weeks to go</div>
-              </div>
             </div>
-            <div
-              className="grid gap-3"
-              style={{ gridTemplateColumns: `repeat(${minis.length}, minmax(0, 1fr))` }}
-            >
-              {minis.map((m) => (
-                <div key={m.key} className="rounded-[12px] bg-card2 p-[13px]">
+          )}
+
+          <div className="rise" style={{ animationDelay: "0.18s" }}>
+            <StravaCard
+              connection={
+                strava ? { lastSyncedAt: strava.lastSyncedAt?.toISOString() ?? null } : null
+              }
+            />
+          </div>
+        </div>
+
+        {/* Both of these render nothing for a single-plan athlete: the strip is
+            empty, and the timeline hides itself below two plans. The shared
+            components stay untouched — the token overrides re-skin them. */}
+        <div className="rise" style={{ animationDelay: "0.24s" }}>
+          <OtherPlans plans={others} />
+        </div>
+        <div className="mt-[30px] rise" style={{ animationDelay: "0.24s" }}>
+          <SeasonTimeline plans={toSeasonPlans(plans)} nowMs={now.getTime()} />
+        </div>
+
+        <div className="rise" style={{ animationDelay: "0.3s" }}>
+          <h2 className="section-label">Recent activity</h2>
+          <div className="overflow-hidden rounded-[16px] border border-border bg-card">
+            {recent.length === 0 ? (
+              <div className="p-[18px] text-[14px] text-muted">
+                No activity logged yet — sync Strava or enter actuals on a plan.
+              </div>
+            ) : (
+              recent.map((a, i) => {
+                const d = a.discipline as DisciplineKey;
+                return (
                   <div
-                    className="mb-[7px] text-[11px] font-bold tracking-[0.05em] uppercase"
-                    style={{ color: m.color }}
+                    key={i}
+                    className="flex items-center gap-3.5 border-b border-border px-[18px] py-3.5 last:border-b-0"
                   >
-                    {m.label}
+                    <div
+                      className="grid h-9 w-9 place-items-center rounded-[9px] text-base"
+                      style={{ background: translucent(DISCIPLINE_META[d].color, 16) }}
+                    >
+                      {DISCIPLINE_META[d].icon}
+                    </div>
+                    <div className="flex-1">
+                      <div className="text-[14.5px] font-bold">
+                        {DISCIPLINE_META[d].label} · week of {shortDate(a.weekStartDate)}
+                      </div>
+                      <div className="text-[12.5px] text-faint">
+                        {a.plan.name} ·{" "}
+                        {a.source === "MANUAL"
+                          ? "manual entry"
+                          : a.source === "APPLE_HEALTH"
+                            ? "Apple Health"
+                            : "Strava"}
+                      </div>
+                    </div>
+                    <div className="font-display text-[16px] font-extrabold">
+                      {formatDistance(a.actualMeters, d)}
+                    </div>
                   </div>
-                  <div className="font-display text-[19px] leading-none font-extrabold">
-                    {m.pct}%
-                  </div>
-                  <div className="mt-[3px] text-[11.5px] text-muted">of target</div>
-                </div>
-              ))}
-            </div>
-          </Link>
-        ) : (
-          <div className="flex flex-col items-start justify-center rounded-[18px] border border-border bg-card p-6">
-            <div className="font-display text-[20px] font-extrabold">
-              {plans.length > 0 ? "No plan in progress" : "No active plan yet"}
-            </div>
-            <p className="mt-1 mb-4 text-[14px] text-muted">
-              {plans.length > 0
-                ? "Every race on your calendar has been and gone. Set the next one and we'll build the weeks back up to it."
-                : "Create a plan and we'll build progressive weekly targets to race day."}
-            </p>
-            <div className="flex flex-wrap gap-2.5">
-              <Link
-                href="/plans/new"
-                className="cursor-pointer rounded-[11px] bg-brand px-[18px] py-[11px] font-display text-[14.5px] font-bold text-white hover:brightness-110"
-              >
-                + New plan
-              </Link>
-              {plans.length > 0 && (
-                <Link
-                  href="/plans"
-                  className="cursor-pointer rounded-[11px] border border-border px-[18px] py-[11px] font-display text-[14.5px] font-bold text-text hover:border-brand"
-                >
-                  Past plans
-                </Link>
-              )}
-            </div>
+                );
+              })
+            )}
           </div>
-        )}
-
-        <StravaCard
-          connection={strava ? { lastSyncedAt: strava.lastSyncedAt?.toISOString() ?? null } : null}
-        />
-      </div>
-
-      {/* Both of these render nothing for a single-plan athlete: the strip is
-          empty, and the timeline hides itself below two plans. */}
-      <OtherPlans plans={others} />
-      <div className="mt-[30px]">
-        <SeasonTimeline plans={toSeasonPlans(plans)} nowMs={now.getTime()} />
-      </div>
-
-      <h2 className="mt-[30px] mb-3.5 font-display text-[16px] font-bold text-muted">
-        Recent activity
-      </h2>
-      <div className="overflow-hidden rounded-[16px] border border-border bg-card">
-        {recent.length === 0 ? (
-          <div className="p-[18px] text-[14px] text-muted">
-            No activity logged yet — sync Strava or enter actuals on a plan.
-          </div>
-        ) : (
-          recent.map((a, i) => {
-            const d = a.discipline as DisciplineKey;
-            return (
-              <div
-                key={i}
-                className="flex items-center gap-3.5 border-b border-border px-[18px] py-3.5 last:border-b-0"
-              >
-                <div
-                  className="grid h-9 w-9 place-items-center rounded-[9px] text-base"
-                  style={{ background: translucent(DISCIPLINE_META[d].color, 16) }}
-                >
-                  {DISCIPLINE_META[d].icon}
-                </div>
-                <div className="flex-1">
-                  <div className="text-[14.5px] font-bold">
-                    {DISCIPLINE_META[d].label} · week of {shortDate(a.weekStartDate)}
-                  </div>
-                  <div className="text-[12.5px] text-faint">
-                    {a.plan.name} ·{" "}
-                    {a.source === "MANUAL"
-                      ? "manual entry"
-                      : a.source === "APPLE_HEALTH"
-                        ? "Apple Health"
-                        : "Strava"}
-                  </div>
-                </div>
-                <div className="font-display text-[16px] font-extrabold">
-                  {formatDistance(a.actualMeters, d)}
-                </div>
-              </div>
-            );
-          })
-        )}
+        </div>
       </div>
     </div>
   );
