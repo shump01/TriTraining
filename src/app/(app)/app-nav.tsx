@@ -14,11 +14,6 @@ const NAV = [
   { href: "/groups", label: "Groups", short: "Group", icon: "◎" },
 ];
 
-function displayName(email: string): string {
-  const local = email.split("@")[0] || "Athlete";
-  return local.charAt(0).toUpperCase() + local.slice(1);
-}
-
 function useActive() {
   const pathname = usePathname();
   return (href: string): boolean => {
@@ -32,6 +27,11 @@ function useActive() {
   };
 }
 
+/** Whether the current route is the account page (highlights the avatar). */
+function useOnAccount(): boolean {
+  return usePathname() === "/account";
+}
+
 /** The mobile app bar's title, derived from the current route. */
 function useMobileTitle(): string {
   const pathname = usePathname();
@@ -41,6 +41,7 @@ function useMobileTitle(): string {
   if (pathname.endsWith("/edit")) return "Edit plan";
   if (pathname.startsWith("/plans/")) return "Plan";
   if (pathname === "/load") return "Training load";
+  if (pathname === "/account") return "Account";
   if (pathname === "/groups") return "Groups";
   if (pathname.startsWith("/groups/join")) return "Join group";
   if (pathname.startsWith("/groups/")) return "Group";
@@ -67,9 +68,9 @@ function Avatar({ initial, size }: { initial: string; size: number }) {
 }
 
 /** Desktop icon rail (≥820px). Hidden on mobile. */
-export function Rail({ email }: { email: string }) {
+export function Rail({ name }: { name: string }) {
   const active = useActive();
-  const name = displayName(email);
+  const onAccount = useOnAccount();
 
   return (
     <aside className="sticky top-0 hidden h-screen flex-col items-center border-r border-border bg-bg2 px-2.5 py-4 app:flex">
@@ -100,25 +101,23 @@ export function Rail({ email }: { email: string }) {
       </nav>
       <div className="mt-auto flex flex-col items-center gap-3">
         <ThemeToggle variant="rail" />
-        <button
-          type="button"
-          onClick={signOut}
-          title={`${name} — sign out`}
-          aria-label={`${name} — sign out`}
-          className="cursor-pointer"
+        <Link
+          href="/account"
+          title={`${name} — account`}
+          aria-label={`${name} — account`}
+          className={`rounded-full ${onAccount ? "ring-2 ring-brand ring-offset-2 ring-offset-bg2" : ""}`}
         >
           <Avatar initial={name.charAt(0).toUpperCase()} size={34} />
-        </button>
+        </Link>
       </div>
     </aside>
   );
 }
 
 /** Mobile app bar + slide-in drawer (<820px). Hidden on desktop. */
-export function MobileNav({ email }: { email: string }) {
+export function MobileNav({ name }: { name: string }) {
   const active = useActive();
   const title = useMobileTitle();
-  const name = displayName(email);
   const [open, setOpen] = useState(false);
 
   return (
@@ -133,9 +132,9 @@ export function MobileNav({ email }: { email: string }) {
           ☰
         </button>
         <span className="font-display text-[16px] font-extrabold tracking-[-0.02em]">{title}</span>
-        <div className="ml-auto">
+        <Link href="/account" aria-label={`${name} — account`} className="ml-auto">
           <Avatar initial={name.charAt(0).toUpperCase()} size={30} />
-        </div>
+        </Link>
       </header>
 
       {open && (
@@ -182,9 +181,21 @@ export function MobileNav({ email }: { email: string }) {
             <div className="mt-auto flex flex-col gap-[10px]">
               <ThemeToggle />
               <div className="flex items-center gap-[10px] px-1.5 py-2">
-                <Avatar initial={name.charAt(0).toUpperCase()} size={32} />
+                <Link
+                  href="/account"
+                  onClick={() => setOpen(false)}
+                  aria-label={`${name} — account`}
+                >
+                  <Avatar initial={name.charAt(0).toUpperCase()} size={32} />
+                </Link>
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-[13px] font-bold">{name}</div>
+                  <Link
+                    href="/account"
+                    onClick={() => setOpen(false)}
+                    className="block truncate text-[13px] font-bold hover:underline"
+                  >
+                    {name}
+                  </Link>
                   <button
                     type="button"
                     onClick={signOut}

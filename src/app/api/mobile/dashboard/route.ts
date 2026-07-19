@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
     const now = new Date();
 
     const [user, plans, strava, recent] = await Promise.all([
-      prisma.user.findUnique({ where: { id: userId }, select: { email: true } }),
+      prisma.user.findUnique({ where: { id: userId }, select: { email: true, name: true } }),
       listTrainingPlans(),
       getStravaConnectionSummary(userId),
       listRecentActuals(4),
@@ -104,7 +104,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(
       {
-        user: { email: user?.email ?? null },
+        user: { email: user?.email ?? null, name: user?.name ?? null },
         activePlan,
         strava: strava
           ? { connected: true, lastSyncedAt: strava.lastSyncedAt }

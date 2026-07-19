@@ -35,6 +35,19 @@ export const resetPasswordSchema = z.object({
   password: passwordSchema, // reuse the same strength policy as sign-up
 });
 
+// ── Account self-service ─────────────────────────────────────────────────────
+
+/** Update the screen name. Empty clears it (email-derived fallback everywhere). */
+export const updateAccountSchema = z.object({
+  name: z.string().trim().max(40, "Keep the name under 40 characters"),
+});
+
+/** Change password while signed in — current password required, same policy as sign-up. */
+export const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1, "Enter your current password"),
+  newPassword: passwordSchema,
+});
+
 // ── Training plan creation ───────────────────────────────────────────────────
 
 const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;

@@ -1,5 +1,6 @@
 import { randomBytes } from "crypto";
 
+import { displayNameFor } from "@/lib/display-name";
 import { pickFeaturedPlan } from "@/lib/featured-plan";
 import { buildMemberDisciplineStats } from "@/lib/group-stats";
 import { prisma } from "@/lib/prisma";
@@ -29,12 +30,6 @@ export class ForbiddenError extends Error {
 
 function newInviteToken(): string {
   return randomBytes(16).toString("base64url");
-}
-
-/** A friendly display name derived from the email local-part. */
-function displayName(email: string): string {
-  const local = email.split("@")[0] || "Athlete";
-  return local.charAt(0).toUpperCase() + local.slice(1);
 }
 
 /**
@@ -108,7 +103,7 @@ export async function getGroup(groupId: string): Promise<GroupDetail> {
   const members = await prisma.groupMembership.findMany({
     where: { groupId },
     orderBy: { joinedAt: "asc" },
-    select: { userId: true, user: { select: { email: true } } },
+    select: { userId: true, user: { select: { email: true, name: true } } },
   });
 
   return {
@@ -118,7 +113,7 @@ export async function getGroup(groupId: string): Promise<GroupDetail> {
     inviteToken: isOwner ? group.inviteToken : null,
     members: members.map((m) => ({
       userId: m.userId,
-      name: displayName(m.user.email),
+      name: displayNameFor(m.user),
       isOwner: m.userId === group.ownerId,
       isMe: m.userId === userId,
     })),
@@ -153,6 +148,7 @@ export async function getGroupMemberStats(groupId: string): Promise<MemberStat[]
       user: {
         select: {
           email: true,
+          name: true,
           trainingPlans: {
             orderBy: { eventDate: "asc" },
             select: {
@@ -191,7 +187,7 @@ export async function getGroupMemberStats(groupId: string): Promise<MemberStat[]
     );
     return {
       userId: m.userId,
-      name: displayName(m.user.email),
+      name: displayNameFor(m.user),
       isOwner: m.userId === group.ownerId,
       hasActivePlan: Boolean(active),
       activePlanName: active?.name ?? null,

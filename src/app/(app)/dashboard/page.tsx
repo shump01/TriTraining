@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { auth } from "@/auth";
 import { SeasonTimeline, toSeasonPlans } from "@/components/season-timeline";
+import { displayNameFor } from "@/lib/display-name";
 import { rankLivePlans } from "@/lib/featured-plan";
 import { buildPlanSeries } from "@/lib/plan-series";
 import { computeReadiness, type ReadinessStatus } from "@/lib/readiness";
@@ -47,14 +48,10 @@ const READINESS_COLOR: Record<Exclude<ReadinessStatus, "insufficient">, string> 
 function shortDate(d: Date): string {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
-function displayName(email: string): string {
-  const local = email.split("@")[0] || "Athlete";
-  return local.charAt(0).toUpperCase() + local.slice(1);
-}
 
 export default async function DashboardPage() {
   const session = await auth();
-  const name = displayName(session?.user?.email ?? "");
+  const name = displayNameFor(session?.user ?? {});
   const userId = session!.user.id;
 
   const now = new Date();

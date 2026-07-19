@@ -145,6 +145,13 @@ Prisma adapter and a **database session strategy**.
   exists and is rate-limited per IP _and_ per email. Email goes out via optional SMTP
   ([src/lib/mailer.ts](src/lib/mailer.ts)); with SMTP unset the link is dev-logged so the
   flow stays testable.
+- **Account self-service** (`/account`): screen name (`PATCH /api/account` —
+  shown on the dashboard and in groups, email-derived fallback via
+  `displayNameFor`), password change (`POST /api/account/password` — requires
+  the current password, enforces the sign-up policy, and **revokes every other
+  session** while keeping the one making the change, cookie or mobile bearer
+  alike), and deletion (`DELETE /api/account`, typed confirmation — cascades
+  plans, groups, sessions, connections).
 - **Sessions**: secure, `httpOnly`, `sameSite=lax` cookie (`Secure` in
   production). The session token is stored in the `Session` table; `auth()`
   validates it. `signOut` deletes the row server-side.
