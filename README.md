@@ -367,6 +367,27 @@ back it with Redis/Upstash for multi-instance deployments.
 - **Dependencies**: weekly [Dependabot](.github/dependabot.yml) PRs (npm + GitHub
   Actions); `npm run audit` runs the same scan locally.
 
+## Legal & compliance (UK)
+
+- **Privacy policy** ([/privacy](src/app/privacy/page.tsx)): UK-GDPR-oriented —
+  what's stored (including heart-rate/training-load and wellbeing check-in data,
+  treated as special-category health data processed on explicit consent), lawful
+  bases, Strava and Apple Health handling, processors/hosting (EU), retention, the
+  full rights list incl. ICO complaint, and deletion.
+- **Terms of service** ([/terms](src/app/terms/page.tsx)): plain-language terms with
+  a prominent **"not medical advice"** disclaimer for the training guidance,
+  acceptable use, as-is availability, an England & Wales liability clause with the
+  mandatory non-excludable carve-outs, and governing law.
+- **Cookies**: only strictly necessary cookies (session + Strava OAuth state; theme
+  lives in `localStorage`). **No analytics or tracking**, so no PECR consent banner
+  is required — documented in the policy's Cookies section. If analytics are ever
+  added, a consent banner must ship with them.
+- **Account deletion** (`DELETE /api/account`, Account page): immediate cascade
+  delete of all user data, plus best-effort **Strava deauthorization** on Strava's
+  side (UK GDPR erasure + Strava API expectation + App Store 5.1.1(v)).
+- Signup shows a terms/privacy agreement line; both pages are linked from the
+  landing and about footers.
+
 ## Deployment
 
 See **[DEPLOY.md](DEPLOY.md)** for production deployment (Hetzner managed Node /

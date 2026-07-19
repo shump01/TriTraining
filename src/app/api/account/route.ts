@@ -5,6 +5,7 @@ import { mapKnownApiError } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { enforceRateLimit, isCrossSiteRequest } from "@/lib/security";
 import { SESSION_COOKIE_NAME } from "@/lib/session-cookie";
+import { disconnectStrava } from "@/lib/strava/connection";
 import { requireUserId } from "@/lib/training-plan";
 import { updateAccountSchema } from "@/lib/validation";
 
@@ -63,6 +64,11 @@ export async function DELETE(req: NextRequest) {
 
   try {
     const userId = await requireUserId();
+    // Revoke the Strava grant on Strava's side first (their expectation when an
+    // account goes away) — strictly best-effort: a Strava outage must never
+    // block the user's right to erasure, so any failure falls through to the
+    // delete, which removes the stored tokens regardless.
+    await disconnectStrava(userId).catch(() => {});
     await prisma.user.delete({ where: { id: userId } });
     // The session rows are gone with the user; clear the now-dead cookie too so
     // the web client lands cleanly on the public pages. No-op for bearer clients.

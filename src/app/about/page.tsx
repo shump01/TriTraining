@@ -191,7 +191,10 @@ export default function AboutPage() {
           <div className="mono" style={{ letterSpacing: "0.1em" }}>
             Built for triathletes · arrive fresh
           </div>
-          <Link href="/privacy">Privacy</Link>
+          <div style={{ display: "flex", gap: 18 }}>
+            <Link href="/privacy">Privacy</Link>
+            <Link href="/terms">Terms</Link>
+          </div>
         </footer>
       </div>
     </div>

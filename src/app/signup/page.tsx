@@ -20,9 +20,15 @@ export default function SignupPage() {
       formTitle="Create account"
       formSub="Start tracking targets in two minutes."
       alt={
-        <p className="auth-alt">
-          Already have an account? <Link href="/login">Sign in</Link>
-        </p>
+        <>
+          <p className="auth-alt">
+            Already have an account? <Link href="/login">Sign in</Link>
+          </p>
+          <p className="auth-alt" style={{ fontSize: 12, opacity: 0.85 }}>
+            By creating an account you agree to the <Link href="/terms">terms of service</Link> and{" "}
+            <Link href="/privacy">privacy policy</Link>.
+          </p>
+        </>
       }
     >
       <SignupForm />
