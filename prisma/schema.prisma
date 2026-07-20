@@ -31,6 +31,12 @@ model User {
   // Lactate-threshold heart rate (bpm) — required to compute HR-based training
   // load (hrTSS). Null until the athlete sets it. See src/lib/training-load.ts.
   thresholdHr      Int?
+  // Weekly digest email: on by default; the athlete can turn it off on the
+  // Account page or via the unsubscribe link carried in every digest.
+  digestEnabled    Boolean           @default(true)
+  // Week-start of the last digest sent — makes the daily cron idempotent
+  // (at most one digest per training week). See src/lib/digest.ts.
+  lastDigestWeek   DateTime?         @db.Date
   accounts         Account[]
   sessions         Session[]
   trainingPlans    TrainingPlan[]

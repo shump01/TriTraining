@@ -34,6 +34,9 @@ const envSchema = z.object({
   // UI and routes only activate when both are set.
   GARMIN_CLIENT_ID: z.string().optional(),
   GARMIN_CLIENT_SECRET: z.string().optional(),
+  // Optional bearer secret for the scheduled-job route (weekly digest emails).
+  // Unset = the cron route is disabled (503). Generate: openssl rand -base64 32
+  CRON_SECRET: z.string().optional(),
   // Optional SMTP config for transactional email (password-reset links). All
   // optional so the app boots without a mail server; when unset, reset emails
   // are skipped (see src/lib/mailer.ts). Hetzner Webhosting provides a mailbox.

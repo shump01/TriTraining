@@ -212,6 +212,58 @@ export function ChangePasswordForm() {
   );
 }
 
+/** Weekly digest on/off. Saves on toggle — no separate save button needed. */
+export function DigestToggle({ initial }: { initial: boolean }) {
+  const id = useId();
+  const [enabled, setEnabled] = useState(initial);
+  const [error, setError] = useState<string | null>(null);
+
+  async function toggle(next: boolean) {
+    setEnabled(next); // optimistic — reverted on failure
+    setError(null);
+    try {
+      const res = await fetch("/api/account", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ digestEnabled: next }),
+      });
+      if (!res.ok) {
+        setEnabled(!next);
+        setError(await readError(res));
+      }
+    } catch {
+      setEnabled(!next);
+      setError("Something went wrong.");
+    }
+  }
+
+  return (
+    <div>
+      <label htmlFor={id} className="flex cursor-pointer items-start gap-3">
+        <input
+          id={id}
+          type="checkbox"
+          checked={enabled}
+          onChange={(e) => void toggle(e.target.checked)}
+          className="mt-[3px] h-4 w-4 accent-[var(--brand)]"
+        />
+        <span>
+          <span className="block text-[14px] font-bold text-text">Weekly digest</span>
+          <span className="mt-0.5 block max-w-[52ch] text-[12.5px] leading-[1.5] text-muted">
+            One email at the start of each training week: last week&apos;s result, this week&apos;s
+            targets, your Form, and the race countdown. Every digest has an unsubscribe link too.
+          </span>
+        </span>
+      </label>
+      {error && (
+        <p role="alert" className="mt-2 mb-0 text-[12.5px] text-behind">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function SignOutButton() {
   const [busy, setBusy] = useState(false);
   async function signOut() {

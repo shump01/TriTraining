@@ -37,10 +37,18 @@ export const resetPasswordSchema = z.object({
 
 // ── Account self-service ─────────────────────────────────────────────────────
 
-/** Update the screen name. Empty clears it (email-derived fallback everywhere). */
-export const updateAccountSchema = z.object({
-  name: z.string().trim().max(40, "Keep the name under 40 characters"),
-});
+/**
+ * Update account preferences — each field optional, at least one required.
+ * An empty name clears it (email-derived fallback everywhere).
+ */
+export const updateAccountSchema = z
+  .object({
+    name: z.string().trim().max(40, "Keep the name under 40 characters").optional(),
+    digestEnabled: z.boolean().optional(),
+  })
+  .refine((v) => v.name !== undefined || v.digestEnabled !== undefined, {
+    message: "Nothing to update",
+  });
 
 /** Change password while signed in — current password required, same policy as sign-up. */
 export const changePasswordSchema = z.object({

@@ -26,6 +26,11 @@ export async function updateScreenName(userId: string, name: string | null): Pro
   await prisma.user.update({ where: { id: userId }, data: { name: trimmed } });
 }
 
+/** Turn the weekly digest email on or off. */
+export async function updateDigestEnabled(userId: string, enabled: boolean): Promise<void> {
+  await prisma.user.update({ where: { id: userId }, data: { digestEnabled: enabled } });
+}
+
 /**
  * Change the password after verifying the current one.
  *

@@ -1,9 +1,11 @@
 import { auth } from "@/auth";
 import { displayNameFor } from "@/lib/display-name";
+import { prisma } from "@/lib/prisma";
 
 import {
   ChangePasswordForm,
   DeleteAccountCard,
+  DigestToggle,
   ScreenNameForm,
   SignOutButton,
 } from "./account-forms";
@@ -16,6 +18,13 @@ export default async function AccountPage() {
   const session = await auth();
   const email = session?.user?.email ?? "";
   const screenName = session?.user?.name ?? null;
+  // The digest preference lives on the User row, not in the session.
+  const prefs = session?.user?.id
+    ? await prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: { digestEnabled: true },
+      })
+    : null;
 
   return (
     <div className="mkpage">
@@ -50,6 +59,13 @@ export default async function AccountPage() {
           <h2 className="section-label">Security</h2>
           <div className="rounded-[18px] border border-border bg-card p-6">
             <ChangePasswordForm />
+          </div>
+        </div>
+
+        <div className="rise" style={{ animationDelay: "0.26s" }}>
+          <h2 className="section-label">Email</h2>
+          <div className="rounded-[18px] border border-border bg-card p-6">
+            <DigestToggle initial={prefs?.digestEnabled ?? true} />
           </div>
         </div>
 

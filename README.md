@@ -330,6 +330,18 @@ lets Next.js's inline RSC/bootstrap scripts execute under a strict policy — wi
 hydration is blocked. The root layout reads the nonce from the `x-nonce` request header and
 stamps it onto its inline theme-bootstrap script.
 
+## Weekly digest email
+
+One email at the start of each athlete's training week ([src/lib/digest.ts](src/lib/digest.ts)):
+last week's actual vs target per sport, this week's freshly re-ramped targets
+(the digest triggers the same roll-forward the first dashboard view would),
+Form, streak, and the race countdown — for the featured plan. Driven by a
+daily scheduler hitting `POST /api/cron/weekly-digest` (bearer `CRON_SECRET`;
+503 when unset). Idempotent via `User.lastDigestWeek` — at most one digest per
+training week, with a one-day catch-up window for a missed cron run. On by
+default; off via the Account-page toggle or the signed, session-free
+unsubscribe link (RFC 8058 one-click headers) in every email. Requires SMTP.
+
 ## Rate limiting
 
 A fixed-window limiter ([src/lib/rate-limit.ts](src/lib/rate-limit.ts), applied via

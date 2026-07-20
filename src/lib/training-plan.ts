@@ -578,8 +578,21 @@ export async function getPlanByShareToken(token: string) {
  * Scoped to the session user. Returns whether it recalculated.
  */
 export async function maybeRecalculatePlan(planId: string): Promise<boolean> {
-  const userId = await requireUserId();
+  return maybeRecalculatePlanForUser(await requireUserId(), planId);
+}
 
+/**
+ * The roll-forward itself, for callers that already hold a trusted userId —
+ * the session wrapper above, and the weekly digest cron (src/lib/digest.ts),
+ * which rolls the new week forward before emailing its targets so the numbers
+ * in the email are the numbers the athlete finds when they open the app.
+ * Same doctrine as the rest of the data layer: the explicit userId scopes
+ * every query, so a caller can never recalculate another user's plan.
+ */
+export async function maybeRecalculatePlanForUser(
+  userId: string,
+  planId: string,
+): Promise<boolean> {
   const plan = await prisma.trainingPlan.findFirst({
     where: { id: planId, userId },
     select: {

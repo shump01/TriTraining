@@ -32,15 +32,60 @@ function getTransport(): nodemailer.Transporter {
   return transport;
 }
 
+export interface SendEmailInput {
+  to: string;
+  subject: string;
+  text: string;
+  html: string;
+  /**
+   * When set, the message carries List-Unsubscribe headers (RFC 8058 one-click)
+   * so mail clients show their native unsubscribe affordance — required
+   * practice for recurring mail like the weekly digest.
+   */
+  listUnsubscribeUrl?: string;
+}
+
 /**
- * Send a password-reset email. Returns whether it was actually sent — false
- * when the mailer isn't configured (caller decides whether to warn/log). Never
- * throws: SMTP failures are logged and swallowed so the API response (which is
- * deliberately identical whether or not an account exists) can't leak anything.
+ * Send one email. Returns whether it was actually sent — false when the mailer
+ * isn't configured (caller decides whether to warn/log). Never throws: SMTP
+ * failures are logged and swallowed, so no caller's response can leak whether
+ * or to whom mail was attempted.
  */
-export async function sendPasswordResetEmail(to: string, resetUrl: string): Promise<boolean> {
+export async function sendEmail(input: SendEmailInput): Promise<boolean> {
   if (!isMailerConfigured()) return false;
 
+  try {
+    await getTransport().sendMail({
+      from: env.MAIL_FROM,
+      to: input.to,
+      subject: input.subject,
+      text: input.text,
+      html: input.html,
+      headers: input.listUnsubscribeUrl
+        ? {
+            "List-Unsubscribe": `<${input.listUnsubscribeUrl}>`,
+            "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+          }
+        : undefined,
+    });
+    return true;
+  } catch (error) {
+    // Deliberately NOT logging the raw error or subject: nodemailer embeds the
+    // recipient address in envelope-failure messages (e.g. EENVELOPE "550
+    // <user@example.com> rejected"), and the log redactor preserves
+    // Error.message verbatim. Structured non-PII fields only.
+    const e = error as { name?: string; code?: string; responseCode?: number };
+    logger.error("Failed to send email", {
+      name: e?.name,
+      code: e?.code,
+      responseCode: e?.responseCode,
+    });
+    return false;
+  }
+}
+
+/** Send a password-reset email. See sendEmail for the no-throw semantics. */
+export async function sendPasswordResetEmail(to: string, resetUrl: string): Promise<boolean> {
   const text =
     `You (or someone) asked to reset your TriTrainer password.\n\n` +
     `Open this link to choose a new password (valid for 60 minutes):\n${resetUrl}\n\n` +
@@ -52,17 +97,5 @@ export async function sendPasswordResetEmail(to: string, resetUrl: string): Prom
     `<a href="${resetUrl}">${resetUrl}</a></p>` +
     `<p>If you didn't request this, you can safely ignore this email — your password won't change.</p>`;
 
-  try {
-    await getTransport().sendMail({
-      from: env.MAIL_FROM,
-      to,
-      subject: "Reset your TriTrainer password",
-      text,
-      html,
-    });
-    return true;
-  } catch (error) {
-    logger.error("Failed to send password-reset email", { error });
-    return false;
-  }
+  return sendEmail({ to, subject: "Reset your TriTrainer password", text, html });
 }

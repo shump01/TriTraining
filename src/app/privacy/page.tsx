@@ -60,7 +60,7 @@ const SECTIONS: { title: string; paragraphs: string[] }[] = [
     title: "How your data is used",
     paragraphs: [
       "Exclusively to provide TriTrainer's features: generating and adapting weekly targets, tracking actual vs target volume, computing training load and readiness, and sharing weekly progress inside groups you chose to join.",
-      "We send email only when the service requires it — for example, a password-reset link you requested. There are no marketing emails.",
+      "We send email in two cases: messages the service requires (such as a password-reset link you requested), and — if you keep it on — a weekly digest summarising your own training week. Every digest carries an unsubscribe link, and the switch lives on the Account page. There are no marketing emails.",
       "We do not run ads, we do not use third-party analytics or tracking, we make no automated decisions with legal or similarly significant effects, and we never sell or rent your data.",
     ],
   },

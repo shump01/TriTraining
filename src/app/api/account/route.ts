@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { updateScreenName } from "@/lib/account";
+import { updateDigestEnabled, updateScreenName } from "@/lib/account";
 import { mapKnownApiError } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { enforceRateLimit, isCrossSiteRequest } from "@/lib/security";
@@ -12,7 +12,10 @@ import { updateAccountSchema } from "@/lib/validation";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** PATCH /api/account — update the screen name (empty string clears it). */
+/**
+ * PATCH /api/account — update account preferences: the screen name (empty
+ * string clears it) and/or the weekly-digest switch.
+ */
 export async function PATCH(req: NextRequest) {
   if (isCrossSiteRequest(req)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -41,8 +44,19 @@ export async function PATCH(req: NextRequest) {
 
   try {
     const userId = await requireUserId();
-    await updateScreenName(userId, parsed.data.name);
-    return NextResponse.json({ ok: true, name: parsed.data.name.trim() || null }, { status: 200 });
+    if (parsed.data.name !== undefined) {
+      await updateScreenName(userId, parsed.data.name);
+    }
+    if (parsed.data.digestEnabled !== undefined) {
+      await updateDigestEnabled(userId, parsed.data.digestEnabled);
+    }
+    return NextResponse.json(
+      {
+        ok: true,
+        name: parsed.data.name === undefined ? undefined : parsed.data.name.trim() || null,
+      },
+      { status: 200 },
+    );
   } catch (error) {
     return mapKnownApiError(error, { route: "PATCH /api/account" });
   }
