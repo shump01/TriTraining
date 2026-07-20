@@ -29,6 +29,11 @@ const envSchema = z.object({
   }, "ENCRYPTION_KEY must be base64-encoded 32 bytes (generate: openssl rand -base64 32)"),
   // Optional: token used to validate the Strava webhook subscription handshake.
   STRAVA_WEBHOOK_VERIFY_TOKEN: z.string().optional(),
+  // Optional Garmin Connect Developer Program credentials. Dormant until the
+  // program grants access (see GARMIN_INTEGRATION_PLAN.md); the Garmin connect
+  // UI and routes only activate when both are set.
+  GARMIN_CLIENT_ID: z.string().optional(),
+  GARMIN_CLIENT_SECRET: z.string().optional(),
   // Optional SMTP config for transactional email (password-reset links). All
   // optional so the app boots without a mail server; when unset, reset emails
   // are skipped (see src/lib/mailer.ts). Hetzner Webhosting provides a mailbox.

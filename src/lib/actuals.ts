@@ -1,18 +1,21 @@
 /**
  * Resolving the "effective" weekly actual from possibly several sources.
  *
- * PRECEDENCE: MANUAL > STRAVA > APPLE_HEALTH for the same (discipline, week).
- * We do NOT sum sources — a manual entry is an override, and summing would
- * double-count a session that is both auto-synced and entered by hand (or that
- * reaches us from both Strava and Apple Health). Precedence is applied at read
- * time, so a manual override survives future syncs (each sync only ever
- * replaces rows of its own source).
+ * PRECEDENCE: MANUAL > STRAVA > GARMIN > APPLE_HEALTH for the same
+ * (discipline, week). We do NOT sum sources — a manual entry is an override,
+ * and summing would double-count a session that reaches us from more than one
+ * sync (many Garmin users auto-mirror to Strava, and a workout can arrive from
+ * both Strava and Apple Health). Precedence is applied at read time, so a
+ * manual override survives future syncs (each sync only ever replaces rows of
+ * its own source). Strava outranks Garmin so that connecting Garmin never
+ * silently changes an existing Strava user's numbers.
  */
-export type ActualSource = "MANUAL" | "STRAVA" | "APPLE_HEALTH";
+export type ActualSource = "MANUAL" | "STRAVA" | "GARMIN" | "APPLE_HEALTH";
 
 const SOURCE_RANK: Record<ActualSource, number> = {
-  MANUAL: 3,
-  STRAVA: 2,
+  MANUAL: 4,
+  STRAVA: 3,
+  GARMIN: 2,
   APPLE_HEALTH: 1,
 };
 

@@ -36,6 +36,8 @@ model User {
   trainingPlans    TrainingPlan[]
   activityLoads    ActivityLoad[]
   stravaConnection StravaConnection?
+  garminConnection GarminConnection?
+  garminActivities GarminActivity[]
   ownedGroups      Group[]           @relation("GroupOwner")
   groupMemberships GroupMembership[]
   createdAt        DateTime          @default(now())
@@ -125,6 +127,58 @@ model StravaConnection {
   @@index([athleteId])
 }
 
+// Garmin OAuth account link — dormant until the Garmin Connect Developer
+// Program grants credentials (see GARMIN_INTEGRATION_PLAN.md). Tokens are
+// stored ENCRYPTED at rest (AES-256-GCM), like Strava's. Garmin refresh tokens
+// ROTATE on every refresh, so refreshToken is always the most recent one.
+model GarminConnection {
+  id               String    @id @default(cuid())
+  userId           String    @unique
+  garminUserId     String // stable Garmin API user id (GET /user/id)
+  accessToken      String // AES-256-GCM ciphertext (~24h lifetime)
+  refreshToken     String // AES-256-GCM ciphertext (~90 days, rotates)
+  expiresAt        DateTime // access-token expiry
+  refreshExpiresAt DateTime? // refresh-token expiry (reconnect needed after)
+  permissions      String? // granted permissions, comma-joined (e.g. "ACTIVITY_EXPORT")
+  lastEventAt      DateTime? // last webhook delivery or backfill receipt
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Webhook payloads identify users by Garmin user id, not our session.
+  @@index([garminUserId])
+}
+
+// Durable per-activity store for Garmin push deliveries. Garmin retains data
+// server-side for only ~7 days and offers no polling, so this table is the
+// system of record: GARMIN-sourced WeeklyActual and ActivityLoad rows are
+// recomputed from it after every delivery (see src/lib/garmin/recompute.ts).
+// The webhook upserts on (userId, activityId) — an edited activity arrives as
+// a fresh summary for the same activityId. Only summaries that map to a
+// tracked discipline are stored; MULTI_SPORT parents and TRANSITION segments
+// are skipped at normalization (the swim/bike/run legs carry the real data).
+model GarminActivity {
+  id              String   @id @default(cuid())
+  userId          String
+  activityId      String // Garmin Connect activity id (string to avoid bigint issues)
+  summaryId       String // per-delivery id (changes when the activity is edited)
+  sportType       String // Garmin activityType, e.g. LAP_SWIMMING, ROAD_BIKING
+  startTimeUtc    DateTime // startTimeInSeconds (UTC instant)
+  offsetSeconds   Int // startTimeOffsetInSeconds — derives the athlete's local time
+  distanceMeters  Float
+  durationSeconds Int
+  avgHr           Int? // averageHeartRateInBeatsPerMinute, when the device recorded HR
+  deviceName      String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, activityId])
+  @@index([userId, startTimeUtc])
+}
+
 model Account {
   id                String  @id @default(cuid())
   userId            String
@@ -182,6 +236,7 @@ enum ActualSource {
   MANUAL
   STRAVA
   APPLE_HEALTH
+  GARMIN
 }
 
 enum PauseReason {

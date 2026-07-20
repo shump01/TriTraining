@@ -27,7 +27,7 @@ export interface TrainingLoad {
   /** Whether any HR-recorded activities have been synced (from the chosen source). */
   hasActivities: boolean;
   /** Which sync feeds the load numbers — see the one-source rule in readUserLoad. */
-  loadSource: "STRAVA" | "APPLE_HEALTH";
+  loadSource: "STRAVA" | "GARMIN" | "APPLE_HEALTH";
   series: LoadPoint[];
   summary: LoadSummary | null;
   /** Time-in-zone over the last INTENSITY_WINDOW_DAYS. Null with nothing to score. */
@@ -38,16 +38,26 @@ export interface TrainingLoad {
 async function readUserLoad(userId: string): Promise<TrainingLoad> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { thresholdHr: true, stravaConnection: { select: { id: true } } },
+    select: {
+      thresholdHr: true,
+      stravaConnection: { select: { id: true } },
+      garminConnection: { select: { id: true } },
+    },
   });
 
   // ONE source feeds load — the same "never summed" doctrine as weekly actuals,
-  // applied at read time. A workout can reach us from both Strava auto-upload
-  // and Apple Health; summing both would double its TSS into CTL/ATL/TSB, the
-  // zones, and the re-ramp's Form factor. Rule: Strava when connected (it is
-  // the richer, athlete-chosen integration), Apple Health otherwise. A per-user
-  // override is a deliberate non-feature until someone actually needs it.
-  const loadSource = user?.stravaConnection ? ("STRAVA" as const) : ("APPLE_HEALTH" as const);
+  // applied at read time. A workout can reach us from several syncs (Garmin
+  // users often auto-mirror to Strava); summing them would double its TSS into
+  // CTL/ATL/TSB, the zones, and the re-ramp's Form factor. Rule: Strava when
+  // connected (the athlete-chosen integration, and the incumbent — connecting
+  // Garmin must never silently change a Strava user's numbers), else Garmin,
+  // else Apple Health. Mirrors SOURCE_RANK in actuals.ts. A per-user override
+  // is a deliberate non-feature until someone actually needs it.
+  const loadSource = user?.stravaConnection
+    ? ("STRAVA" as const)
+    : user?.garminConnection
+      ? ("GARMIN" as const)
+      : ("APPLE_HEALTH" as const);
 
   const loads = await prisma.activityLoad.findMany({
     where: { userId, source: loadSource },

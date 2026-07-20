@@ -10,7 +10,7 @@ export interface ActualCellProps {
   /** Existing MANUAL value (what the input edits), or null. */
   manualMeters: number | null;
   /** The currently effective actual + its source, or null if none yet. */
-  effective: { meters: number; source: "MANUAL" | "STRAVA" | "APPLE_HEALTH" } | null;
+  effective: { meters: number; source: "MANUAL" | "STRAVA" | "GARMIN" | "APPLE_HEALTH" } | null;
 }
 
 export function ActualCell({

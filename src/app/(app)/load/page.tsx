@@ -171,7 +171,12 @@ export default async function LoadPage() {
                 <p className="m-0 max-w-[42ch] text-[12.5px] leading-[1.5] text-faint">
                   hrTSS from average heart rate: an hour at threshold = 100. Only activities that
                   recorded HR are scored
-                  {load.loadSource === "STRAVA" ? " — from Strava" : " — from Apple Health"}.
+                  {load.loadSource === "STRAVA"
+                    ? " — from Strava"
+                    : load.loadSource === "GARMIN"
+                      ? " — from Garmin"
+                      : " — from Apple Health"}
+                  .
                 </p>
               </div>
             </>

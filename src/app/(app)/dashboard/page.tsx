@@ -269,7 +269,9 @@ export default async function DashboardPage() {
                           ? "manual entry"
                           : a.source === "APPLE_HEALTH"
                             ? "Apple Health"
-                            : "Strava"}
+                            : a.source === "GARMIN"
+                              ? "Garmin"
+                              : "Strava"}
                       </div>
                     </div>
                     <div className="font-display text-[16px] font-extrabold">
