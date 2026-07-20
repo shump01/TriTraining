@@ -50,6 +50,23 @@ export const updateAccountSchema = z
     message: "Nothing to update",
   });
 
+/** Replace one week of planned sessions — the week planner's single write. */
+export const plannerWeekSchema = z.object({
+  weekStartDate: z.coerce.date({ message: "Enter a valid date" }),
+  sessions: z
+    .array(
+      z.object({
+        discipline: z.enum(["SWIM", "BIKE", "RUN"]),
+        slot: z.number().int().min(0).max(9),
+        label: z.string().trim().min(1).max(40),
+        share: z.number().positive().max(1),
+        dayOffset: z.number().int().min(0).max(6),
+        done: z.boolean(),
+      }),
+    )
+    .max(24, "Too many sessions for one week"),
+});
+
 /** Change password while signed in — current password required, same policy as sign-up. */
 export const changePasswordSchema = z.object({
   currentPassword: z.string().min(1, "Enter your current password"),

@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { mapKnownApiError } from "@/lib/api";
 import { pickFeaturedPlan } from "@/lib/featured-plan";
 import { buildPlanSeries } from "@/lib/plan-series";
+import { currentWeekPlanner } from "@/lib/planner-data";
 import { prisma } from "@/lib/prisma";
 import { computeReadiness, type SeriesReadiness } from "@/lib/readiness";
 import { enforceRateLimit } from "@/lib/security";
@@ -11,6 +12,7 @@ import {
   getTrainingPlan,
   listRecentActuals,
   listTrainingPlans,
+  maybeRecalculatePlan,
   requireUserId,
 } from "@/lib/training-plan";
 import { planStartWeek } from "@/lib/weekly-targets";
@@ -59,6 +61,7 @@ export async function GET(req: NextRequest) {
       actualMeters: number;
       targetMeters: number;
     };
+    type TodaySession = { discipline: string; label: string; meters: number; done: boolean };
     let activePlan: {
       id: string;
       name: string;
@@ -66,13 +69,34 @@ export async function GET(req: NextRequest) {
       weeksToGo: number;
       minis: Mini[];
       readiness: SeriesReadiness | null;
+      /** Today's sessions from the week planner (empty outside plan weeks). */
+      today: TodaySession[];
+      /** True when today is an in-plan, unpaused day with no sessions. */
+      todayRestDay: boolean;
     } | null = null;
 
     if (active) {
+      // Roll the week forward first (same as the plan page), so today's
+      // session distances reflect the re-ramped targets.
+      await maybeRecalculatePlan(active.id);
       const full = await getTrainingPlan(active.id);
       let minis: Mini[] = [];
       let readiness: SeriesReadiness | null = null;
+      let today: TodaySession[] = [];
+      let todayRestDay = false;
       if (full) {
+        const planner = await currentWeekPlanner(userId, full, now);
+        if (planner.todayOffset != null && !planner.paused) {
+          today = planner.sessions
+            .filter((s) => s.dayOffset === planner.todayOffset)
+            .map((s) => ({
+              discipline: s.discipline,
+              label: s.label,
+              meters: s.meters,
+              done: s.done || s.auto,
+            }));
+          todayRestDay = planner.sessions.length > 0 && today.length === 0;
+        }
         // One source of truth with the web dashboard: the series drives both
         // the readiness chip and the minis, which show the CURRENT week's %.
         const series = buildPlanSeries(full, now);
@@ -99,6 +123,8 @@ export async function GET(req: NextRequest) {
         weeksToGo: Math.max(0, Math.ceil((active.eventDate.getTime() - now.getTime()) / WEEK_MS)),
         minis,
         readiness,
+        today,
+        todayRestDay,
       };
     }
 

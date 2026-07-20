@@ -3,8 +3,9 @@ import { notFound } from "next/navigation";
 
 import { getTrainingLoad } from "@/lib/load-data";
 import { buildPlanSeries } from "@/lib/plan-series";
+import { currentWeekPlanner } from "@/lib/planner-data";
 import { computeFormReadiness, computeReadiness } from "@/lib/readiness";
-import { getTrainingPlan, maybeRecalculatePlan } from "@/lib/training-plan";
+import { getTrainingPlan, maybeRecalculatePlan, requireUserId } from "@/lib/training-plan";
 import { planStartWeek, startOfWeek } from "@/lib/weekly-targets";
 
 import { CheckinCard } from "./checkin-card";
@@ -12,6 +13,7 @@ import { DeletePlanButton } from "./delete-plan-button";
 import { PauseCard, type PauseReasonKey } from "./pause-card";
 import { PlanDashboard } from "./plan-dashboard";
 import { SharePlanButton } from "./share-plan-button";
+import { WeekPlannerCard } from "./week-planner-card";
 
 import "../../surface.css";
 
@@ -50,6 +52,12 @@ export default async function PlanPage({ params }: { params: Promise<{ id: strin
     ? computeFormReadiness(load.summary.form, currentCheckin ?? null)
     : null;
 
+  // The week board — only meaningful during an active, unpaused week.
+  const planner =
+    isActiveWeek && !currentPause
+      ? await currentWeekPlanner(await requireUserId(), plan, now)
+      : null;
+
   return (
     <div className="mkpage">
       <div className="glows" />
@@ -65,7 +73,19 @@ export default async function PlanPage({ params }: { params: Promise<{ id: strin
           series={series}
           readiness={readiness}
           formSignal={formSignal}
+          hasPlanner={!!planner && planner.sessions.length > 0}
         />
+
+        {planner && planner.sessions.length > 0 && (
+          <WeekPlannerCard
+            planId={plan.id}
+            weekStartDate={planner.weekStartDate}
+            dayLabels={planner.dayLabels}
+            todayOffset={planner.todayOffset}
+            activityCounts={planner.activityCounts}
+            initial={planner.sessions}
+          />
+        )}
 
         {/* A paused week has nothing to rate — the pause card replaces the check-in. */}
         {isActiveWeek && !currentPause && (

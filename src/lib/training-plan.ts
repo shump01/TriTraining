@@ -163,6 +163,7 @@ export async function getTrainingPlan(planId: string) {
       weeklyActuals: true,
       weeklyCheckins: true,
       weeklyPauses: true,
+      plannedSessions: true,
     },
   });
 }
@@ -407,8 +408,13 @@ export async function updateTrainingPlan(planId: string, input: CreatePlanInput)
     const removed = plan.disciplines.map((d) => d.discipline).filter((d) => !selectedSet.has(d));
 
     if (removed.length > 0) {
-      // Drop deselected sports and any actuals recorded against them.
+      // Drop deselected sports and any actuals recorded against them — and any
+      // planner sessions, or a touched week would keep 0 m ghost sessions AND
+      // fail replaceWeekSessions' discipline check on every later save.
       await tx.weeklyActual.deleteMany({
+        where: { planId: plan.id, discipline: { in: removed } },
+      });
+      await tx.plannedSession.deleteMany({
         where: { planId: plan.id, discipline: { in: removed } },
       });
       await tx.planDiscipline.deleteMany({
@@ -443,6 +449,11 @@ export async function updateTrainingPlan(planId: string, input: CreatePlanInput)
     // Clear STRAVA actuals (they regenerate on the next sync) and re-anchor MANUAL
     // ones onto the new grid, deduping any that collapse onto the same week.
     if (dayChanged) {
+      // Planner sessions are keyed to the old grid too (weekStartDate AND
+      // dayOffset are both grid-relative) — a remap is ambiguous, so reset to
+      // the "untouched weeks render defaults" state rather than resurrecting
+      // stale rows if the grid ever switches back.
+      await tx.plannedSession.deleteMany({ where: { planId: plan.id } });
       await tx.weeklyActual.deleteMany({
         where: { planId: plan.id, source: ActualSource.STRAVA },
       });
@@ -480,6 +491,18 @@ export async function updateTrainingPlan(planId: string, input: CreatePlanInput)
         });
       }
     }
+
+    // Dates may have narrowed — planner rows for weeks now outside the plan
+    // range would be unreachable and would fail the range check on every save.
+    await tx.plannedSession.deleteMany({
+      where: {
+        planId: plan.id,
+        OR: [
+          { weekStartDate: { lt: startWeek } },
+          { weekStartDate: { gt: startOfWeek(input.eventDate, input.weekStartDay) } },
+        ],
+      },
+    });
 
     // Regenerate targets for the resulting discipline set.
     await tx.weeklyTarget.deleteMany({ where: { planId: plan.id } });
@@ -786,4 +809,126 @@ export async function recordManualActual(input: {
     },
     update: { actualMeters: input.actualMeters },
   });
+}
+
+/** Thrown when a submitted week of sessions is internally inconsistent. */
+export class InvalidSessionsError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "InvalidSessionsError";
+  }
+}
+
+export interface WeekSessionInput {
+  discipline: Discipline;
+  slot: number;
+  label: string;
+  share: number;
+  dayOffset: number;
+  done: boolean;
+}
+
+/**
+ * Replace one week's planned sessions — the week planner's single write
+ * (moves and manual ticks both send the whole week; see
+ * src/lib/week-planner.ts for why untouched weeks are never stored).
+ *
+ * The submitted week must be internally coherent: every session on one of the
+ * plan's disciplines, no duplicate (discipline, slot), and each discipline's
+ * shares summing to ~1 so the sessions always account for the full weekly
+ * target. Manual-tick timestamps survive a move: a session keeps its original
+ * completedAt as long as it stays done.
+ *
+ * @throws UnauthorizedError | NotFoundError | WeekOutOfRangeError | InvalidSessionsError
+ */
+export async function replaceWeekSessions(input: {
+  planId: string;
+  weekStartDate: Date;
+  sessions: WeekSessionInput[];
+}) {
+  const userId = await requireUserId();
+
+  const plan = await prisma.trainingPlan.findFirst({
+    where: { id: input.planId, userId },
+    select: {
+      id: true,
+      startDate: true,
+      createdAt: true,
+      eventDate: true,
+      weekStartDay: true,
+      disciplines: { select: { discipline: true } },
+    },
+  });
+  if (!plan) {
+    throw new NotFoundError();
+  }
+
+  const weekStartDate = startOfWeek(input.weekStartDate, plan.weekStartDay);
+  const startMs = planStartWeek(plan).getTime();
+  const endMs = startOfWeek(plan.eventDate, plan.weekStartDay).getTime();
+  if (weekStartDate.getTime() < startMs || weekStartDate.getTime() > endMs) {
+    throw new WeekOutOfRangeError();
+  }
+
+  const allowed = new Set(plan.disciplines.map((d) => d.discipline as string));
+  const shareSums = new Map<string, number>();
+  const seen = new Set<string>();
+  for (const s of input.sessions) {
+    if (!allowed.has(s.discipline)) {
+      throw new InvalidSessionsError("Session discipline is not part of this plan.");
+    }
+    const key = `${s.discipline}|${s.slot}`;
+    if (seen.has(key)) {
+      throw new InvalidSessionsError("Duplicate session slot.");
+    }
+    seen.add(key);
+    shareSums.set(s.discipline, (shareSums.get(s.discipline) ?? 0) + s.share);
+  }
+  for (const [discipline, sum] of shareSums) {
+    if (sum < 0.98 || sum > 1.02) {
+      throw new InvalidSessionsError(
+        `The ${discipline.toLowerCase()} sessions must cover the whole week's target.`,
+      );
+    }
+  }
+
+  // Every discipline with a positive target this week must be present — a
+  // partial payload would silently delete the missing discipline's sessions
+  // (the replace below is week-scoped, not discipline-scoped).
+  const weekTargets = await prisma.weeklyTarget.findMany({
+    where: { planId: plan.id, weekStartDate },
+    select: { discipline: true, targetMeters: true },
+  });
+  for (const t of weekTargets) {
+    if (t.targetMeters > 0 && !shareSums.has(t.discipline)) {
+      throw new InvalidSessionsError(
+        `The week's ${t.discipline.toLowerCase()} sessions are missing.`,
+      );
+    }
+  }
+
+  // A session that stays done keeps its original completion timestamp.
+  const previous = await prisma.plannedSession.findMany({
+    where: { planId: plan.id, weekStartDate },
+    select: { discipline: true, slot: true, completedAt: true },
+  });
+  const prevCompleted = new Map(
+    previous.map((p) => [`${p.discipline}|${p.slot}`, p.completedAt] as const),
+  );
+
+  await prisma.$transaction([
+    prisma.plannedSession.deleteMany({ where: { planId: plan.id, weekStartDate } }),
+    prisma.plannedSession.createMany({
+      data: input.sessions.map((s) => ({
+        planId: plan.id,
+        weekStartDate,
+        discipline: s.discipline,
+        slot: s.slot,
+        label: s.label,
+        share: s.share,
+        dayOffset: s.dayOffset,
+        completedAt: s.done ? (prevCompleted.get(`${s.discipline}|${s.slot}`) ?? new Date()) : null,
+      })),
+    }),
+  ]);
 }

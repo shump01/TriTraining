@@ -5,12 +5,15 @@ import { SeasonTimeline, toSeasonPlans } from "@/components/season-timeline";
 import { displayNameFor } from "@/lib/display-name";
 import { rankLivePlans } from "@/lib/featured-plan";
 import { buildPlanSeries } from "@/lib/plan-series";
+import { currentWeekPlanner } from "@/lib/planner-data";
+import type { PlannerSessionView } from "@/lib/week-planner";
 import { computeReadiness, type ReadinessStatus } from "@/lib/readiness";
 import { getStravaConnectionSummary } from "@/lib/strava/connection";
 import {
   getTrainingPlan,
   listRecentActuals,
   listTrainingPlansWithProgress,
+  maybeRecalculatePlan,
 } from "@/lib/training-plan";
 import {
   DISCIPLINE_META,
@@ -70,9 +73,20 @@ export default async function DashboardPage() {
   // Per-discipline + total "% of target" for the featured plan.
   let minis: { key: string; label: string; color: string; pct: number }[] = [];
   let readinessChip: { label: string; color: string } | null = null;
+  // Today's sessions from the featured plan's week board.
+  let todaySessions: PlannerSessionView[] = [];
+  let todayRestDay = false;
   if (active) {
+    // Roll the week forward first (same as the plan page), so today's session
+    // distances reflect the re-ramped targets, not last week's.
+    await maybeRecalculatePlan(active.id);
     const full = await getTrainingPlan(active.id);
     if (full) {
+      const planner = await currentWeekPlanner(userId, full, now);
+      if (planner.todayOffset != null && !planner.paused) {
+        todaySessions = planner.sessions.filter((s) => s.dayOffset === planner.todayOffset);
+        todayRestDay = planner.sessions.length > 0 && todaySessions.length === 0;
+      }
       // One source of truth for both the minis and the readiness chip. Series
       // already omits TOTAL for single-sport plans and honors the week-start day.
       const series = buildPlanSeries(full, now);
@@ -227,6 +241,59 @@ export default async function DashboardPage() {
             />
           </div>
         </div>
+
+        {active && (todaySessions.length > 0 || todayRestDay) && (
+          <div className="mt-[18px] rise" style={{ animationDelay: "0.22s" }}>
+            <Link
+              href={`/plans/${active.id}`}
+              className="block rounded-[16px] border border-border bg-card p-5 transition-colors hover:border-brand"
+            >
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <span className="font-display text-[15px] font-bold text-text">Today</span>
+                <span className="font-mono text-[11px] tracking-[0.08em] text-faint uppercase">
+                  plan your week →
+                </span>
+              </div>
+              {todayRestDay && (
+                <p className="m-0 text-[13.5px] text-muted">
+                  Rest day — nothing scheduled. Recovery is training too.
+                </p>
+              )}
+              <div className="flex flex-wrap gap-2.5">
+                {todaySessions.map((s) => {
+                  const meta = DISCIPLINE_META[s.discipline as DisciplineKey];
+                  const complete = s.done || s.auto;
+                  return (
+                    <span
+                      key={`${s.discipline}|${s.slot}`}
+                      className="inline-flex items-center gap-2 rounded-[11px] border border-border bg-bg2 px-3 py-2"
+                      style={{ borderLeft: `3px solid ${meta?.color ?? "var(--brand)"}` }}
+                    >
+                      <span
+                        className={`text-[13px] font-semibold ${
+                          complete ? "text-muted line-through" : "text-text"
+                        }`}
+                      >
+                        {s.label}
+                      </span>
+                      <span className="font-mono text-[12px] text-muted">
+                        {formatDistance(s.meters, s.discipline as DisciplineKey)}
+                      </span>
+                      {complete && (
+                        <span
+                          className="font-mono text-[10.5px] font-bold"
+                          style={{ color: "var(--on-track)" }}
+                        >
+                          ✓
+                        </span>
+                      )}
+                    </span>
+                  );
+                })}
+              </div>
+            </Link>
+          </div>
+        )}
 
         {/* Both of these render nothing for a single-plan athlete: the strip is
             empty, and the timeline hides itself below two plans. The shared

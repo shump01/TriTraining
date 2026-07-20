@@ -26,6 +26,8 @@ export interface PlanDashboardProps {
   readiness: PlanReadiness;
   /** Objective Form (TSB) signal + subjective cross-check. Null without HR load. */
   formSignal?: FormReadiness | null;
+  /** When the week planner renders below, the static split card stands down. */
+  hasPlanner?: boolean;
 }
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
@@ -90,6 +92,7 @@ export function PlanDashboard({
   series,
   readiness,
   formSignal,
+  hasPlanner,
 }: PlanDashboardProps) {
   const [active, setActive] = useState<SeriesKey>(series[0]?.key ?? "TOTAL");
   const [variation, setVariation] = useState<"command" | "timeline">("command");
@@ -197,6 +200,7 @@ export function PlanDashboard({
           setActive={setActive}
           currentIndex={currentIndex}
           planId={planId}
+          hasPlanner={hasPlanner}
         />
       ) : (
         <TimelineView data={activeData} currentIndex={currentIndex} weeksToGo={weeksToGo} />
@@ -211,12 +215,14 @@ function CommandView({
   setActive,
   currentIndex,
   planId,
+  hasPlanner,
 }: {
   series: SeriesData[];
   active: SeriesKey;
   setActive: (k: SeriesKey) => void;
   currentIndex: number;
   planId: string;
+  hasPlanner?: boolean;
 }) {
   const data = series.find((s) => s.key === active) ?? series[0]!;
   const editable = active !== "TOTAL";
@@ -302,7 +308,9 @@ function CommandView({
         </div>
       </div>
 
-      {active !== "TOTAL" && buildWeek && (
+      {/* The static split card yields to the week planner when it's shown —
+          two session UIs disagreeing about days helps nobody. */}
+      {active !== "TOTAL" && buildWeek && !hasPlanner && (
         <SessionsCard discipline={active} weekMeters={buildWeek.target} color={data.color} />
       )}
 

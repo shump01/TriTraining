@@ -292,6 +292,18 @@ hard **cap** of `capMultiple × eventDistance` (per-plan, default 1.5×).
   otherwise count its TSS twice — into the Load page, the Form signal, and the
   re-ramp's easing.
 
+- **Week planner** ([src/lib/week-planner.ts](src/lib/week-planner.ts) +
+  [planner-data.ts](src/lib/planner-data.ts)): the current week's suggested
+  sessions laid onto days — drag/arrow-move between days, manual ticks, and
+  derived auto-ticks from same-day, same-sport HR-recorded activities
+  (count-based, never stored). Sessions are share-based (fraction of the
+  week's discipline target), so re-ramps rescale them; untouched weeks are
+  computed defaults and only materialize (`PlannedSession`) when the athlete
+  moves or ticks something (`PUT /api/plans/:id/sessions` replaces the whole
+  week, validated for discipline coverage + share sums). Surfaces: the plan
+  page board, the dashboard "Today" card, and `activePlan.today` in the
+  mobile dashboard endpoint. Paused weeks prescribe nothing anywhere.
+
 - **Race forecast** ([src/lib/forecast.ts](src/lib/forecast.ts) +
   [forecast-data.ts](src/lib/forecast-data.ts)): projects the same CTL/ATL/TSB
   fold forward through race day, assuming the featured plan's remaining weekly

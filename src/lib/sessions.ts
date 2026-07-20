@@ -30,6 +30,13 @@ const TEMPLATES: Record<SessionDiscipline, { label: string; frac: number }[]> = 
   ],
 };
 
+/** The raw split template — the week planner lays these onto days. */
+export function sessionTemplate(
+  discipline: SessionDiscipline,
+): readonly { label: string; frac: number }[] {
+  return TEMPLATES[discipline];
+}
+
 export function suggestSessions(
   discipline: SessionDiscipline,
   weekMeters: number,
