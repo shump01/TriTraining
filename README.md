@@ -292,6 +292,16 @@ hard **cap** of `capMultiple × eventDistance` (per-plan, default 1.5×).
   otherwise count its TSS twice — into the Load page, the Form signal, and the
   re-ramp's easing.
 
+- **Race forecast** ([src/lib/forecast.ts](src/lib/forecast.ts) +
+  [forecast-data.ts](src/lib/forecast-data.ts)): projects the same CTL/ATL/TSB
+  fold forward through race day, assuming the featured plan's remaining weekly
+  targets are executed (spread evenly per week; paused weeks project as rest).
+  Meters→TSS rates are calibrated per discipline from the athlete's own recent
+  completed weeks (effective actual meters vs the same weeks' hrTSS, clamped,
+  ≥2 weeks required) with conservative defaults as fallback. Shown on `/load`:
+  projected race-day Form/Fitness, the classic +10…+25 TSB race window as the
+  verdict bands, and a solid-to-dashed PMC continuation chart.
+
 ## Database
 
 Postgres via Prisma 7. For quick local iteration `npm run db:push` is fine; for any

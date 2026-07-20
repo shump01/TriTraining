@@ -1,3 +1,5 @@
+import { cache } from "react";
+
 import { prisma } from "@/lib/prisma";
 import {
   activityTss,
@@ -21,6 +23,41 @@ import {
 
 const DAY_MS = 86_400_000;
 
+/**
+ * The one-source rule, shared with the race forecast: Strava when connected,
+ * else Garmin, else Apple Health. See the doctrine comment in readUserLoad.
+ */
+export function pickLoadSource(user: {
+  stravaConnection: { id: string } | null;
+  garminConnection: { id: string } | null;
+}): "STRAVA" | "GARMIN" | "APPLE_HEALTH" {
+  return user.stravaConnection ? "STRAVA" : user.garminConnection ? "GARMIN" : "APPLE_HEALTH";
+}
+
+/**
+ * Per-request memoized reads shared by the PMC (readUserLoad) and the race
+ * forecast (forecast-data.ts) — the /load page needs both, and without the
+ * cache it would pull the full ActivityLoad table twice per view.
+ */
+export const getLoadUser = cache((userId: string) =>
+  prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      thresholdHr: true,
+      stravaConnection: { select: { id: true } },
+      garminConnection: { select: { id: true } },
+    },
+  }),
+);
+
+export const getLoadRows = cache((userId: string, source: "STRAVA" | "GARMIN" | "APPLE_HEALTH") =>
+  prisma.activityLoad.findMany({
+    where: { userId, source },
+    select: { date: true, discipline: true, movingSeconds: true, avgHr: true },
+    orderBy: { date: "asc" },
+  }),
+);
+
 export interface TrainingLoad {
   /** The athlete's lactate-threshold HR, or null if not set. */
   thresholdHr: number | null;
@@ -36,14 +73,7 @@ export interface TrainingLoad {
 
 /** Read + compute a specific user's training load. Shared by the callers below. */
 async function readUserLoad(userId: string): Promise<TrainingLoad> {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: {
-      thresholdHr: true,
-      stravaConnection: { select: { id: true } },
-      garminConnection: { select: { id: true } },
-    },
-  });
+  const user = await getLoadUser(userId);
 
   // ONE source feeds load — the same "never summed" doctrine as weekly actuals,
   // applied at read time. A workout can reach us from several syncs (Garmin
@@ -53,17 +83,12 @@ async function readUserLoad(userId: string): Promise<TrainingLoad> {
   // Garmin must never silently change a Strava user's numbers), else Garmin,
   // else Apple Health. Mirrors SOURCE_RANK in actuals.ts. A per-user override
   // is a deliberate non-feature until someone actually needs it.
-  const loadSource = user?.stravaConnection
-    ? ("STRAVA" as const)
-    : user?.garminConnection
-      ? ("GARMIN" as const)
-      : ("APPLE_HEALTH" as const);
-
-  const loads = await prisma.activityLoad.findMany({
-    where: { userId, source: loadSource },
-    select: { date: true, movingSeconds: true, avgHr: true },
-    orderBy: { date: "asc" },
+  const loadSource = pickLoadSource({
+    stravaConnection: user?.stravaConnection ?? null,
+    garminConnection: user?.garminConnection ?? null,
   });
+
+  const loads = await getLoadRows(userId, loadSource);
 
   const thresholdHr = user?.thresholdHr ?? null;
   const hasActivities = loads.length > 0;

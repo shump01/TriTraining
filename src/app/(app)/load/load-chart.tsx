@@ -35,8 +35,10 @@ export function LoadChart({ series }: { series: LoadPoint[] }) {
 
   const ticks = 4;
   const gridVals = Array.from({ length: ticks + 1 }, (_, i) => minY + (range * i) / ticks);
+  // dateMs values are UTC midnights — pin the zone so a server west of UTC
+  // doesn't shift every label a day early.
   const dateStr = (ms: number) =>
-    new Date(ms).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    new Date(ms).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
   const labelEvery = Math.max(1, Math.ceil(n / 7));
 
   return (

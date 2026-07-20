@@ -29,6 +29,7 @@
   --on-track: #3aa0ff;
   --behind: #f5566b;
   --upcoming: #7c8696;
+  --warn: #f0a13a;
 }
 
 [data-theme="light"] {
@@ -65,6 +66,7 @@
   --color-ontrack: var(--on-track);
   --color-behind: var(--behind);
   --color-upcoming: var(--upcoming);
+  --color-warn: var(--warn);
 
   --font-display: var(--font-archivo);
   --font-sans: var(--font-hanken);
