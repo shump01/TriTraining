@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { buildHeatmap } from "@/lib/heatmap";
-import { buildPlanSeries } from "@/lib/plan-series";
+import { buildPlanSeries, toPublicSeries } from "@/lib/plan-series";
 import { computeReadiness } from "@/lib/readiness";
 import { getPlanByShareToken } from "@/lib/training-plan";
 import { planStartWeek } from "@/lib/weekly-targets";
@@ -23,7 +23,10 @@ export default async function SharedPlanPage({ params }: { params: Promise<{ tok
   if (!plan) notFound();
 
   const now = new Date();
-  const series = buildPlanSeries(plan, now);
+  // This page is PUBLIC (unauthenticated share token), so build a sanitized
+  // series with the special-category pause reason stripped before anything is
+  // serialized to the client — see toPublicSeries.
+  const series = toPublicSeries(buildPlanSeries(plan, now));
 
   return (
     <SharedPlanView

@@ -50,6 +50,23 @@ export interface SeriesData {
   };
 }
 
+/**
+ * Strip fields that must not reach a PUBLIC (unauthenticated) share page.
+ *
+ * `pauseReason` (illness / injury / travel) is special-category health data:
+ * the owner shares "my training progress", not "I was injured in week 8". The
+ * shared view renders only the `paused` boolean (heatmap, readiness, the muted
+ * week styling), never the reason, so the reason is nulled out before the
+ * series is serialized into the client props. Keep every public reader routed
+ * through this so a new one can't reintroduce the leak.
+ */
+export function toPublicSeries(series: SeriesData[]): SeriesData[] {
+  return series.map((s) => ({
+    ...s,
+    weeks: s.weeks.map((w) => (w.pauseReason == null ? w : { ...w, pauseReason: null })),
+  }));
+}
+
 const KEY_META: Record<SeriesKey, { label: string; color: string; unit: "m" | "km" }> = {
   TOTAL: { label: "Total", color: "var(--brand)", unit: "km" },
   SWIM: { label: "Swim", color: "var(--swim)", unit: "m" },
