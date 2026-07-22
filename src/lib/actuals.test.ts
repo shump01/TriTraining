@@ -9,7 +9,7 @@ function key(discipline: string, week: Date) {
   return effectiveActualKey(discipline, week);
 }
 
-describe("resolveEffectiveActuals — MANUAL overrides STRAVA", () => {
+describe("resolveEffectiveActuals — MANUAL adds on top of auto", () => {
   it("uses STRAVA when only STRAVA exists", () => {
     const rows: ActualRow[] = [
       { discipline: "RUN", weekStartDate: WEEK, actualMeters: 13000, source: "STRAVA" },
@@ -20,7 +20,7 @@ describe("resolveEffectiveActuals — MANUAL overrides STRAVA", () => {
     });
   });
 
-  it("uses MANUAL when only MANUAL exists", () => {
+  it("uses MANUAL alone when there is no auto source", () => {
     const rows: ActualRow[] = [
       { discipline: "RUN", weekStartDate: WEEK, actualMeters: 9000, source: "MANUAL" },
     ];
@@ -30,20 +30,18 @@ describe("resolveEffectiveActuals — MANUAL overrides STRAVA", () => {
     });
   });
 
-  it("prefers MANUAL over STRAVA regardless of input order", () => {
+  it("adds MANUAL on top of STRAVA regardless of input order, keeping the auto source label", () => {
     const stravaFirst: ActualRow[] = [
       { discipline: "RUN", weekStartDate: WEEK, actualMeters: 13000, source: "STRAVA" },
       { discipline: "RUN", weekStartDate: WEEK, actualMeters: 9000, source: "MANUAL" },
     ];
     const manualFirst: ActualRow[] = [...stravaFirst].reverse();
-    expect(resolveEffectiveActuals(stravaFirst).get(key("RUN", WEEK))).toEqual({
-      meters: 9000,
-      source: "MANUAL",
-    });
-    expect(resolveEffectiveActuals(manualFirst).get(key("RUN", WEEK))).toEqual({
-      meters: 9000,
-      source: "MANUAL",
-    });
+    for (const rows of [stravaFirst, manualFirst]) {
+      expect(resolveEffectiveActuals(rows).get(key("RUN", WEEK))).toEqual({
+        meters: 22000, // 13000 synced + 9000 manual
+        source: "STRAVA",
+      });
+    }
   });
 
   it("keeps disciplines and weeks independent", () => {
@@ -59,19 +57,19 @@ describe("resolveEffectiveActuals — MANUAL overrides STRAVA", () => {
     expect(map.size).toBe(3);
   });
 
-  it("treats a zero manual entry as an override", () => {
+  it("a zero manual entry adds nothing to the auto total", () => {
     const rows: ActualRow[] = [
       { discipline: "SWIM", weekStartDate: WEEK, actualMeters: 2000, source: "STRAVA" },
       { discipline: "SWIM", weekStartDate: WEEK, actualMeters: 0, source: "MANUAL" },
     ];
     expect(resolveEffectiveActuals(rows).get(key("SWIM", WEEK))).toEqual({
-      meters: 0,
-      source: "MANUAL",
+      meters: 2000,
+      source: "STRAVA",
     });
   });
 });
 
-describe("resolveEffectiveActuals — APPLE_HEALTH precedence", () => {
+describe("resolveEffectiveActuals — auto sources never sum among themselves", () => {
   it("uses APPLE_HEALTH when it is the only source", () => {
     const rows: ActualRow[] = [
       { discipline: "RUN", weekStartDate: WEEK, actualMeters: 12000, source: "APPLE_HEALTH" },
@@ -96,19 +94,19 @@ describe("resolveEffectiveActuals — APPLE_HEALTH precedence", () => {
     }
   });
 
-  it("prefers MANUAL over both auto sources", () => {
+  it("adds MANUAL on top of the best auto source (STRAVA), not on top of the sum", () => {
     const rows: ActualRow[] = [
       { discipline: "SWIM", weekStartDate: WEEK, actualMeters: 3000, source: "APPLE_HEALTH" },
       { discipline: "SWIM", weekStartDate: WEEK, actualMeters: 3100, source: "STRAVA" },
       { discipline: "SWIM", weekStartDate: WEEK, actualMeters: 2500, source: "MANUAL" },
     ];
     expect(resolveEffectiveActuals(rows).get(key("SWIM", WEEK))).toEqual({
-      meters: 2500,
-      source: "MANUAL",
+      meters: 5600, // best auto 3100 (Strava, not 3100+3000) + 2500 manual
+      source: "STRAVA",
     });
   });
 
-  it("never sums sources for the same week", () => {
+  it("never sums two AUTO sources for the same week", () => {
     const rows: ActualRow[] = [
       { discipline: "RUN", weekStartDate: WEEK, actualMeters: 10000, source: "APPLE_HEALTH" },
       { discipline: "RUN", weekStartDate: WEEK, actualMeters: 10000, source: "STRAVA" },
@@ -156,7 +154,7 @@ describe("resolveEffectiveActuals — GARMIN precedence", () => {
     }
   });
 
-  it("prefers MANUAL over all three auto sources", () => {
+  it("adds MANUAL on top of the best of three auto sources", () => {
     const rows: ActualRow[] = [
       { discipline: "SWIM", weekStartDate: WEEK, actualMeters: 3000, source: "APPLE_HEALTH" },
       { discipline: "SWIM", weekStartDate: WEEK, actualMeters: 3050, source: "GARMIN" },
@@ -164,8 +162,8 @@ describe("resolveEffectiveActuals — GARMIN precedence", () => {
       { discipline: "SWIM", weekStartDate: WEEK, actualMeters: 2500, source: "MANUAL" },
     ];
     expect(resolveEffectiveActuals(rows).get(key("SWIM", WEEK))).toEqual({
-      meters: 2500,
-      source: "MANUAL",
+      meters: 5600, // best auto 3100 (Strava) + 2500 manual
+      source: "STRAVA",
     });
   });
 });

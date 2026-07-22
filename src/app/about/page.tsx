@@ -21,7 +21,7 @@ const FEATURES = [
   },
   {
     title: "Strava & Apple Health",
-    body: "Connect once and your swim, bike, and run distances flow in automatically as weekly actuals. Or enter them by hand — a manual entry always wins.",
+    body: "Connect once and your swim, bike, and run distances flow in automatically as weekly actuals. Or enter them by hand — a manual entry adds on top, for sessions a sync didn't catch.",
   },
   {
     title: "Adaptive targets",

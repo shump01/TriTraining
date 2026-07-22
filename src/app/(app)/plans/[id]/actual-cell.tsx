@@ -9,7 +9,7 @@ export interface ActualCellProps {
   weekStartDate: string; // YYYY-MM-DD
   /** Existing MANUAL value (what the input edits), or null. */
   manualMeters: number | null;
-  /** The currently effective actual + its source, or null if none yet. */
+  /** The currently effective actual + its primary source, or null if none yet. */
   effective: { meters: number; source: "MANUAL" | "STRAVA" | "GARMIN" | "APPLE_HEALTH" } | null;
 }
 
@@ -22,7 +22,7 @@ export function ActualCell({
 }: ActualCellProps) {
   const router = useRouter();
   const [value, setValue] = useState(manualMeters?.toString() ?? "");
-  const [state, setState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [state, setState] = useState<"idle" | "saving" | "removing" | "saved" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
 
   async function save() {
@@ -58,6 +58,33 @@ export function ActualCell({
     }
   }
 
+  async function remove() {
+    setState("removing");
+    setError(null);
+    try {
+      const res = await fetch(`/api/plans/${planId}/actuals`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ discipline, weekStartDate }),
+      });
+      if (res.ok) {
+        setValue("");
+        setState("saved");
+        router.refresh();
+      } else {
+        setState("error");
+        setError("Failed");
+      }
+    } catch {
+      setState("error");
+      setError("Failed");
+    }
+  }
+
+  // effective.meters is the total (synced + manual); split out the synced part.
+  const synced = effective ? Math.max(0, effective.meters - (manualMeters ?? 0)) : 0;
+  const busy = state === "saving" || state === "removing";
+
   return (
     <div className="flex flex-col gap-1">
       <div className="flex items-center gap-1.5">
@@ -73,18 +100,29 @@ export function ActualCell({
           onKeyDown={(e) => {
             if (e.key === "Enter") void save();
           }}
-          placeholder="—"
-          aria-label={`Manual actual meters for ${discipline} week ${weekStartDate}`}
+          placeholder="+ meters"
+          aria-label={`Manual actual meters to add for ${discipline} week ${weekStartDate}`}
           className="w-[88px] rounded-[8px] border border-border bg-input px-2 py-1 text-right font-mono text-[13px] text-text outline-none focus:border-brand"
         />
         <button
           type="button"
           onClick={() => void save()}
-          disabled={state === "saving"}
+          disabled={busy}
           className="cursor-pointer rounded-[8px] border border-border bg-card2 px-2 py-1 text-[12px] font-bold hover:border-brand disabled:opacity-60"
         >
           {state === "saving" ? "…" : "Save"}
         </button>
+        {manualMeters != null && (
+          <button
+            type="button"
+            onClick={() => void remove()}
+            disabled={busy}
+            aria-label={`Remove manual entry for ${discipline} week ${weekStartDate}`}
+            className="cursor-pointer rounded-[8px] border border-border bg-card2 px-2 py-1 text-[12px] font-bold text-muted hover:border-behind hover:text-behind disabled:opacity-60"
+          >
+            {state === "removing" ? "…" : "Remove"}
+          </button>
+        )}
       </div>
       <span className="text-[11.5px]">
         {state === "error" ? (
@@ -92,9 +130,15 @@ export function ActualCell({
         ) : effective ? (
           <span className="text-faint">
             {effective.meters.toLocaleString()} m{" "}
-            <em className={effective.source === "MANUAL" ? "text-ahead" : "text-muted"}>
-              ({effective.source.replace("_", " ").toLowerCase()})
-            </em>
+            {manualMeters != null && synced > 0 ? (
+              <em className="text-muted">
+                ({synced.toLocaleString()} synced + {manualMeters.toLocaleString()} manual)
+              </em>
+            ) : (
+              <em className={effective.source === "MANUAL" ? "text-ahead" : "text-muted"}>
+                ({effective.source.replace("_", " ").toLowerCase()})
+              </em>
+            )}
           </span>
         ) : (
           <span className="text-faint">no data</span>

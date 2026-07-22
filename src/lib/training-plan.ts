@@ -811,6 +811,39 @@ export async function recordManualActual(input: {
   });
 }
 
+/**
+ * Remove the MANUAL actual for one (discipline, week) — the athlete taking back
+ * a manual top-up. Only the MANUAL row is touched, so any synced (Strava /
+ * Garmin / Apple Health) value for that week stands untouched. Idempotent: a
+ * missing manual row is a no-op, not an error.
+ */
+export async function deleteManualActual(input: {
+  planId: string;
+  discipline: Discipline;
+  weekStartDate: Date;
+}) {
+  const userId = await requireUserId();
+
+  const plan = await prisma.trainingPlan.findFirst({
+    where: { id: input.planId, userId },
+    select: { id: true, weekStartDay: true },
+  });
+  if (!plan) {
+    throw new NotFoundError();
+  }
+
+  const weekStartDate = startOfWeek(input.weekStartDate, plan.weekStartDay);
+  await prisma.weeklyActual.deleteMany({
+    where: {
+      planId: plan.id,
+      discipline: input.discipline,
+      weekStartDate,
+      source: ActualSource.MANUAL,
+    },
+  });
+  return { ok: true };
+}
+
 /** Thrown when a submitted week of sessions is internally inconsistent. */
 export class InvalidSessionsError extends Error {
   constructor(message: string) {

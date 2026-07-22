@@ -185,6 +185,14 @@ export const actualEntrySchema = z.object({
 
 export type ActualEntryInput = z.infer<typeof actualEntrySchema>;
 
+/** DELETE /api/plans/:id/actuals — clear a manual entry for one (discipline, week). */
+export const actualDeleteSchema = z.object({
+  discipline: z.enum(["SWIM", "BIKE", "RUN"]),
+  weekStartDate: z.coerce.date({ message: "Enter a valid date" }),
+});
+
+export type ActualDeleteInput = z.infer<typeof actualDeleteSchema>;
+
 // ── Weekly wellness check-in ──────────────────────────────────────────────────
 
 /** A subjective 1–5 rating (fatigue / sleep / soreness). */
