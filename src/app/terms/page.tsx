@@ -74,7 +74,7 @@ const SECTIONS: { title: string; paragraphs: string[] }[] = [
   {
     title: "Contact",
     paragraphs: [
-      "Questions about these terms can be sent via the contact details on the app's App Store listing or through this website.",
+      "Questions about these terms can be emailed to support@richysdev.co.uk or sent via the contact details on the app's App Store listing.",
     ],
   },
 ];
@@ -142,6 +142,9 @@ export default function TermsPage() {
       <footer className="mx-auto flex max-w-[1000px] items-center justify-between border-t border-border px-5 py-6 font-mono text-[12px] text-faint">
         <span>© 2026 TriTrainer</span>
         <div className="flex items-center gap-4">
+          <Link href="/support" className="hover:text-text">
+            Support
+          </Link>
           <Link href="/privacy" className="hover:text-text">
             Privacy
           </Link>

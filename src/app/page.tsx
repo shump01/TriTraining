@@ -367,6 +367,7 @@ export default async function Home() {
           </div>
           <div className="foot-links">
             <Link href="/about">About</Link>
+            <Link href="/support">Support</Link>
             <Link href="/privacy">Privacy</Link>
             <Link href="/terms">Terms</Link>
             <Link href="/login">Sign in</Link>

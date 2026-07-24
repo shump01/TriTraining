@@ -192,6 +192,7 @@ export default function AboutPage() {
             Built for triathletes · arrive fresh
           </div>
           <div style={{ display: "flex", gap: 18 }}>
+            <Link href="/support">Support</Link>
             <Link href="/privacy">Privacy</Link>
             <Link href="/terms">Terms</Link>
           </div>

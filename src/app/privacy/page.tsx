@@ -19,7 +19,7 @@ const SECTIONS: { title: string; paragraphs: string[] }[] = [
   {
     title: "Who we are",
     paragraphs: [
-      "TriTrainer is the controller of the personal data described in this policy, for the purposes of UK data protection law (the UK GDPR and the Data Protection Act 2018). This policy covers the TriTrainer website and the TriTrainer iOS app — one account, the same data, the same rules. You can reach us via the contact details on the app's App Store listing or through this website.",
+      "TriTrainer is the controller of the personal data described in this policy, for the purposes of UK data protection law (the UK GDPR and the Data Protection Act 2018). This policy covers the TriTrainer website and the TriTrainer iOS app — one account, the same data, the same rules. You can reach us at support@richysdev.co.uk, or via the contact details on the app's App Store listing.",
     ],
   },
   {
@@ -101,7 +101,7 @@ const SECTIONS: { title: string; paragraphs: string[] }[] = [
   {
     title: "Changes & contact",
     paragraphs: [
-      "If this policy changes in a way that matters, we'll update this page and its effective date. Questions or requests (including data deletion or access requests by email) can be sent via the contact details on the app's App Store listing or through this website.",
+      "If this policy changes in a way that matters, we'll update this page and its effective date. Questions or requests — including data access or deletion requests — can be emailed to support@richysdev.co.uk or sent via the contact details on the app's App Store listing.",
     ],
   },
 ];
@@ -165,6 +165,9 @@ export default function PrivacyPage() {
       <footer className="mx-auto flex max-w-[1000px] items-center justify-between border-t border-border px-5 py-6 font-mono text-[12px] text-faint">
         <span>© 2026 TriTrainer</span>
         <div className="flex items-center gap-4">
+          <Link href="/support" className="hover:text-text">
+            Support
+          </Link>
           <Link href="/terms" className="hover:text-text">
             Terms
           </Link>
