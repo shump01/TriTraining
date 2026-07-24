@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { auth } from "@/auth";
 import { displayNameFor } from "@/lib/display-name";
 import { prisma } from "@/lib/prisma";
@@ -74,6 +76,21 @@ export default async function AccountPage() {
           <div className="flex items-center justify-between gap-4 rounded-[18px] border border-border bg-card p-6">
             <p className="m-0 text-[13.5px] text-muted">Signed in as {email}.</p>
             <SignOutButton />
+          </div>
+        </div>
+
+        <div className="rise" style={{ animationDelay: "0.33s" }}>
+          <h2 className="section-label">Help</h2>
+          <div className="flex items-center justify-between gap-4 rounded-[18px] border border-border bg-card p-6">
+            <p className="m-0 text-[13.5px] text-muted">
+              Questions, something not working, or an idea?
+            </p>
+            <Link
+              href="/support"
+              className="shrink-0 cursor-pointer rounded-[11px] border border-border px-[16px] py-[9px] text-[13.5px] font-bold text-text hover:border-brand"
+            >
+              Need help?
+            </Link>
           </div>
         </div>
 
