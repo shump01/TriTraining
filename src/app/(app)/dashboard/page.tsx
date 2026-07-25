@@ -6,7 +6,10 @@ import { displayNameFor } from "@/lib/display-name";
 import { rankLivePlans } from "@/lib/featured-plan";
 import { buildPlanSeries } from "@/lib/plan-series";
 import { currentWeekPlanner } from "@/lib/planner-data";
+import { balancedPct } from "@/lib/total-pct";
 import type { PlannerSessionView } from "@/lib/week-planner";
+
+import { MiniCaption, MiniPct } from "./mini-pct";
 import { computeReadiness, type ReadinessStatus } from "@/lib/readiness";
 import { getStravaConnectionSummary } from "@/lib/strava/connection";
 import {
@@ -70,8 +73,16 @@ export default async function DashboardPage() {
   const strava = await getStravaConnectionSummary(userId);
   const recent = await listRecentActuals(4);
 
-  // Per-discipline + total "% of target" for the featured plan.
-  let minis: { key: string; label: string; color: string; pct: number }[] = [];
+  // Per-discipline + total "% of target" for the featured plan. The TOTAL
+  // entry also carries the balanced (equal-weight) figure so the client mini
+  // can honor the athlete's Total-% preference.
+  let minis: {
+    key: string;
+    label: string;
+    color: string;
+    pct: number;
+    pctBalanced?: number | null;
+  }[] = [];
   let readinessChip: { label: string; color: string } | null = null;
   // Today's sessions from the featured plan's week board.
   let todaySessions: PlannerSessionView[] = [];
@@ -99,16 +110,23 @@ export default async function DashboardPage() {
         };
       }
       // Each mini shows the CURRENT week's % (matches the plan-detail cards).
-      minis = series.map((s) => {
-        const i = s.weeks.findIndex((w) => w.phase === "current");
-        const curIndex = i >= 0 ? i : s.summary.finished ? s.weeks.length - 1 : 0;
-        return {
-          key: s.key,
-          label: s.label,
-          color: s.color,
-          pct: s.weeks[curIndex]?.pctOfTarget ?? 0,
-        };
-      });
+      // Every series shares the same week list, so one index fits all.
+      const wi = series[0]!.weeks.findIndex((w) => w.phase === "current");
+      const curIndex = wi >= 0 ? wi : series[0]!.summary.finished ? series[0]!.weeks.length - 1 : 0;
+      minis = series.map((s) => ({
+        key: s.key,
+        label: s.label,
+        color: s.color,
+        pct: s.weeks[curIndex]?.pctOfTarget ?? 0,
+        pctBalanced:
+          s.key === "TOTAL"
+            ? balancedPct(
+                series
+                  .filter((d) => d.key !== "TOTAL")
+                  .map((d) => d.weeks[curIndex]?.pctOfTarget ?? null),
+              )
+            : undefined,
+      }));
     }
   }
 
@@ -197,10 +215,11 @@ export default async function DashboardPage() {
                       {m.label}
                     </div>
                     <div className="pct" style={{ marginTop: 7 }}>
-                      {m.pct}
-                      <span style={{ fontSize: 13, color: "var(--ink-dim)" }}>%</span>
+                      <MiniPct pct={m.pct} pctBalanced={m.pctBalanced} />
                     </div>
-                    <div className="mt-[3px] text-[11px] text-faint">of target</div>
+                    <div className="mt-[3px] text-[11px] text-faint">
+                      <MiniCaption hasBalanced={m.pctBalanced != null} />
+                    </div>
                   </div>
                 ))}
               </div>

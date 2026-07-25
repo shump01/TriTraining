@@ -6,6 +6,7 @@ import { buildPlanSeries } from "@/lib/plan-series";
 import { currentWeekPlanner } from "@/lib/planner-data";
 import { prisma } from "@/lib/prisma";
 import { computeReadiness, type SeriesReadiness } from "@/lib/readiness";
+import { balancedPct } from "@/lib/total-pct";
 import { enforceRateLimit } from "@/lib/security";
 import { getStravaConnectionSummary } from "@/lib/strava/connection";
 import {
@@ -58,6 +59,8 @@ export async function GET(req: NextRequest) {
       key: string;
       label: string;
       pct: number;
+      /** TOTAL only: the equal-weight % (each sport 1/N, capped at 100). */
+      pctBalanced?: number | null;
       actualMeters: number;
       targetMeters: number;
     };
@@ -101,14 +104,26 @@ export async function GET(req: NextRequest) {
         // the readiness chip and the minis, which show the CURRENT week's %.
         const series = buildPlanSeries(full, now);
         readiness = computeReadiness(series).overall;
+        // Every series shares the same week list, so one index fits all.
+        const wi = series[0]!.weeks.findIndex((w) => w.phase === "current");
+        const curIndex =
+          wi >= 0 ? wi : series[0]!.summary.finished ? series[0]!.weeks.length - 1 : 0;
         minis = series.map((s) => {
-          const i = s.weeks.findIndex((w) => w.phase === "current");
-          const curIndex = i >= 0 ? i : s.summary.finished ? s.weeks.length - 1 : 0;
           const week = s.weeks[curIndex];
           return {
             key: s.key,
             label: s.label,
             pct: week?.pctOfTarget ?? 0,
+            // TOTAL also carries the equal-weight figure so the app can offer
+            // the same distance/balanced choice the web dashboard has.
+            pctBalanced:
+              s.key === "TOTAL"
+                ? balancedPct(
+                    series
+                      .filter((d) => d.key !== "TOTAL")
+                      .map((d) => d.weeks[curIndex]?.pctOfTarget ?? null),
+                  )
+                : undefined,
             // Raw meters so clients (the watch complication) can show
             // distance done / remaining, not just the percentage.
             actualMeters: week?.actual ?? 0,

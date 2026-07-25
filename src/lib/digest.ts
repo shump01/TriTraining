@@ -316,7 +316,9 @@ export function renderDigestEmail(
     );
   }
   if (model.currentStreak >= 2) {
-    extras.push(`Streak: ${model.currentStreak} weeks on target — keep it alive.`);
+    // "On target" here is always distance-based — email has no access to the
+    // reader's balanced-% display preference (see src/lib/total-pct.ts).
+    extras.push(`Streak: ${model.currentStreak} weeks on target (by distance) — keep it alive.`);
   }
 
   const text = [

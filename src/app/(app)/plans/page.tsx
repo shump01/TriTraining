@@ -4,6 +4,8 @@ import { SeasonTimeline, toSeasonPlans } from "@/components/season-timeline";
 import { listTrainingPlansWithProgress } from "@/lib/training-plan";
 import { DISCIPLINE_META, STATUS_META, planStatusKey, translucent } from "@/lib/ui/theme";
 
+import { PlanCardPct } from "./plan-card-pct";
+
 import "../surface.css";
 
 export const dynamic = "force-dynamic";
@@ -91,16 +93,7 @@ export default async function PlansPage() {
                   <div className="mb-4 text-[13px] text-muted">
                     {p.disciplines.map((d) => DISCIPLINE_META[d].label).join(" · ")}
                   </div>
-                  <div className="mb-2.5 h-2 overflow-hidden rounded-[6px] bg-card2">
-                    <div
-                      className="h-full rounded-[6px] bg-brand"
-                      style={{ width: `${Math.min(pct, 100)}%` }}
-                    />
-                  </div>
-                  <div className="flex justify-between text-[12.5px] text-muted">
-                    <span>{pct}% of target</span>
-                    <span>{p.weeksToGo} wks to go</span>
-                  </div>
+                  <PlanCardPct pct={pct} pctBalanced={p.pctBalanced} weeksToGo={p.weeksToGo} />
                 </Link>
               );
             })}

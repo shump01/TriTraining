@@ -10,6 +10,7 @@ import { getUserFormTsb } from "@/lib/load-data";
 import { buildPlanProgressInputs } from "@/lib/plan-progress";
 import { prisma } from "@/lib/prisma";
 import { computeProgress, type ProgressSummary } from "@/lib/progress";
+import { balancedPct } from "@/lib/total-pct";
 import { formLoadFactor } from "@/lib/training-load";
 import type { DisciplineKey } from "@/lib/ui/theme";
 import type { CreatePlanInput } from "@/lib/validation";
@@ -249,6 +250,12 @@ export interface PlanWithProgress {
   /** Start of week 1 (ms) — the app's Apple Health sync queries from here. */
   startDateMs: number;
   summary: ProgressSummary;
+  /**
+   * Equal-weight plan-to-date % (each sport 1/N, capped at 100) for
+   * multi-sport plans — lets list surfaces honor the Total-% display mode.
+   * Null for single-sport plans.
+   */
+  pctBalanced: number | null;
   weeksToGo: number;
   disciplines: DisciplineKey[];
   /** Season priority: "A" (goal race), "B", or "C" (tune-up). */
@@ -267,8 +274,18 @@ export async function listTrainingPlansWithProgress(): Promise<PlanWithProgress[
   });
   const now = new Date();
   return plans.map((p) => {
-    const { total, disciplines } = buildPlanProgressInputs(p);
-    const { summary } = computeProgress(total, now);
+    const { total, disciplines, byDiscipline } = buildPlanProgressInputs(p);
+    const { summary } = computeProgress(total, now, p.weekStartDay);
+    // Equal-weight companion figure so list cards can follow the Total-% mode.
+    const pctBalanced =
+      disciplines.length > 1
+        ? balancedPct(
+            disciplines.map(
+              (d) =>
+                computeProgress(byDiscipline[d] ?? [], now, p.weekStartDay).summary.pctOfTarget,
+            ),
+          )
+        : null;
     const weeksToGo = Math.max(0, Math.ceil((p.eventDate.getTime() - now.getTime()) / WEEK_MS));
     return {
       id: p.id,
@@ -276,6 +293,7 @@ export async function listTrainingPlansWithProgress(): Promise<PlanWithProgress[
       eventDate: p.eventDate,
       startDateMs: planStartWeek(p).getTime(),
       summary,
+      pctBalanced,
       weeksToGo,
       disciplines,
       priority: p.priority,

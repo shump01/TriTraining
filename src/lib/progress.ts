@@ -48,12 +48,20 @@ export interface Progress {
   summary: ProgressSummary;
 }
 
-function classify(actual: number, target: number): ProgressStatus {
-  if (target <= 0) return "onTrack";
-  const ratio = actual / target;
+/**
+ * Band a completion ratio into a status. Exported so alternate percentage
+ * views (the balanced Total mode, src/lib/total-pct.ts) band with the SAME
+ * thresholds as the distance-based series and can never drift.
+ */
+export function classifyRatio(ratio: number): ProgressStatus {
   if (ratio < BEHIND_RATIO) return "behind";
   if (ratio > AHEAD_RATIO) return "ahead";
   return "onTrack";
+}
+
+function classify(actual: number, target: number): ProgressStatus {
+  if (target <= 0) return "onTrack";
+  return classifyRatio(actual / target);
 }
 
 export function computeProgress(

@@ -42,15 +42,19 @@ function seriesColor(key: SeriesReadiness["key"]): string {
   return key === "TOTAL" ? TOTAL_META.color : DISCIPLINE_META[key as DisciplineKey].color;
 }
 
-function headline(o: SeriesReadiness): string {
+function headline(o: SeriesReadiness, distanceQualifier: boolean): string {
   if (o.status === "insufficient") {
     return "Log a couple of weeks of training to see your race-day projection.";
   }
+  // Readiness is deliberately distance-weighted (it projects VOLUME to race
+  // day); when the athlete is viewing balanced Total %s, say so, or this
+  // number appears to contradict the one above it.
+  const q = distanceQualifier ? " (by distance)" : "";
   if (o.basis === "projection") {
     const when = o.weeksToPeak ? ` in ${o.weeksToPeak} week${o.weeksToPeak === 1 ? "" : "s"}` : "";
-    return `Projected to reach ${o.pct}% of your peak build${when}.`;
+    return `Projected to reach ${o.pct}% of your peak build${when}${q}.`;
   }
-  return `You've hit ${o.pct}% of your planned volume so far.`;
+  return `You've hit ${o.pct}% of your planned volume so far${q}.`;
 }
 
 /**
@@ -60,9 +64,12 @@ function headline(o: SeriesReadiness): string {
 export function ReadinessPanel({
   readiness,
   form,
+  balancedMode,
 }: {
   readiness: PlanReadiness;
   form?: FormReadiness | null;
+  /** The page shows balanced Total %s — qualify these distance-based figures. */
+  balancedMode?: boolean;
 }) {
   const overall = readiness.overall;
   if (!overall) return null;
@@ -84,11 +91,18 @@ export function ReadinessPanel({
         <span
           className="rounded-[20px] px-[10px] py-1 text-[12px] font-bold"
           style={{ color: meta.color, background: translucent(meta.color, 14) }}
+          title={
+            balancedMode
+              ? "Readiness is distance-weighted: meters done vs meters planned, projected to race day."
+              : undefined
+          }
         >
           {STATUS_LABEL[overall.status]}
         </span>
       </div>
-      <p className="m-0 text-[14px] leading-[1.5] text-muted">{headline(overall)}</p>
+      <p className="m-0 text-[14px] leading-[1.5] text-muted">
+        {headline(overall, Boolean(balancedMode && overall.key === "TOTAL"))}
+      </p>
 
       {showDisciplines && (
         <div className="mt-3.5 flex flex-wrap gap-2">

@@ -1,12 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import { buildHeatmap } from "@/lib/heatmap";
 import type { FormReadiness, PlanReadiness } from "@/lib/readiness";
 import type { SeriesData, SeriesKey, WeekRow } from "@/lib/plan-series";
+import { applyTotalPctMode } from "@/lib/total-pct";
 import { STATUS_META, formatDistance, translucent, type StatusKey } from "@/lib/ui/theme";
+
+import { useTotalPctMode } from "../../use-total-pct-mode";
 
 import { ActualCell } from "./actual-cell";
 import { ProgressRing, Sparkline, VolumeChart, type WeekDatum } from "./charts";
@@ -52,6 +55,19 @@ function toData(s: SeriesData): WeekDatum[] {
   return s.weeks.map((w) => ({ weekStartMs: w.ms, target: w.target, actual: w.actual }));
 }
 
+/**
+ * Small marker rendered beside a Total % whenever balanced mode is active, so
+ * the number is never mistaken for meters ÷ meters — a screenshot of "67%"
+ * next to "20 km / 100 km" must explain itself.
+ */
+function BalancedTag() {
+  return (
+    <span className="ml-1.5 rounded-[6px] border border-border px-1 py-px align-middle font-mono text-[9px] font-normal tracking-[0.08em] text-faint uppercase">
+      balanced
+    </span>
+  );
+}
+
 function StatusPill({ statusKey, small }: { statusKey: StatusKey; small?: boolean }) {
   const meta = STATUS_META[statusKey];
   return (
@@ -89,13 +105,19 @@ export function PlanDashboard({
   eventDateMs,
   startDateMs,
   currentWeekMs,
-  series,
+  series: rawSeries,
   readiness,
   formSignal,
   hasPlanner,
 }: PlanDashboardProps) {
-  const [active, setActive] = useState<SeriesKey>(series[0]?.key ?? "TOTAL");
+  const [active, setActive] = useState<SeriesKey>(rawSeries[0]?.key ?? "TOTAL");
   const [variation, setVariation] = useState<"command" | "timeline">("command");
+  const [pctMode, setPctMode] = useTotalPctMode();
+
+  // The Total tab's percentages re-expressed under the chosen mode; discipline
+  // tabs and all meter figures are identical in both modes.
+  const hasTotal = rawSeries[0]?.key === "TOTAL";
+  const series = useMemo(() => applyTotalPctMode(rawSeries, pctMode), [rawSeries, pctMode]);
 
   const activeData = series.find((s) => s.key === active) ?? series[0]!;
   const n = activeData.weeks.length;
@@ -127,23 +149,61 @@ export function PlanDashboard({
           </div>
         </div>
 
-        <div className="flex gap-1 rounded-[11px] border border-border bg-bg2 p-1">
-          {(["command", "timeline"] as const).map((v) => (
-            <button
-              key={v}
-              type="button"
-              onClick={() => setVariation(v)}
-              className={`cursor-pointer rounded-[8px] px-3.5 py-2 text-[13px] font-bold ${
-                variation === v ? "bg-brand text-white" : "text-muted hover:text-text"
-              }`}
-            >
-              {v === "command" ? "Command" : "Timeline"}
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center gap-2.5">
+          {hasTotal && (
+            <div className="flex gap-1 rounded-[11px] border border-border bg-bg2 p-1">
+              {(["distance", "balanced"] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setPctMode(m)}
+                  aria-pressed={pctMode === m}
+                  aria-describedby="total-pct-hint"
+                  className={`cursor-pointer rounded-[8px] px-3 py-2 text-[12.5px] font-bold ${
+                    pctMode === m ? "bg-brand text-white" : "text-muted hover:text-text"
+                  }`}
+                >
+                  {m === "distance" ? "Distance %" : "Balanced %"}
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="flex gap-1 rounded-[11px] border border-border bg-bg2 p-1">
+            {(["command", "timeline"] as const).map((v) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setVariation(v)}
+                className={`cursor-pointer rounded-[8px] px-3.5 py-2 text-[13px] font-bold ${
+                  variation === v ? "bg-brand text-white" : "text-muted hover:text-text"
+                }`}
+              >
+                {v === "command" ? "Command" : "Timeline"}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
-      <ReadinessPanel readiness={readiness} form={formSignal} />
+      {/* The mode explainer: always present for assistive tech (the toggle's
+          aria-describedby), visible whenever balanced is active. */}
+      {hasTotal && (
+        <p
+          id="total-pct-hint"
+          className={
+            pctMode === "balanced" ? "-mt-2 mb-4 font-mono text-[11.5px] text-faint" : "sr-only"
+          }
+        >
+          Balanced %: every sport counts equally toward the Total, each capped at 100% — distances
+          shown stay real. Distance %: total meters done ÷ total meters targeted.
+        </p>
+      )}
+
+      <ReadinessPanel
+        readiness={readiness}
+        form={formSignal}
+        balancedMode={pctMode === "balanced"}
+      />
 
       <ConsistencyCard heatmap={buildHeatmap(series[0]?.weeks ?? [])} />
 
@@ -169,6 +229,7 @@ export function PlanDashboard({
             {formatDistance(buildWeek?.actual ?? 0, active)} /{" "}
             {formatDistance(buildWeek?.target ?? 0, active)}
           </span>
+          {pctMode === "balanced" && active === "TOTAL" && <BalancedTag />}
         </div>
       </div>
 
@@ -201,9 +262,15 @@ export function PlanDashboard({
           currentIndex={currentIndex}
           planId={planId}
           hasPlanner={hasPlanner}
+          balanced={pctMode === "balanced"}
         />
       ) : (
-        <TimelineView data={activeData} currentIndex={currentIndex} weeksToGo={weeksToGo} />
+        <TimelineView
+          data={activeData}
+          currentIndex={currentIndex}
+          weeksToGo={weeksToGo}
+          balanced={pctMode === "balanced"}
+        />
       )}
     </div>
   );
@@ -216,6 +283,7 @@ function CommandView({
   currentIndex,
   planId,
   hasPlanner,
+  balanced,
 }: {
   series: SeriesData[];
   active: SeriesKey;
@@ -223,6 +291,8 @@ function CommandView({
   currentIndex: number;
   planId: string;
   hasPlanner?: boolean;
+  /** The Total % is in balanced mode — tag its figures so they self-explain. */
+  balanced?: boolean;
 }) {
   const data = series.find((s) => s.key === active) ?? series[0]!;
   const editable = active !== "TOTAL";
@@ -269,6 +339,7 @@ function CommandView({
               <div className="font-display text-[30px] leading-none font-black">
                 {pct}
                 <span className="text-[16px] font-bold text-muted">%</span>
+                {balanced && s.key === "TOTAL" && <BalancedTag />}
               </div>
               <div className="mt-1 mb-2.5 text-[11.5px] text-faint">
                 {formatDistance(cur?.actual ?? 0, k)} / {formatDistance(cur?.target ?? 0, k)}
@@ -304,6 +375,7 @@ function CommandView({
           <div className="mt-3 text-center text-[12.5px] text-muted">
             {formatDistance(buildWeek?.actual ?? 0, active)} of{" "}
             {formatDistance(buildWeek?.target ?? 0, active)}
+            {balanced && active === "TOTAL" && <BalancedTag />}
           </div>
         </div>
       </div>
@@ -321,7 +393,9 @@ function CommandView({
               <th className="px-[18px] py-3 font-semibold">Week</th>
               <th className="px-[18px] py-3 font-semibold">Target</th>
               <th className="px-[18px] py-3 font-semibold">Actual</th>
-              <th className="px-[18px] py-3 font-semibold">%</th>
+              <th className="px-[18px] py-3 font-semibold">
+                %{balanced && active === "TOTAL" && <BalancedTag />}
+              </th>
               <th className="px-[18px] py-3 font-semibold">Status</th>
             </tr>
           </thead>
@@ -378,7 +452,12 @@ function CommandView({
         <div className="grid grid-cols-[78px_1fr_52px_26px] text-[10.5px] tracking-[0.04em] text-faint uppercase">
           <div className="py-[9px] pr-1.5 pl-[14px] font-semibold">Week</div>
           <div className="px-1.5 py-[9px] font-semibold">Actual / target</div>
-          <div className="px-1.5 py-[9px] text-right font-semibold">%</div>
+          <div
+            className="px-1.5 py-[9px] text-right font-semibold"
+            title={balanced && active === "TOTAL" ? "Balanced %" : undefined}
+          >
+            %{balanced && active === "TOTAL" ? "·bal" : ""}
+          </div>
           <div />
         </div>
         {data.weeks.map((w, i) => {
@@ -447,10 +526,13 @@ function TimelineView({
   data,
   currentIndex,
   weeksToGo,
+  balanced,
 }: {
   data: SeriesData;
   currentIndex: number;
   weeksToGo: number;
+  /** The Total % is in balanced mode — tag its figures so they self-explain. */
+  balanced?: boolean;
 }) {
   const currentWeek = currentIndex >= 0 ? data.weeks[currentIndex] : null;
 
@@ -462,6 +544,7 @@ function TimelineView({
           <div className="mt-3 text-center text-[13px] text-muted">
             {formatDistance(data.summary.cumulativeActual, data.key)} of{" "}
             {formatDistance(data.summary.cumulativeTarget, data.key)}
+            {balanced && data.key === "TOTAL" && <BalancedTag />}
           </div>
         </div>
 
