@@ -79,6 +79,20 @@ const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 // PostgreSQL INTEGER upper bound — keep values in range to avoid overflow.
 const MAX_METERS = 2_000_000_000;
 
+/**
+ * How far a plan date may sit from today, in either direction (~5 years).
+ *
+ * This is a RESOURCE bound, not just a sanity one: the plan's week count is
+ * (eventDate − startDate) / 1 week, and every week becomes rows in memory and
+ * in the database. `z.coerce.date()` happily accepts a raw JSON number as
+ * epoch-ms, so without this an unbounded date turns one small POST into
+ * millions of weeks — gigabytes of allocation and an OOM'd worker, or a
+ * quieter variant that commits tens of thousands of target rows that every
+ * later read then has to load. Bounded here so a violation is a clean 400;
+ * computeWeeklyTargets enforces its own MAX_PLAN_WEEKS as defence in depth.
+ */
+const MAX_PLAN_DATE_SPAN_MS = 5 * 365 * 24 * 60 * 60 * 1000;
+
 const metersSchema = z.coerce
   .number({ message: "Enter a number" })
   .int("Must be a whole number of meters")
@@ -88,14 +102,24 @@ const metersSchema = z.coerce
 const eventDateSchema = z.coerce
   .date({ message: "Enter a valid date" })
   .refine((d) => d.getTime() > Date.now(), "Event date must be in the future")
+  .refine((d) => d.getTime() - Date.now() >= ONE_WEEK_MS, "Event date must be at least 1 week away")
   .refine(
-    (d) => d.getTime() - Date.now() >= ONE_WEEK_MS,
-    "Event date must be at least 1 week away",
+    (d) => d.getTime() - Date.now() <= MAX_PLAN_DATE_SPAN_MS,
+    "Event date must be within the next 5 years",
   );
 
 // The plan's start (week 1). May be in the past — a plan can be back-dated to
-// when training actually began. Only constrained relative to the event date.
-const startDateSchema = z.coerce.date({ message: "Enter a valid start date" });
+// when training actually began — but only within the bounded window above.
+const startDateSchema = z.coerce
+  .date({ message: "Enter a valid start date" })
+  .refine(
+    (d) => Date.now() - d.getTime() <= MAX_PLAN_DATE_SPAN_MS,
+    "Start date must be within the last 5 years",
+  )
+  .refine(
+    (d) => d.getTime() - Date.now() <= MAX_PLAN_DATE_SPAN_MS,
+    "Start date must be within the next 5 years",
+  );
 
 // Hard cap on weekly volume, as a multiple of each discipline's event distance
 // (see computeWeeklyTargets). Defaults to 1.5x when omitted.

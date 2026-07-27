@@ -33,6 +33,14 @@ export const DEFAULT_TAPER_WEEKS = 2;
 
 const MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000;
 
+/**
+ * Upper bound on a plan's length (~5 years of weeks). The week count drives
+ * every loop and every persisted target row here, so it must never be
+ * attacker-controlled without a ceiling. Mirrors the date bounds in
+ * src/lib/validation.ts, which reject over-long spans as a clean 400.
+ */
+export const MAX_PLAN_WEEKS = 300;
+
 export interface WeeklyTargetInput {
   /** First Monday on/after plan creation (week 1's start). */
   startDate: Date;
@@ -157,8 +165,9 @@ export function planStartWeek(plan: {
  * week ratio of the integer outputs never exceeds the chosen rate (≤ 12%).
  * De-loads are decreases and never count against that ceiling.
  *
- * @throws RangeError on invalid dates, `startDate >= eventDate`, or non-positive
- *   `startingWeeklyMeters` / `eventDistanceMeters` / `capMultiple`.
+ * @throws RangeError on invalid dates, `startDate >= eventDate`, a span longer
+ *   than MAX_PLAN_WEEKS, or non-positive `startingWeeklyMeters` /
+ *   `eventDistanceMeters` / `capMultiple`.
  */
 export function computeWeeklyTargets({
   startDate,
@@ -192,6 +201,14 @@ export function computeWeeklyTargets({
 
   // Whole weeks from week 1's Monday to the Monday of the event's week, inclusive.
   const weekCount = Math.floor((eventMs - startMs) / MS_PER_WEEK) + 1;
+
+  // Every week below becomes array entries here and rows in the database, so an
+  // unbounded span is a resource bomb, not just nonsense input. Callers bound
+  // the dates in validation.ts; this is the belt-and-braces invariant for any
+  // future caller that doesn't.
+  if (weekCount > MAX_PLAN_WEEKS) {
+    throw new RangeError(`Plan spans ${weekCount} weeks; the maximum is ${MAX_PLAN_WEEKS}`);
+  }
 
   const cap = capMultiple * eventDistanceMeters;
   const clampedStart = Math.min(startingWeeklyMeters, cap);

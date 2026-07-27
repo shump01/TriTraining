@@ -31,7 +31,7 @@ const SECTIONS: {
     title: "Connecting Strava",
     paragraphs: [
       "On the dashboard, use the Strava card to connect. Once linked, TriTrainer reads your recent activities and fills in your weekly actual distances automatically; a Sync button pulls the latest. Only the sport, distance, week, and — where Strava provides it — moving time and average heart rate are used.",
-      "You can disconnect any time from the same card, which deletes the stored tokens and revokes TriTrainer's access on Strava's side. A manual weekly entry always overrides an automatic one, so correcting a number by hand is safe.",
+      "You can disconnect any time from the same card, which deletes the stored tokens and revokes TriTrainer's access on Strava's side.",
     ],
   },
   {
@@ -43,9 +43,10 @@ const SECTIONS: {
     ],
   },
   {
-    title: "One source at a time",
+    title: "How your weekly numbers are counted",
     paragraphs: [
-      "To avoid double-counting a workout that reaches us from more than one place, TriTrainer uses a single source for your automatic numbers: Strava if it's connected, otherwise Garmin (where available), otherwise Apple Health. A number you enter by hand always wins over any automatic one.",
+      "To avoid double-counting a workout that reaches us from more than one place, TriTrainer uses a single automatic source: Strava if it's connected, otherwise Garmin (where available), otherwise Apple Health. Those never add together.",
+      "A manual entry works differently — it ADDS on top of the synced total rather than replacing it. Use it to top up something a sync couldn't see: a pool swim done without a watch, a treadmill run, a session on a friend's bike. If a manual entry was a mistake, remove it from the week's row rather than editing it to zero.",
     ],
   },
   {

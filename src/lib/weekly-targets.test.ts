@@ -4,6 +4,7 @@ import {
   BLOCK_WEEKS,
   CAP_MULTIPLE,
   DETRAIN_PER_WEEK,
+  MAX_PLAN_WEEKS,
   MAX_WEEKLY_INCREASE,
   MIN_RETURN_FACTOR,
   TAPER_FLOOR,
@@ -161,6 +162,29 @@ describe("computeWeeklyTargets — input guards", () => {
     expect(() => computeWeeklyTargets(baseInput({ eventDate: new Date("not-a-date") }))).toThrow(
       /valid Date/,
     );
+  });
+
+  // Every week becomes array entries here and rows in the DB, so an unbounded
+  // span is a resource bomb — see MAX_PLAN_WEEKS. The API bounds the dates in
+  // validation.ts; this guard is the invariant for any other caller.
+  it("throws instead of allocating when the span exceeds MAX_PLAN_WEEKS", () => {
+    const tooLong = mondayPlusWeeks(MAX_PLAN_WEEKS + 1);
+    expect(() => computeWeeklyTargets(baseInput({ eventDate: tooLong }))).toThrow(/maximum/);
+  });
+
+  it("accepts a span exactly at the limit", () => {
+    // weekCount is inclusive of both ends, so the last allowed event date is
+    // MAX_PLAN_WEEKS - 1 weeks after the start.
+    const atLimit = mondayPlusWeeks(MAX_PLAN_WEEKS - 1);
+    const rows = computeWeeklyTargets(baseInput({ eventDate: atLimit }));
+    expect(rows).toHaveLength(MAX_PLAN_WEEKS);
+  });
+
+  it("does not blow up on an absurd epoch-ms date — it rejects it", () => {
+    // The exact DoS payload: z.coerce.date() would accept this as epoch-ms.
+    expect(() =>
+      computeWeeklyTargets(baseInput({ eventDate: new Date(8_640_000_000_000_000) })),
+    ).toThrow(/maximum/);
   });
 });
 

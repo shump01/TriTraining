@@ -52,7 +52,11 @@ const envSchema = z.object({
   // (safe: everyone shares a bucket). Set to 1 for a standard single reverse
   // proxy (e.g. Hetzner/Passenger, nginx); raise it only if you add more hops.
   TRUSTED_PROXY_COUNT: z.coerce.number().int().nonnegative().default(0),
-  NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+  // Fail CLOSED: an unset NODE_ENV is treated as production, so a host that
+  // forgets to set it can never accidentally enable development-only
+  // behaviour (e.g. logging password-reset links — see the forgot-password
+  // route). `next dev` and the test runner both set this explicitly.
+  NODE_ENV: z.enum(["development", "test", "production"]).default("production"),
 });
 
 const parsed = envSchema.safeParse(process.env);

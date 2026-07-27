@@ -67,7 +67,7 @@ export default async function AccountPage() {
         <div className="rise" style={{ animationDelay: "0.26s" }}>
           <h2 className="section-label">Email</h2>
           <div className="rounded-[18px] border border-border bg-card p-6">
-            <DigestToggle initial={prefs?.digestEnabled ?? true} />
+            <DigestToggle initial={prefs?.digestEnabled ?? false} />
           </div>
         </div>
 

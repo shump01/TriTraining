@@ -90,13 +90,28 @@ export async function getValidStravaAccessToken(userId: string): Promise<string 
   }
 }
 
-/** Disconnect: best-effort revoke on Strava, then delete the local row. */
+/**
+ * Disconnect: best-effort revoke on Strava, then delete the local row.
+ *
+ * The revoke uses a REFRESHED access token, not the stored one: Strava access
+ * tokens expire in ~6 hours, so for any user who hasn't synced recently the
+ * stored token is dead and deauthorization would silently no-op — leaving the
+ * grant live on Strava's side while the privacy policy (and the account-
+ * deletion flow) promise it was revoked. Still best-effort: a Strava outage
+ * must never block the local delete or the user's right to erasure.
+ */
 export async function disconnectStrava(userId: string): Promise<void> {
   const connection = await prisma.stravaConnection.findUnique({ where: { userId } });
   if (!connection) return;
 
   try {
-    await deauthorizeStrava(decryptSecret(connection.accessToken));
+    // Refreshes when expired (and persists the new tokens); null when the
+    // grant is already gone on Strava's side, in which case there is nothing
+    // left to revoke and the local delete below is the whole job.
+    const accessToken = await getValidStravaAccessToken(userId);
+    if (accessToken) {
+      await deauthorizeStrava(accessToken);
+    }
   } catch (error) {
     logger.warn("Strava deauthorize failed; continuing with local delete", { error });
   }

@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { env } from "@/env";
 import { handleApiError } from "@/lib/api";
 import { logger } from "@/lib/logger";
-import { sendPasswordResetEmail } from "@/lib/mailer";
+import { isMailerConfigured, sendPasswordResetEmail } from "@/lib/mailer";
 import { createPasswordResetToken } from "@/lib/password-reset";
 import { rateLimit } from "@/lib/rate-limit";
 import { enforceRateLimit, isCrossSiteRequest } from "@/lib/security";
@@ -64,11 +64,15 @@ export async function POST(req: NextRequest) {
       const sent = await sendPasswordResetEmail(email, resetUrl);
       if (!sent) {
         // Dev has no SMTP — surface the link in logs so the flow is testable.
-        // Production only records that delivery was skipped (never the link).
-        if (env.NODE_ENV === "development") {
+        // Two conditions, both required: NODE_ENV must be explicitly
+        // "development" (it defaults to production — see src/env.ts), AND the
+        // mailer must be genuinely unconfigured rather than merely failing, so
+        // a live-credentials environment can never write a reset link to a log
+        // just because SMTP hiccuped.
+        if (env.NODE_ENV === "development" && !isMailerConfigured()) {
           logger.info("Password-reset link (dev; mailer not configured)", { resetUrl });
         } else {
-          logger.warn("Password-reset email not sent — mailer is not configured");
+          logger.warn("Password-reset email not sent");
         }
       }
     }
