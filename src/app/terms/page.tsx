@@ -52,6 +52,13 @@ const SECTIONS: { title: string; paragraphs: string[] }[] = [
     ],
   },
   {
+    title: "Optional tips",
+    paragraphs: [
+      "TriTrainer is free, and every feature works without paying. The iOS app offers optional one-off tips (the price of a caffeine gel) as a way to support development. A tip unlocks nothing and changes nothing about the service — it is a voluntary contribution, not a purchase of features.",
+      "Tips are sold and processed by Apple through the App Store, under Apple's terms; we never receive or store your payment details. Refund requests are handled by Apple, not by us.",
+    ],
+  },
+  {
     title: "Availability & changes",
     paragraphs: [
       "TriTrainer is provided “as is” and “as available”, without warranties of any kind to the extent the law allows. We work to keep it reliable, but we don't guarantee uninterrupted access, error-free operation, or that any particular feature will exist forever — features may change, improve, or be withdrawn.",

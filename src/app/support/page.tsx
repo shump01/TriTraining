@@ -97,7 +97,9 @@ const SECTIONS: {
   {
     title: "Is TriTrainer free?",
     paragraphs: [
-      "Yes — TriTrainer is free to use, and we never ask for payment or card details. If anything ever asks you to pay, it isn't us; don't enter any details and let us know.",
+      "Yes. Every feature works without paying — there's no subscription, no trial, no ads, and nothing is locked behind a purchase.",
+      "The one thing you can buy is optional: in the iOS app you can tip the developer the price of a caffeine gel. It unlocks nothing and the app is identical whether you do or don't. Apple handles the payment, so we never see or store your card details.",
+      "We will never ask you to type card details into TriTrainer, or email you asking for payment. If that happens, it isn't us — don't enter anything and let us know.",
     ],
   },
 ];
