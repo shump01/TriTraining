@@ -1,6 +1,23 @@
 import { z } from "zod";
 
 /**
+ * How far any client-supplied date may sit from today, in either direction
+ * (~5 years).
+ *
+ * This is a RESOURCE bound, not just a sanity one: a plan's week count is
+ * (eventDate − startDate) / 1 week, and every week becomes rows in memory and
+ * in the database. `z.coerce.date()` happily accepts a raw JSON number as
+ * epoch-ms, so without this an unbounded date turns one small POST into
+ * millions of weeks — gigabytes of allocation and an OOM'd worker, or a
+ * quieter variant that commits tens of thousands of target rows that every
+ * later read then has to load. It also keeps extreme-but-parseable dates from
+ * becoming Invalid Date after week alignment and 500ing inside Prisma.
+ * Bounded here so a violation is a clean 400; computeWeeklyTargets enforces
+ * its own MAX_PLAN_WEEKS as defence in depth.
+ */
+const MAX_PLAN_DATE_SPAN_MS = 5 * 365 * 24 * 60 * 60 * 1000;
+
+/**
  * Password policy: minimum 12 characters plus complexity (lower, upper, number,
  * symbol). Capped at 128 to bound hashing work.
  */
@@ -50,9 +67,23 @@ export const updateAccountSchema = z
     message: "Nothing to update",
   });
 
+/**
+ * A week identifier from a client. Bounded like the plan dates: an extreme but
+ * technically-parseable value (e.g. year 300000) survives `z.coerce.date()`,
+ * then becomes an Invalid Date once the server aligns it to a week start —
+ * slipping past range checks and 500ing inside Prisma. Bounded here, it's a
+ * clean 400 instead.
+ */
+const weekDateSchema = z.coerce
+  .date({ message: "Enter a valid date" })
+  .refine(
+    (d) => Math.abs(d.getTime() - Date.now()) <= MAX_PLAN_DATE_SPAN_MS,
+    "That week is outside the supported range",
+  );
+
 /** Replace one week of planned sessions — the week planner's single write. */
 export const plannerWeekSchema = z.object({
-  weekStartDate: z.coerce.date({ message: "Enter a valid date" }),
+  weekStartDate: weekDateSchema,
   sessions: z
     .array(
       z.object({
@@ -78,20 +109,6 @@ export const changePasswordSchema = z.object({
 const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 // PostgreSQL INTEGER upper bound — keep values in range to avoid overflow.
 const MAX_METERS = 2_000_000_000;
-
-/**
- * How far a plan date may sit from today, in either direction (~5 years).
- *
- * This is a RESOURCE bound, not just a sanity one: the plan's week count is
- * (eventDate − startDate) / 1 week, and every week becomes rows in memory and
- * in the database. `z.coerce.date()` happily accepts a raw JSON number as
- * epoch-ms, so without this an unbounded date turns one small POST into
- * millions of weeks — gigabytes of allocation and an OOM'd worker, or a
- * quieter variant that commits tens of thousands of target rows that every
- * later read then has to load. Bounded here so a violation is a clean 400;
- * computeWeeklyTargets enforces its own MAX_PLAN_WEEKS as defence in depth.
- */
-const MAX_PLAN_DATE_SPAN_MS = 5 * 365 * 24 * 60 * 60 * 1000;
 
 const metersSchema = z.coerce
   .number({ message: "Enter a number" })
@@ -199,7 +216,7 @@ export type CreatePlanInput = z.infer<typeof createPlanSchema>;
 /** A manually-entered actual for one (discipline, week). Distance is non-negative. */
 export const actualEntrySchema = z.object({
   discipline: z.enum(["SWIM", "BIKE", "RUN"]),
-  weekStartDate: z.coerce.date({ message: "Enter a valid date" }),
+  weekStartDate: weekDateSchema,
   actualMeters: z.coerce
     .number({ message: "Enter a number" })
     .int("Must be a whole number of meters")
@@ -212,7 +229,7 @@ export type ActualEntryInput = z.infer<typeof actualEntrySchema>;
 /** DELETE /api/plans/:id/actuals — clear a manual entry for one (discipline, week). */
 export const actualDeleteSchema = z.object({
   discipline: z.enum(["SWIM", "BIKE", "RUN"]),
-  weekStartDate: z.coerce.date({ message: "Enter a valid date" }),
+  weekStartDate: weekDateSchema,
 });
 
 export type ActualDeleteInput = z.infer<typeof actualDeleteSchema>;
@@ -227,7 +244,7 @@ const wellnessRating = z.coerce
   .max(5, "Must be 1–5");
 
 export const checkinSchema = z.object({
-  weekStartDate: z.coerce.date({ message: "Enter a valid date" }),
+  weekStartDate: weekDateSchema,
   fatigue: wellnessRating,
   sleep: wellnessRating,
   soreness: wellnessRating,
@@ -240,7 +257,7 @@ export type CheckinInput = z.infer<typeof checkinSchema>;
 
 /** Mark a week as time off. Mirrors the PauseReason enum in the schema. */
 export const pauseSchema = z.object({
-  weekStartDate: z.coerce.date({ message: "Enter a valid date" }),
+  weekStartDate: weekDateSchema,
   reason: z.enum(["ILLNESS", "INJURY", "TRAVEL", "OTHER"], { message: "Pick a reason" }),
   note: z.string().trim().max(500, "Note is too long").optional(),
 });
@@ -249,7 +266,7 @@ export type PauseInput = z.infer<typeof pauseSchema>;
 
 /** Un-pause a week. */
 export const clearPauseSchema = z.object({
-  weekStartDate: z.coerce.date({ message: "Enter a valid date" }),
+  weekStartDate: weekDateSchema,
 });
 
 /** Toggle a plan's public read-only share link. */

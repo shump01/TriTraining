@@ -60,7 +60,16 @@ describe("toPublicSeries", () => {
     expect(out[0]!.weeks[2]!.paused).toBe(false);
   });
 
-  it("leaves every other field untouched", () => {
+  it("strips the fields the public view never renders: sync source and manual overrides", () => {
+    // Which apps someone syncs from, and which weeks they corrected by hand,
+    // are nobody else's business — and the shared page shows neither.
+    const input = [series([week({ effectiveSource: "STRAVA", manualMeters: 12_000 })])];
+    const out = toPublicSeries(input);
+    expect(out[0]!.weeks[0]!.effectiveSource).toBeNull();
+    expect(out[0]!.weeks[0]!.manualMeters).toBeNull();
+  });
+
+  it("leaves the fields the public view DOES render untouched", () => {
     const input = [series([week({ target: 51_000, actual: 49_500, pctOfTarget: 97 })])];
     const out = toPublicSeries(input);
     const w = out[0]!.weeks[0]!;
@@ -68,9 +77,11 @@ describe("toPublicSeries", () => {
     expect(out[0]!.summary).toEqual(input[0]!.summary);
   });
 
-  it("does not mutate the input series (owner-facing data keeps its reasons)", () => {
-    const input = [series([week({ paused: true, pauseReason: "TRAVEL" })])];
+  it("does not mutate the input series (owner-facing data keeps everything)", () => {
+    const input = [series([week({ paused: true, pauseReason: "TRAVEL", manualMeters: 8_000 })])];
     toPublicSeries(input);
     expect(input[0]!.weeks[0]!.pauseReason).toBe("TRAVEL");
+    expect(input[0]!.weeks[0]!.manualMeters).toBe(8_000);
+    expect(input[0]!.weeks[0]!.effectiveSource).toBe("STRAVA");
   });
 });

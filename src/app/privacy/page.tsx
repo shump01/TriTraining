@@ -45,7 +45,7 @@ const SECTIONS: { title: string; paragraphs: string[] }[] = [
   {
     title: "Strava",
     paragraphs: [
-      "If you connect Strava, we store the OAuth tokens Strava issues (encrypted at rest) so we can read your activities on your behalf. From each activity we keep only what the plan needs: the sport, the distance, the week it belongs to, and — for training load — the moving time and average heart rate where Strava provides them.",
+      "If you connect Strava, we store the OAuth tokens Strava issues (encrypted at rest) so we can read your activities on your behalf. From each activity we keep only what the plan needs: the sport, the distance, the date it happened, the week it belongs to, and — for training load — the moving time, average heart rate, and Strava's own activity identifier (used so re-syncing can't count the same session twice), where Strava provides them.",
       "You can disconnect Strava at any time from the dashboard, which deletes the stored tokens and revokes TriTrainer's access on Strava's side. Deleting your account does the same automatically. Your use of Strava itself is governed by Strava's own terms and privacy policy.",
     ],
   },

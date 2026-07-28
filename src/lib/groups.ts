@@ -124,8 +124,13 @@ export interface MemberStat {
   userId: string;
   name: string;
   isOwner: boolean;
+  /**
+   * Whether the member has a plan in progress — deliberately a BOOLEAN, not the
+   * plan's name. The privacy policy tells members they see each other's screen
+   * name and weekly progress "and nothing else", and a race name ("Ironman
+   * Hamburg") is more than that.
+   */
   hasActivePlan: boolean;
-  activePlanName: string | null;
   disciplines: ReturnType<typeof buildMemberDisciplineStats>;
 }
 
@@ -190,7 +195,6 @@ export async function getGroupMemberStats(groupId: string): Promise<MemberStat[]
       name: displayNameFor(m.user),
       isOwner: m.userId === group.ownerId,
       hasActivePlan: Boolean(active),
-      activePlanName: active?.name ?? null,
       disciplines: active ? buildMemberDisciplineStats(active, now) : [],
     };
   });

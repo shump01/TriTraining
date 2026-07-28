@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { mapKnownApiError } from "@/lib/api";
 import { ingestHealthWorkouts } from "@/lib/health/ingest";
-import { enforceRateLimit, isCrossSiteRequest } from "@/lib/security";
+import { enforceBodyLimit, enforceRateLimit, isCrossSiteRequest } from "@/lib/security";
 import { requireUserId } from "@/lib/training-plan";
 import { healthIngestSchema } from "@/lib/validation";
 
@@ -22,6 +22,11 @@ export async function POST(req: NextRequest) {
   // Ingest rewrites many rows — keep it as modest as Strava sync.
   const limited = enforceRateLimit(req, "health:ingest", 10, 60_000);
   if (limited) return limited;
+
+  // The largest legitimate body in the app: up to 10,000 workouts (the schema
+  // cap) at ~150 bytes each. Checked BEFORE req.json() buffers the whole thing.
+  const tooBig = enforceBodyLimit(req, 4 * 1024 * 1024);
+  if (tooBig) return tooBig;
 
   let body: unknown;
   try {

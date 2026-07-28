@@ -47,10 +47,12 @@ export async function ingestHealthWorkouts(
     disciplines: new Set<string>(p.disciplines.map((d) => d.discipline)),
   }));
 
-  if (planRanges.length === 0) {
-    return { ok: true, workouts: workouts.length, weeksWritten: 0, loadWritten: 0 };
-  }
-
+  // NOTE: no early return when the athlete has no plans. Training load is
+  // whole-athlete, not plan-scoped, so bailing out here left previously
+  // ingested HR data stranded — deleting every plan could never clear it, and
+  // the /load page kept charting workouts from a plan that no longer exists.
+  // Only the plan-scoped weekly-actual write is skipped below (mirrors
+  // recomputeGarminDerivedRows).
   const rows = buildAppleHealthRows(planRanges, workouts);
   // Per-workout HR data → training load, reusing the exact builder the Strava
   // path uses (sport mapping, positive-value rules, local-day dating).
@@ -58,14 +60,16 @@ export async function ingestHealthWorkouts(
   const planIds = planRanges.map((r) => r.id);
 
   await prisma.$transaction(async (tx) => {
-    await tx.weeklyActual.deleteMany({
-      where: { planId: { in: planIds }, source: "APPLE_HEALTH" },
-    });
-    if (rows.length > 0) {
-      // skipDuplicates keeps concurrent ingests of the same batch from failing
-      // on the unique key: the loser's deleteMany snapshot predates the
-      // winner's commit, so its inserts would otherwise conflict.
-      await tx.weeklyActual.createMany({ data: rows, skipDuplicates: true });
+    if (planIds.length > 0) {
+      await tx.weeklyActual.deleteMany({
+        where: { planId: { in: planIds }, source: "APPLE_HEALTH" },
+      });
+      if (rows.length > 0) {
+        // skipDuplicates keeps concurrent ingests of the same batch from failing
+        // on the unique key: the loser's deleteMany snapshot predates the
+        // winner's commit, so its inserts would otherwise conflict.
+        await tx.weeklyActual.createMany({ data: rows, skipDuplicates: true });
+      }
     }
 
     // Same idempotent replace for training load — APPLE_HEALTH rows only, so

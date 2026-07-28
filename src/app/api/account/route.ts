@@ -2,9 +2,10 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { updateDigestEnabled, updateScreenName } from "@/lib/account";
 import { mapKnownApiError } from "@/lib/api";
+import { IDENTIFIER_PREFIX } from "@/lib/password-reset";
 import { prisma } from "@/lib/prisma";
 import { enforceRateLimit, isCrossSiteRequest } from "@/lib/security";
-import { SESSION_COOKIE_NAME } from "@/lib/session-cookie";
+import { SESSION_COOKIE_NAME, sessionCookieOptions } from "@/lib/session-cookie";
 import { disconnectStrava } from "@/lib/strava/connection";
 import { requireUserId } from "@/lib/training-plan";
 import { updateAccountSchema } from "@/lib/validation";
@@ -83,11 +84,34 @@ export async function DELETE(req: NextRequest) {
     // block the user's right to erasure, so any failure falls through to the
     // delete, which removes the stored tokens regardless.
     await disconnectStrava(userId).catch(() => {});
+
+    // Password-reset tokens live in the shared VerificationToken table, keyed
+    // by EMAIL rather than by a userId FK — so no cascade reaches them and
+    // they'd outlive the account, leaving the address behind after erasure.
+    // Read the email before the delete, then clear them.
+    const deleted = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true },
+    });
+
     await prisma.user.delete({ where: { id: userId } });
+
+    if (deleted?.email) {
+      await prisma.verificationToken
+        .deleteMany({ where: { identifier: `${IDENTIFIER_PREFIX}${deleted.email.toLowerCase()}` } })
+        .catch(() => {});
+    }
     // The session rows are gone with the user; clear the now-dead cookie too so
     // the web client lands cleanly on the public pages. No-op for bearer clients.
     const res = NextResponse.json({ ok: true }, { status: 200 });
-    res.cookies.delete(SESSION_COOKIE_NAME);
+    // Same form as the logout route: a bare delete() omits `secure`, and a
+    // browser rejects a `__Secure-`-prefixed cookie set without it — so in
+    // production the clear silently did nothing.
+    res.cookies.set(SESSION_COOKIE_NAME, "", {
+      ...sessionCookieOptions,
+      expires: new Date(0),
+      maxAge: 0,
+    });
     return res;
   } catch (error) {
     return mapKnownApiError(error, { route: "DELETE /api/account" });

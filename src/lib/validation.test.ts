@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createPlanSchema } from "./validation";
+import { actualEntrySchema, createPlanSchema } from "./validation";
 
 /**
  * Date bounds on plan creation are a RESOURCE control, not just input hygiene:
@@ -62,5 +62,30 @@ describe("createPlanSchema — date bounds", () => {
       createPlanSchema.safeParse(plan({ eventDate: new Date(Date.now() + 2 * DAY).toISOString() }))
         .success,
     ).toBe(false);
+  });
+});
+
+describe("weekStartDate bounds", () => {
+  const entry = (weekStartDate: unknown) => ({
+    discipline: "RUN" as const,
+    weekStartDate,
+    actualMeters: 10_000,
+  });
+
+  it("accepts a normal week", () => {
+    expect(actualEntrySchema.safeParse(entry("2026-07-20")).success).toBe(true);
+  });
+
+  it("rejects an extreme-but-parseable week that would become an Invalid Date", () => {
+    // Survives z.coerce.date(), then goes Invalid once aligned to a week start
+    // server-side — slipping past range checks and 500ing inside Prisma.
+    const result = actualEntrySchema.safeParse(entry(8_640_000_000_000_000));
+    expect(result.success).toBe(false);
+    expect(JSON.stringify(result.error?.issues)).toMatch(/outside the supported range/);
+  });
+
+  it("rejects a week far outside the plan window in either direction", () => {
+    expect(actualEntrySchema.safeParse(entry("1500-01-01")).success).toBe(false);
+    expect(actualEntrySchema.safeParse(entry("2200-01-01")).success).toBe(false);
   });
 });

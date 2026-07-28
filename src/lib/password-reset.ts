@@ -17,7 +17,12 @@ import { prisma } from "@/lib/prisma";
  * - A successful reset revokes ALL of the user's sessions.
  */
 
-const IDENTIFIER_PREFIX = "pwreset:";
+/**
+ * Namespaces reset tokens inside the shared Auth.js `VerificationToken` table.
+ * Exported so other flows can invalidate a user's outstanding reset links —
+ * see changePassword (src/lib/account.ts) and account deletion.
+ */
+export const IDENTIFIER_PREFIX = "pwreset:";
 const TOKEN_TTL_MS = 60 * 60 * 1000; // 60 minutes
 
 function sha256hex(value: string): string {

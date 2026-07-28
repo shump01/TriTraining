@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { hashPassword, verifyPassword } from "@/lib/password";
+import { IDENTIFIER_PREFIX } from "@/lib/password-reset";
 
 /**
  * User-account self-service: screen name, password change. Deletion lives in
@@ -52,7 +53,7 @@ export async function changePassword(
 ): Promise<void> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { passwordHash: true },
+    select: { passwordHash: true, email: true },
   });
 
   const ok = user?.passwordHash ? await verifyPassword(user.passwordHash, currentPassword) : false;
@@ -64,5 +65,13 @@ export async function changePassword(
     await tx.session.deleteMany({
       where: keepSessionToken ? { userId, sessionToken: { not: keepSessionToken } } : { userId },
     });
+    // Any reset link already in the athlete's inbox is now stale. Someone who
+    // obtained one before the change (old mailbox, forwarded mail) must not be
+    // able to walk it in afterwards and take the account straight back.
+    if (user?.email) {
+      await tx.verificationToken.deleteMany({
+        where: { identifier: `${IDENTIFIER_PREFIX}${user.email.toLowerCase()}` },
+      });
+    }
   });
 }

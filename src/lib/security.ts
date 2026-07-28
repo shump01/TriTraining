@@ -84,3 +84,30 @@ export function enforceRateLimit(
     { status: 429, headers: { "Retry-After": String(result.retryAfterSeconds) } },
   );
 }
+
+/** Default request-body ceiling: generous for JSON, far below a memory risk. */
+export const DEFAULT_MAX_BODY_BYTES = 64 * 1024;
+
+/**
+ * Reject an over-large request body BEFORE `req.json()` buffers it.
+ *
+ * Routes parse JSON with `await req.json()`, which reads the whole body into
+ * memory first; zod's per-field caps only apply after that. Content-Length is
+ * advisory (a chunked request omits it), so this is a cheap first gate rather
+ * than a hard guarantee — the real ceiling belongs at the reverse proxy
+ * (`client_max_body_size`), which DEPLOY.md documents.
+ *
+ * Usage, alongside the other guards at the top of a handler:
+ *   const tooBig = enforceBodyLimit(req, HEALTH_INGEST_MAX_BODY_BYTES);
+ *   if (tooBig) return tooBig;
+ */
+export function enforceBodyLimit(
+  req: NextRequest,
+  maxBytes: number = DEFAULT_MAX_BODY_BYTES,
+): NextResponse | null {
+  const header = req.headers.get("content-length");
+  if (!header) return null;
+  const length = Number(header);
+  if (!Number.isFinite(length) || length <= maxBytes) return null;
+  return NextResponse.json({ error: "Request body is too large." }, { status: 413 });
+}

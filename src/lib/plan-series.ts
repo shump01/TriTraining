@@ -56,14 +56,23 @@ export interface SeriesData {
  * `pauseReason` (illness / injury / travel) is special-category health data:
  * the owner shares "my training progress", not "I was injured in week 8". The
  * shared view renders only the `paused` boolean (heatmap, readiness, the muted
- * week styling), never the reason, so the reason is nulled out before the
- * series is serialized into the client props. Keep every public reader routed
- * through this so a new one can't reintroduce the leak.
+ * week styling), never the reason.
+ *
+ * `effectiveSource` and `manualMeters` go too: the shared page never renders
+ * them, and which apps someone syncs from — and which weeks they corrected by
+ * hand — is nobody else's business. Strip everything the public view doesn't
+ * use rather than only what looks sensitive today, and keep every public
+ * reader routed through here so a new one can't reintroduce a leak.
  */
 export function toPublicSeries(series: SeriesData[]): SeriesData[] {
   return series.map((s) => ({
     ...s,
-    weeks: s.weeks.map((w) => (w.pauseReason == null ? w : { ...w, pauseReason: null })),
+    weeks: s.weeks.map((w) => ({
+      ...w,
+      pauseReason: null,
+      effectiveSource: null,
+      manualMeters: null,
+    })),
   }));
 }
 
