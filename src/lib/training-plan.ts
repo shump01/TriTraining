@@ -7,6 +7,7 @@ import { ActualSource, Discipline, type PauseReason } from "@/generated/prisma/c
 import { effectiveActualKey, resolveEffectiveActuals } from "@/lib/actuals";
 import { checkinReadinessFactor } from "@/lib/checkin";
 import { getUserFormTsb } from "@/lib/load-data";
+import { logger } from "@/lib/logger";
 import { buildPlanProgressInputs } from "@/lib/plan-progress";
 import { prisma } from "@/lib/prisma";
 import { computeProgress, type ProgressSummary } from "@/lib/progress";
@@ -19,6 +20,7 @@ import {
   computeWeeklyTargets,
   planStartWeek,
   startOfWeek,
+  type AdaptedTargetRow,
   type AdaptiveDisciplineInput,
 } from "@/lib/weekly-targets";
 
@@ -645,7 +647,9 @@ export async function maybeRecalculatePlanForUser(
       capMultiple: true,
       taperWeeks: true,
       lastRecalcWeek: true,
-      disciplines: { select: { discipline: true, eventDistanceMeters: true } },
+      disciplines: {
+        select: { discipline: true, eventDistanceMeters: true, startingWeeklyMeters: true },
+      },
       weeklyTargets: { select: { discipline: true, weekStartDate: true, targetMeters: true } },
       weeklyActuals: {
         select: { discipline: true, weekStartDate: true, actualMeters: true, source: true },
@@ -707,11 +711,45 @@ export async function maybeRecalculatePlanForUser(
 
   const disciplines: AdaptiveDisciplineInput[] = plan.disciplines.map((d) => {
     const key = effectiveActualKey(d.discipline, baselineWeekStart);
+
+    // The floor's reference: what the ORIGINAL curve — regenerated from the
+    // plan's stored creation parameters — intended for the baseline week. The
+    // stored WeeklyTarget row can't serve here: it is the output of previous
+    // re-ramps, i.e. the very decay the floor guards against. Regenerating is
+    // exactly what plan creation/edit does, so the parameters are known-valid;
+    // the try/catch is a belt for legacy rows that would fail today's guards,
+    // where a missing floor (old behaviour) beats a plan that stops adapting.
+    let originalBaselineTarget: number | null = null;
+    try {
+      const original = computeWeeklyTargets({
+        startDate: planStart,
+        eventDate: plan.eventDate,
+        startingWeeklyMeters: d.startingWeeklyMeters,
+        eventDistanceMeters: d.eventDistanceMeters,
+        capMultiple: plan.capMultiple,
+        taperWeeks: plan.taperWeeks,
+      });
+      originalBaselineTarget =
+        original.find((t) => t.weekStartDate.getTime() === baselineWeekStart.getTime())
+          ?.targetMeters ?? null;
+    } catch (error) {
+      // Only reachable for legacy plans whose span predates MAX_PLAN_WEEKS —
+      // and those long, gentle-rate plans are precisely the ones the decay
+      // hits hardest, so a silently absent floor must at least be observable.
+      logger.warn("Re-ramp floor disabled: original-curve recompute failed", {
+        planId: plan.id,
+        discipline: d.discipline,
+        error,
+      });
+      originalBaselineTarget = null;
+    }
+
     return {
       discipline: d.discipline,
       eventDistanceMeters: d.eventDistanceMeters,
       lastCompletedActual: effective.get(key)?.meters ?? null,
       lastCompletedTarget: targetByKey.get(key) ?? 0,
+      originalBaselineTarget,
     };
   });
 
@@ -733,16 +771,32 @@ export async function maybeRecalculatePlanForUser(
   const formTsb = await getUserFormTsb(userId);
   const readinessFactor = checkinFactor * (formTsb != null ? formLoadFactor(formTsb) : 1);
 
-  const newRows = computeAdaptedFutureTargets({
-    disciplines,
-    lastCompletedWeekStart: baselineWeekStart,
-    currentWeekStart,
-    eventDate: plan.eventDate,
-    capMultiple: plan.capMultiple,
-    taperWeeks: plan.taperWeeks,
-    readinessFactor,
-    pausedWeeks,
-  });
+  // Degrade, don't die: for a legacy plan whose REMAINING span still exceeds
+  // MAX_PLAN_WEEKS the regeneration itself throws, and before this guard that
+  // RangeError escaped to the page as a 500 on every view — worse, it kept
+  // lastRecalcWeek from advancing, so the failure repeated forever. Such a
+  // plan can't be re-ramped this week; leave its stored targets standing (the
+  // transaction below still runs, still stamps lastRecalcWeek) and it starts
+  // adapting on its own once the horizon shrinks inside the bound. No plan
+  // like this can be created any more (createPlanSchema now bounds the span).
+  let newRows: AdaptedTargetRow[] = [];
+  try {
+    newRows = computeAdaptedFutureTargets({
+      disciplines,
+      lastCompletedWeekStart: baselineWeekStart,
+      currentWeekStart,
+      eventDate: plan.eventDate,
+      capMultiple: plan.capMultiple,
+      taperWeeks: plan.taperWeeks,
+      readinessFactor,
+      pausedWeeks,
+    });
+  } catch (error) {
+    logger.warn("Weekly roll-forward skipped: adaptive regeneration failed", {
+      planId: plan.id,
+      error,
+    });
+  }
 
   // Only replace future targets for disciplines that produced a fresh ramp.
   const touched = [...new Set(newRows.map((r) => r.discipline as Discipline))];

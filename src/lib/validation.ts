@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { MAX_PLAN_WEEKS, startOfWeek } from "@/lib/weekly-targets";
+
 /**
  * How far any client-supplied date may sit from today, in either direction
  * (~5 years).
@@ -204,7 +206,29 @@ export const createPlanSchema = z
   .refine((v) => !v.startDate || v.startDate.getTime() < v.eventDate.getTime(), {
     path: ["startDate"],
     message: "Start date must be before the event date",
-  });
+  })
+  // The per-field bounds above allow a start 5 years back AND an event 5 years
+  // out, so the combined span can exceed what the progression engine accepts
+  // (MAX_PLAN_WEEKS throws) — this is the cross-field check that turns that
+  // into a clean 400 instead of a 500. Counted the way the engine counts:
+  // whole weeks from the aligned week-1 start to the event's week, inclusive.
+  .refine(
+    (v) => {
+      if (!v.startDate) return true; // defaults to the current week — bounded
+      const aligned = startOfWeek(v.startDate, v.weekStartDay);
+      const eventMs = Date.UTC(
+        v.eventDate.getUTCFullYear(),
+        v.eventDate.getUTCMonth(),
+        v.eventDate.getUTCDate(),
+      );
+      const weeks = Math.floor((eventMs - aligned.getTime()) / ONE_WEEK_MS) + 1;
+      return weeks <= MAX_PLAN_WEEKS;
+    },
+    {
+      path: ["eventDate"],
+      message: `A plan can span at most ${MAX_PLAN_WEEKS} weeks — bring the start and event dates closer together`,
+    },
+  );
 
 export type CreatePlanInput = z.infer<typeof createPlanSchema>;
 

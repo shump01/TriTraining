@@ -25,7 +25,7 @@ const FEATURES = [
   },
   {
     title: "Adaptive targets",
-    body: "Each week the plan rolls forward from what you actually did — a strong week nudges the rest up, a light or fatigued one eases it back, always within safe limits.",
+    body: "Each week the plan rolls forward from what you actually did — a strong week nudges the rest up, a light one eases it back toward your plan's baseline, and a fatigued or ill one eases it further. Always within safe limits.",
   },
   {
     title: "Race-week taper",

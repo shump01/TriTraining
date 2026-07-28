@@ -63,6 +63,31 @@ describe("createPlanSchema — date bounds", () => {
         .success,
     ).toBe(false);
   });
+
+  it("rejects a COMBINED span over MAX_PLAN_WEEKS even when each date is in bounds", () => {
+    // 4 years back + 4 years out: both dates pass their own ±5-year checks,
+    // but the ~417-week span would make the progression engine throw — which
+    // surfaced as a 500 before this cross-field check made it a clean 400.
+    const result = createPlanSchema.safeParse(
+      plan({
+        startDate: new Date(Date.now() - 4 * 365 * DAY).toISOString(),
+        eventDate: new Date(Date.now() + 4 * 365 * DAY).toISOString(),
+      }),
+    );
+    expect(result.success).toBe(false);
+    expect(JSON.stringify(result.error?.issues)).toMatch(/at most 300 weeks/);
+  });
+
+  it("accepts a span just under MAX_PLAN_WEEKS", () => {
+    // ~295 weeks: long, but the engine accepts it and so must validation.
+    const result = createPlanSchema.safeParse(
+      plan({
+        startDate: new Date(Date.now() - 2 * 365 * DAY).toISOString(),
+        eventDate: new Date(Date.now() + (295 - 2 * 52) * 7 * DAY).toISOString(),
+      }),
+    );
+    expect(result.success).toBe(true);
+  });
 });
 
 describe("weekStartDate bounds", () => {

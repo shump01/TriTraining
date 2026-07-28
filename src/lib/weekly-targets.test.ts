@@ -865,3 +865,224 @@ describe("computeAdaptedFutureTargets — returning from paused weeks", () => {
     expect(rows).toEqual([]);
   });
 });
+
+describe("computeAdaptedFutureTargets — the compliance floor", () => {
+  const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+  // The scenario the floor exists for: an 18-week 70.3 bike leg — 40 km/wk
+  // start, 90 km event, 1.5 cap, 2-week taper. Peak build week is index 15.
+  const planInput = {
+    startDate: MONDAY,
+    eventDate: new Date(mondayPlusWeeks(17).getTime() + 5 * 24 * 60 * 60 * 1000),
+    startingWeeklyMeters: 40_000,
+    eventDistanceMeters: 90_000,
+    capMultiple: 1.5,
+    taperWeeks: 2,
+  };
+
+  /**
+   * Live the plan week by week at a fixed compliance level, mirroring the real
+   * weekly roll-forward: complete week i at `compliance × its current target`,
+   * re-ramp, adopt the regenerated targets, repeat. Returns the final target
+   * track, indexed by plan week.
+   */
+  function livePlan(compliance: number, withFloor: boolean): number[] {
+    const originals = computeWeeklyTargets(planInput).map((t) => t.targetMeters);
+    const track = [...originals];
+    for (let i = 0; i < originals.length; i++) {
+      const rows = computeAdaptedFutureTargets({
+        disciplines: [
+          {
+            discipline: "BIKE",
+            eventDistanceMeters: planInput.eventDistanceMeters,
+            lastCompletedActual: Math.floor(track[i]! * compliance),
+            lastCompletedTarget: track[i]!,
+            originalBaselineTarget: withFloor ? originals[i]! : null,
+          },
+        ],
+        lastCompletedWeekStart: mondayPlusWeeks(i),
+        currentWeekStart: mondayPlusWeeks(i + 1),
+        eventDate: planInput.eventDate,
+        capMultiple: planInput.capMultiple,
+        taperWeeks: planInput.taperWeeks,
+      });
+      if (rows.length === 0) break; // inside the taper — the ramp is over
+      for (const r of rows) {
+        const week = Math.round((r.weekStartDate.getTime() - MONDAY.getTime()) / WEEK_MS);
+        track[week] = r.targetMeters;
+      }
+    }
+    return track;
+  }
+
+  it("without the floor, steady 75% compliance decays the plan toward zero (the defect)", () => {
+    const originals = computeWeeklyTargets(planInput).map((t) => t.targetMeters);
+    const peakWeek = originals.length - 1 - 2; // last build week before the taper
+    const decayed = livePlan(0.75, false);
+    // The athlete reaches the peak week of a 90 km-leg plan being asked for
+    // under 10 km. This assertion pins the failure mode the floor removes —
+    // if it ever fails, the engine changed underneath the floor's rationale.
+    expect(decayed[peakWeek]!).toBeLessThan(10_000);
+  });
+
+  it("with the floor, the same athlete's plan holds near the original curve", () => {
+    const originals = computeWeeklyTargets(planInput).map((t) => t.targetMeters);
+    const peakWeek = originals.length - 1 - 2;
+    const floored = livePlan(0.75, true);
+    // The ask tracks ~85% of the original intent instead of collapsing.
+    expect(floored[peakWeek]!).toBeGreaterThanOrEqual(0.8 * originals[peakWeek]!);
+    // And the floor is not a ratchet-up: the ask never exceeds the cap.
+    for (const v of floored) expect(v).toBeLessThanOrEqual(1.5 * planInput.eventDistanceMeters);
+  });
+
+  it("a 90%-compliance athlete no longer flattens while reading 'on track'", () => {
+    // 90% sits exactly at BEHIND_RATIO: the UI never says behind, and before
+    // the floor the plan silently stopped progressing. Now it keeps building.
+    const originals = computeWeeklyTargets(planInput).map((t) => t.targetMeters);
+    const peakWeek = originals.length - 1 - 2;
+    const floored = livePlan(0.9, true);
+    expect(floored[peakWeek]!).toBeGreaterThanOrEqual(0.8 * originals[peakWeek]!);
+  });
+
+  const common = {
+    lastCompletedWeekStart: mondayPlusWeeks(2),
+    currentWeekStart: mondayPlusWeeks(3),
+    eventDate: mondayPlusWeeks(20),
+    capMultiple: 1.5,
+  };
+  const disc = (overrides: Record<string, unknown>) => [
+    {
+      discipline: "RUN",
+      eventDistanceMeters: 100_000,
+      lastCompletedActual: 6_000,
+      lastCompletedTarget: 10_000,
+      originalBaselineTarget: 10_000, // floor = 8,500
+      ...overrides,
+    },
+  ];
+
+  it("is inactive while the actual stays at or above the floor", () => {
+    // 9,500 ≥ 8,500: actual-driven adaptation is untouched — byte-identical
+    // output with and without the floor reference.
+    const withFloor = computeAdaptedFutureTargets({
+      ...common,
+      disciplines: disc({ lastCompletedActual: 9_500 }),
+    });
+    const without = computeAdaptedFutureTargets({
+      ...common,
+      disciplines: disc({ lastCompletedActual: 9_500, originalBaselineTarget: null }),
+    });
+    expect(withFloor).toEqual(without);
+  });
+
+  it("clamps an under-floor actual up to the floor", () => {
+    const rows = computeAdaptedFutureTargets({ ...common, disciplines: disc({}) });
+    // Ramped from 8,500 (the floor), not from the 6,000 actual.
+    expect(rows[0]!.targetMeters).toBeGreaterThan(8_500);
+    const unfloored = computeAdaptedFutureTargets({
+      ...common,
+      disciplines: disc({ originalBaselineTarget: null }),
+    });
+    expect(unfloored[0]!.targetMeters).toBeLessThan(rows[0]!.targetMeters);
+  });
+
+  it("readiness easing still applies BELOW the floor (deliberate reductions win)", () => {
+    const eased = computeAdaptedFutureTargets({
+      ...common,
+      readinessFactor: 0.8,
+      disciplines: disc({}),
+    });
+    // 8,500 floored anchor × 0.8 ease = 6,800 baseline; the first regenerated
+    // week (one growth step up, ≤ 12%) still sits under the 8,500 floor.
+    expect(eased[0]!.targetMeters).toBeLessThan(8_500);
+    expect(eased[0]!.targetMeters).toBeGreaterThanOrEqual(6_800);
+  });
+
+  it("the post-layoff detraining haircut also still applies below the floor", () => {
+    const rows = computeAdaptedFutureTargets({
+      ...common,
+      lastCompletedWeekStart: mondayPlusWeeks(1),
+      pausedWeeks: 2, // returnFactor 0.8
+      disciplines: disc({}),
+    });
+    // Return path: the ramp restarts AT the current week with the detrained
+    // baseline itself — 8,500 × 0.8 = 6,800, under the floor as intended.
+    expect(rows[0]!.weekStartDate.getTime()).toBe(common.currentWeekStart.getTime());
+    expect(rows[0]!.targetMeters).toBe(6_800);
+  });
+
+  it("heals an already-decayed plan GRADUALLY: decay stops, the ask climbs one ramp step", () => {
+    // A plan the old behaviour ground down to a 2,920 ask while the original
+    // curve intended ~99,000, and an athlete still doing 75% of the decayed
+    // ask. Unfloored, the decay continues (re-anchor on 2,190). Floored, the
+    // anchor is held at the last prescription — but NOT snapped to the
+    // original curve: an athlete demonstrably riding ~2 km cannot be handed a
+    // 84 km week. The heal is one growth step per roll-forward, forever
+    // upward, until the floor band is reached.
+    const decayedDisc = (originalBaselineTarget: number | null) =>
+      disc({
+        lastCompletedActual: 2_190,
+        lastCompletedTarget: 2_920,
+        originalBaselineTarget,
+        eventDistanceMeters: 90_000,
+      });
+    const floored = computeAdaptedFutureTargets({ ...common, disciplines: decayedDisc(99_000) });
+    const unfloored = computeAdaptedFutureTargets({ ...common, disciplines: decayedDisc(null) });
+    // Unfloored: still decaying (2,190 × 1.12 = 2,452 < the 2,920 ask).
+    expect(unfloored[0]!.targetMeters).toBeLessThan(2_920);
+    // Floored: climbing, but by at most one ramp step over the last ask.
+    expect(floored[0]!.targetMeters).toBeGreaterThan(2_920);
+    expect(floored[0]!.targetMeters).toBeLessThanOrEqual(Math.floor(2_920 * 1.12));
+  });
+
+  it("never snaps back after a complied-with eased week (two-roll regression)", () => {
+    // THE bug the first floor draft shipped: a comeback/eased week's ask is
+    // deliberately below the floor; the athlete complies exactly; on the NEXT
+    // roll their actual is below the floor and a naive clamp would erase the
+    // whole ease — a +90% to 3× jump one week out of illness. The floor must
+    // hold at the engine's own last prescription instead: the week after a
+    // fully-complied eased week climbs by at most one ramp step.
+    const easedAsk = 6_800; // e.g. 8,500 floored anchor × 0.8 readiness ease
+    const rows = computeAdaptedFutureTargets({
+      ...common,
+      disciplines: disc({
+        lastCompletedActual: easedAsk, // complied exactly
+        lastCompletedTarget: easedAsk, // the engine's own eased prescription
+        originalBaselineTarget: 10_000, // un-eased original: floor 8,500 > ask
+      }),
+    });
+    expect(rows[0]!.targetMeters).toBeGreaterThan(easedAsk);
+    expect(rows[0]!.targetMeters).toBeLessThanOrEqual(Math.floor(easedAsk * 1.12));
+  });
+
+  it("full comeback sequence: layoff, reduced return, then a normal ramp — no spike", () => {
+    // Roll 1: return from 2 paused weeks — the ask restarts at the detrained
+    // baseline (verified in the return-path test above: 6,800). Roll 2: the
+    // athlete trains exactly that. The next ask must be a normal ramp step,
+    // not a snap to the original curve's 10,000-based floor.
+    const roll2 = computeAdaptedFutureTargets({
+      ...common,
+      disciplines: disc({
+        lastCompletedActual: 6_800,
+        lastCompletedTarget: 6_800,
+        originalBaselineTarget: 10_000,
+      }),
+    });
+    const step = roll2[0]!.targetMeters / 6_800;
+    expect(step).toBeGreaterThan(1);
+    expect(step).toBeLessThanOrEqual(1.12);
+  });
+
+  it("never clamps DOWN: an over-performing actual above the floor drives the ramp unchanged", () => {
+    const over = computeAdaptedFutureTargets({
+      ...common,
+      disciplines: disc({ lastCompletedActual: 15_000 }),
+    });
+    const control = computeAdaptedFutureTargets({
+      ...common,
+      disciplines: disc({ lastCompletedActual: 15_000, originalBaselineTarget: null }),
+    });
+    expect(over).toEqual(control);
+    expect(over[0]!.targetMeters).toBeGreaterThan(15_000);
+  });
+});

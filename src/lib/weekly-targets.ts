@@ -294,6 +294,28 @@ export function returnToTrainingFactor(weeksOff: number): number {
   return Math.max(MIN_RETURN_FACTOR, 1 - DETRAIN_PER_WEEK * Math.floor(weeksOff));
 }
 
+/**
+ * Floor on the compliance-driven baseline, as a fraction of what the plan's
+ * ORIGINAL curve intended for the baseline week.
+ *
+ * Why it exists: the re-ramp re-anchors every week on the last completed
+ * actual, so with no floor next week's ask is roughly
+ * `compliance × target × (1 + growthRate)`. Break-even compliance is
+ * `1 / (1 + growthRate)` — about 89% at the 12% cap and HIGHER on longer
+ * plans, which deliberately pick gentler rates. Anyone under that decays
+ * geometrically: a steady 75% athlete on an 18-week 70.3 plan arrives at race
+ * week being asked for ~3 km of a 90 km bike leg. Worse, BEHIND_RATIO is 0.90,
+ * so an athlete at 90–92% watches an "on track" pill all season while the plan
+ * silently flattens.
+ *
+ * Why 0.85: it must sit below BEHIND_RATIO (0.90) so the "behind" signal still
+ * has a band in which the plan visibly adapts down, and above ~0.75, where the
+ * ask would drift so far from the original intent that "the plan" stops
+ * meaning anything. Between the floor and the cap, actuals still steer the
+ * ramp both ways — the floor only stops the compounding.
+ */
+export const RERAMP_FLOOR_FRACTION = 0.85;
+
 /** One discipline's inputs for the adaptive re-ramp. */
 export interface AdaptiveDisciplineInput {
   discipline: string;
@@ -302,6 +324,15 @@ export interface AdaptiveDisciplineInput {
   lastCompletedActual: number | null;
   /** The current stored target for the baseline week — the no-signal fallback. */
   lastCompletedTarget: number;
+  /**
+   * What the plan's ORIGINAL curve — recomputed from the plan's stored creation
+   * parameters (startingWeeklyMeters, dates, cap, taper) — intended for the
+   * baseline week. This is the floor's reference. It must be RECOMPUTED, never
+   * read from stored WeeklyTarget rows: the stored row for that week is the
+   * output of previous re-ramps, i.e. exactly the decayed value the floor
+   * exists to catch. Null/absent disables the floor (legacy callers, tests).
+   */
+  originalBaselineTarget?: number | null;
 }
 
 /** A regenerated future target row (discipline kept as a string — this module is pure). */
@@ -320,6 +351,19 @@ export interface AdaptedTargetRow {
  * - Baseline = the baseline week's effective actual. **Adapt both ways**:
  *   a higher actual ramps future weeks up (still capped), a lower one ramps them
  *   down.
+ * - **Floored against the original plan**: the compliance anchor never drops
+ *   below `RERAMP_FLOOR_FRACTION ×` what the original curve intended for the
+ *   baseline week (when the caller supplies `originalBaselineTarget`), so
+ *   sustained under-compliance adapts the plan down to the floor and no
+ *   further, instead of compounding toward zero. The floor is rate-limited to
+ *   the baseline week's own stored target, so it recovers a below-floor plan
+ *   at the ramp's normal pace rather than in one jump; deliberate easing
+ *   (readiness, post-layoff return) applies after the floor and can still go
+ *   below it. Note one deliberate wrinkle: the re-rammed weeks slide out of
+ *   phase with the original curve's de-load sawtooth, so a floored ask can
+ *   exceed the original's own DE-LOAD week by a few percent (bounded, non-
+ *   compounding) — de-load fidelity under the sliding anchor is a separate,
+ *   open product decision.
  * - **No-signal fallback**: if that week's actual is missing or 0 (a fully
  *   skipped week), the baseline falls back to that week's existing target, so a
  *   blank week doesn't collapse the rest of the plan to zero.
@@ -396,14 +440,38 @@ export function computeAdaptedFutureTargets(args: {
 
   for (const d of args.disciplines) {
     // Real, non-zero actual drives the ramp; otherwise treat the week as no
-    // signal and re-ramp from its original target instead of from zero. A
-    // fatigued check-in scales the baseline down so the plan eases off, and a
-    // layoff detrains it further.
+    // signal and re-ramp from its original target instead of from zero.
     const raw =
       d.lastCompletedActual && d.lastCompletedActual > 0
         ? d.lastCompletedActual
         : d.lastCompletedTarget;
-    const baseline = raw * readinessFactor * returnFactor;
+
+    // The floor clamps the COMPLIANCE anchor only, before the easing factors.
+    // Order matters: readinessFactor (fatigue / deep-negative TSB) and
+    // returnFactor (post-layoff detraining) are deliberate physiological
+    // reductions and must still take the baseline below the floor — an ill
+    // athlete's ease must not be cancelled by it. What the floor stops is
+    // under-COMPLIANCE compounding week over week (see RERAMP_FLOOR_FRACTION).
+    const floor =
+      d.originalBaselineTarget != null && d.originalBaselineTarget > 0
+        ? RERAMP_FLOOR_FRACTION * d.originalBaselineTarget
+        : 0;
+
+    // RATE-LIMITED: the floor may HOLD the anchor at what the engine itself
+    // last prescribed for the baseline week, never lift it above. Without this
+    // bound the floor cannot tell "trained little out of under-compliance"
+    // from "trained little because the engine deliberately asked for little",
+    // and one roll-forward after a detrained comeback week (or an eased,
+    // fatigued week) it would snap the ask back to the un-eased original curve
+    // — +90% to 3× week-over-week for a fully compliant athlete one week out
+    // of illness, exactly the overload pattern the 12% ramp cap exists to
+    // prevent. Bounded this way, every floor-driven recovery — including the
+    // heal of a plan whose targets decayed under the pre-floor behaviour —
+    // climbs at the ramp's own pace (one growth step per week) instead of in
+    // one jump. A missing stored target (0) disables the floor rather than
+    // inventing a reference.
+    const effectiveFloor = Math.min(floor, d.lastCompletedTarget);
+    const baseline = Math.max(raw, effectiveFloor) * readinessFactor * returnFactor;
     if (!(baseline > 0)) continue;
 
     const targets = computeWeeklyTargets({
