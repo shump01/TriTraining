@@ -12,6 +12,13 @@ const DISCIPLINE_ORDER: DisciplineKey[] = ["SWIM", "BIKE", "RUN"];
 interface PlanForProgress {
   weeklyTargets: { discipline: string; weekStartDate: Date; targetMeters: number }[];
   weeklyActuals: ActualRow[];
+  /**
+   * Weeks marked as time off. Deliberately REQUIRED, same doctrine as
+   * PlanForSeries: when this was optional on the series shape, the share-link
+   * reader quietly forgot to load it and a public link contradicted the
+   * owner's page. Every reader answers the question, even if with `[]`.
+   */
+  weeklyPauses: { weekStartDate: Date }[];
 }
 
 export interface PlanProgressInputs {
@@ -41,6 +48,10 @@ export function buildPlanProgressInputs(plan: PlanForProgress): PlanProgressInpu
     (a, b) => a - b,
   );
 
+  // Pauses are per-plan (whole week off), so every discipline's series and the
+  // combined total mark the same weeks.
+  const pausedMs = new Set(plan.weeklyPauses.map((p) => p.weekStartDate.getTime()));
+
   const effectiveMeters = (discipline: string, ms: number): number | null => {
     const eff = effective.get(key(discipline, ms));
     return eff ? eff.meters : null;
@@ -52,6 +63,7 @@ export function buildPlanProgressInputs(plan: PlanForProgress): PlanProgressInpu
       weekStartDate: new Date(ms),
       target: targetByKey.get(key(d, ms)) ?? 0,
       actual: effectiveMeters(d, ms),
+      paused: pausedMs.has(ms),
     }));
   }
 
@@ -67,7 +79,12 @@ export function buildPlanProgressInputs(plan: PlanForProgress): PlanProgressInpu
         anyActual = true;
       }
     }
-    return { weekStartDate: new Date(ms), target, actual: anyActual ? actualSum : null };
+    return {
+      weekStartDate: new Date(ms),
+      target,
+      actual: anyActual ? actualSum : null,
+      paused: pausedMs.has(ms),
+    };
   });
 
   return { weekMsList, disciplines, byDiscipline, total };

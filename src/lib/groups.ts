@@ -170,6 +170,11 @@ export async function getGroupMemberStats(groupId: string): Promise<MemberStat[]
               weeklyActuals: {
                 select: { discipline: true, weekStartDate: true, actualMeters: true, source: true },
               },
+              // Only the DATE — never the reason, which is health data. Feeds
+              // the progress engine's paused flag; the shared per-week % is
+              // unchanged by it today, but the shape contract requires every
+              // reader to answer the pause question explicitly.
+              weeklyPauses: { select: { weekStartDate: true } },
             },
           },
         },

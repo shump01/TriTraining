@@ -13,6 +13,8 @@ export interface WeekDatum {
   weekStartMs: number;
   target: number;
   actual: number | null;
+  /** Week marked as time off — excluded from the trend fit (see fitPoints). */
+  paused?: boolean;
 }
 
 const FONT_MONO = "var(--font-jetbrains)";
@@ -62,11 +64,14 @@ export function VolumeChart({
 
   // Trend line: least-squares fit over COMPLETED weeks' actuals (the in-progress
   // current week is partial, so it's excluded to avoid biasing the slope), then
-  // projected across the remaining weeks to race day.
+  // projected across the remaining weeks to race day. Paused weeks are excluded
+  // too, matching readiness (readiness.ts does the same) — otherwise two ill
+  // weeks fit as zeros and the dashed line sags under a plan the readiness
+  // panel on the same screen calls on track.
   const fitPoints: { x: number; y: number }[] = [];
   rows.forEach((r, i) => {
     const completed = hasCurrent ? i < currentIndex : true;
-    if (r.actual != null && completed) fitPoints.push({ x: i, y: r.actual });
+    if (r.actual != null && completed && !r.paused) fitPoints.push({ x: i, y: r.actual });
   });
   const trend = linearTrend(fitPoints);
   const trendFrom = fitPoints[0]?.x ?? 0;
@@ -228,11 +233,20 @@ export function VolumeChart({
   );
 }
 
-export function ProgressRing({ pct, color, size }: { pct: number; color: string; size: number }) {
+export function ProgressRing({
+  pct,
+  color,
+  size,
+}: {
+  /** Null renders an empty ring with a "—" label (no percentage to show). */
+  pct: number | null;
+  color: string;
+  size: number;
+}) {
   const r = (size - 16) / 2;
   const c = size / 2;
   const circ = 2 * Math.PI * r;
-  const p = Math.max(0, Math.min(pct, 100));
+  const p = Math.max(0, Math.min(pct ?? 0, 100));
   return (
     <svg viewBox={`0 0 ${size} ${size}`} width={size} height={size}>
       <circle cx={c} cy={c} r={r} fill="none" strokeWidth={9} style={{ stroke: "var(--border)" }} />
@@ -257,7 +271,7 @@ export function ProgressRing({ pct, color, size }: { pct: number; color: string;
         fontFamily="var(--font-archivo)"
         style={{ fill: "var(--text)" }}
       >
-        {pct}%
+        {pct == null ? "—" : `${pct}%`}
       </text>
       <text
         x={c}

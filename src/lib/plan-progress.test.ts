@@ -12,6 +12,7 @@ describe("buildPlanProgressInputs — optional disciplines", () => {
         { discipline: "RUN", weekStartDate: wk("2026-01-12"), targetMeters: 11_000 },
       ],
       weeklyActuals: [],
+      weeklyPauses: [],
     });
 
     expect(out.disciplines).toEqual(["RUN"]);
@@ -29,9 +30,31 @@ describe("buildPlanProgressInputs — optional disciplines", () => {
         { discipline: "SWIM", weekStartDate: wk("2026-01-05"), targetMeters: 2_000 },
       ],
       weeklyActuals: [],
+      weeklyPauses: [],
     });
 
     expect(out.disciplines).toEqual(["SWIM", "RUN"]);
     expect(out.total[0]!.target).toBe(7_000);
+  });
+});
+
+describe("buildPlanProgressInputs — paused weeks", () => {
+  it("stamps the paused flag on every series for the paused week only", () => {
+    const out = buildPlanProgressInputs({
+      weeklyTargets: [
+        { discipline: "SWIM", weekStartDate: wk("2026-01-05"), targetMeters: 2_000 },
+        { discipline: "SWIM", weekStartDate: wk("2026-01-12"), targetMeters: 2_200 },
+        { discipline: "RUN", weekStartDate: wk("2026-01-05"), targetMeters: 5_000 },
+        { discipline: "RUN", weekStartDate: wk("2026-01-12"), targetMeters: 5_500 },
+      ],
+      weeklyActuals: [],
+      // A pause is per-plan (a whole week off), so SWIM, RUN and TOTAL must
+      // all agree about which week it was.
+      weeklyPauses: [{ weekStartDate: wk("2026-01-12") }],
+    });
+
+    expect(out.byDiscipline.SWIM!.map((w) => w.paused)).toEqual([false, true]);
+    expect(out.byDiscipline.RUN!.map((w) => w.paused)).toEqual([false, true]);
+    expect(out.total.map((w) => w.paused)).toEqual([false, true]);
   });
 });

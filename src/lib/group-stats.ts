@@ -20,6 +20,8 @@ export interface MemberDisciplineStat {
 export interface PlanForStats {
   weeklyTargets: { discipline: string; weekStartDate: Date; targetMeters: number }[];
   weeklyActuals: ActualRow[];
+  /** Pause DATES only — reasons are health data and never leave the owner. */
+  weeklyPauses: { weekStartDate: Date }[];
   weekStartDay?: number;
 }
 

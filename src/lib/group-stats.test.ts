@@ -24,6 +24,7 @@ function plan(overrides: Partial<PlanForStats> = {}): PlanForStats {
       // Current week (2026-01-12): RUN 6,000 of 12,000 = 50%.
       { discipline: "RUN", weekStartDate: mondayPlus(1), actualMeters: 6000, source: "MANUAL" },
     ],
+    weeklyPauses: [],
     ...overrides,
   };
 }
@@ -88,8 +89,20 @@ describe("buildMemberDisciplineStats", () => {
           source: "STRAVA",
         },
       ],
+      weeklyPauses: [],
     };
     const stats = buildMemberDisciplineStats(sundayPlan, NOW);
     expect(stats.find((s) => s.key === "RUN")?.pct).toBe(25); // 3,000 / 12,000
+  });
+
+  it("a paused current week still shares the same per-week % (no group-visible change)", () => {
+    // The pause feeds the engine's cumulative exclusion, but the shared stat is
+    // the CURRENT week's own %, which stays as-is — a pause must not change
+    // what the group sees (the reason never leaves the owner at all).
+    const stats = buildMemberDisciplineStats(
+      plan({ weeklyPauses: [{ weekStartDate: mondayPlus(1) }] }),
+      NOW,
+    );
+    expect(stats.find((s) => s.key === "RUN")?.pct).toBe(50);
   });
 });

@@ -52,7 +52,12 @@ function weekStatusKey(w: WeekRow): StatusKey {
   return w.phase === "future" ? "upcoming" : (w.status ?? "onTrack");
 }
 function toData(s: SeriesData): WeekDatum[] {
-  return s.weeks.map((w) => ({ weekStartMs: w.ms, target: w.target, actual: w.actual }));
+  return s.weeks.map((w) => ({
+    weekStartMs: w.ms,
+    target: w.target,
+    actual: w.actual,
+    paused: w.paused,
+  }));
 }
 
 /**
@@ -540,7 +545,8 @@ function TimelineView({
     <div className="grid gap-[18px] app:grid-cols-[280px_1fr]">
       <div className="hidden flex-col gap-4 self-start app:flex app:sticky app:top-6">
         <div className="flex flex-col items-center rounded-[18px] border border-border bg-card p-[22px]">
-          <ProgressRing pct={data.summary.pctOfTarget ?? 0} color={data.color} size={180} />
+          {/* Raw summary pct: null (all weeks paused) renders "—", not a fake 0%. */}
+          <ProgressRing pct={data.summary.pctOfTarget} color={data.color} size={180} />
           <div className="mt-3 text-center text-[13px] text-muted">
             {formatDistance(data.summary.cumulativeActual, data.key)} of{" "}
             {formatDistance(data.summary.cumulativeTarget, data.key)}

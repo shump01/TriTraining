@@ -72,3 +72,90 @@ describe("computeProgress", () => {
     expect(summary.cumulativeTarget).toBe(60000); // all weeks counted
   });
 });
+
+describe("computeProgress — paused weeks", () => {
+  // 4 past weeks + a current week. Weeks 2 and 3 are marked as time off.
+  // NOW (2026-02-04, a Wednesday) puts the current week at 2026-02-02.
+  const NOW = new Date("2026-02-04T09:00:00.000Z");
+  const wk = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
+  // An athlete who hit every week they actually trained, and marked two ill
+  // weeks as time off.
+  const season = (paused: boolean) => [
+    { weekStartDate: wk("2026-01-05"), target: 10_000, actual: 10_000 },
+    { weekStartDate: wk("2026-01-12"), target: 11_000, actual: null, paused },
+    { weekStartDate: wk("2026-01-19"), target: 12_000, actual: null, paused },
+    { weekStartDate: wk("2026-01-26"), target: 13_000, actual: 13_000 },
+    { weekStartDate: wk("2026-02-02"), target: 14_000, actual: 14_000 },
+  ];
+
+  it("THE defect: two ill weeks no longer buy a season-long 'behind' pill", () => {
+    // Unpaused, the blank weeks read as missed: 37,000/60,000 = 62% — an
+    // athlete who hit every healthy week perfectly wears "behind" all season.
+    const charged = computeProgress(season(false), NOW).summary;
+    expect(charged.status).toBe("behind");
+
+    // Paused, those weeks sit outside the ledger: 37,000/37,000 — the pill
+    // finally agrees with the readiness panel that always excluded them.
+    const excused = computeProgress(season(true), NOW).summary;
+    expect(excused.cumulativeTarget).toBe(37_000);
+    expect(excused.cumulativeActual).toBe(37_000);
+    expect(excused.pctOfTarget).toBe(100);
+    expect(excused.status).toBe("onTrack");
+  });
+
+  it("a synced activity during a paused week is not credited either", () => {
+    // Nothing owed, nothing earned: a spun-easy 5k logged mid-illness must not
+    // pad the season total that healthy weeks have to answer for.
+    const weeks = [
+      { weekStartDate: wk("2026-01-05"), target: 10_000, actual: 10_000 },
+      { weekStartDate: wk("2026-01-12"), target: 11_000, actual: 5_000, paused: true },
+      { weekStartDate: wk("2026-02-02"), target: 14_000, actual: 7_000 },
+    ];
+    const { summary } = computeProgress(weeks, NOW);
+    expect(summary.cumulativeTarget).toBe(24_000);
+    expect(summary.cumulativeActual).toBe(17_000);
+  });
+
+  it("a paused CURRENT week is excluded too", () => {
+    const weeks = [
+      { weekStartDate: wk("2026-01-26"), target: 13_000, actual: 13_000 },
+      { weekStartDate: wk("2026-02-02"), target: 14_000, actual: null, paused: true },
+    ];
+    const { summary } = computeProgress(weeks, NOW);
+    expect(summary.cumulativeTarget).toBe(13_000);
+    expect(summary.pctOfTarget).toBe(100);
+    expect(summary.status).toBe("onTrack");
+  });
+
+  it("per-week fields are unchanged for paused weeks (the row UI owns the Paused pill)", () => {
+    const withPause = computeProgress(season(true), NOW).weeks[1]!;
+    const withoutPause = computeProgress(season(false), NOW).weeks[1]!;
+    expect(withPause.pctOfTarget).toBe(withoutPause.pctOfTarget);
+    expect(withPause.status).toBe(withoutPause.status);
+    expect(withPause.actual).toBe(withoutPause.actual);
+  });
+
+  it("an all-paused season has no percentage and a neutral status", () => {
+    const weeks = [
+      { weekStartDate: wk("2026-01-19"), target: 12_000, actual: null, paused: true },
+      { weekStartDate: wk("2026-01-26"), target: 13_000, actual: null, paused: true },
+    ];
+    const { summary } = computeProgress(weeks, NOW);
+    expect(summary.started).toBe(true);
+    expect(summary.pctOfTarget).toBeNull();
+    expect(summary.status).toBe("onTrack"); // classify(0, 0) — nothing to judge
+  });
+
+  it("future weeks are unaffected by the flag (still uncounted, still null)", () => {
+    const { weeks: rows } = computeProgress(
+      [
+        { weekStartDate: wk("2026-02-02"), target: 14_000, actual: 7_000 },
+        { weekStartDate: wk("2026-02-09"), target: 15_000, actual: null, paused: true },
+      ],
+      NOW,
+    );
+    expect(rows[1]!.phase).toBe("future");
+    expect(rows[1]!.actual).toBeNull();
+    expect(rows[1]!.cumulativeTarget).toBe(14_000);
+  });
+});

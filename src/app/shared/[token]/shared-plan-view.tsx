@@ -57,11 +57,17 @@ export function SharedPlanView({
           <div className="mb-3 flex items-center justify-between">
             <h3 className="m-0 font-display text-[16px] font-bold">{s.label} — weekly volume</h3>
             <span className="font-mono text-[12px] text-faint">
-              {s.summary.pctOfTarget ?? 0}% to date
+              {s.summary.pctOfTarget != null ? `${s.summary.pctOfTarget}% to date` : "—"}
             </span>
           </div>
           <VolumeChart
-            rows={s.weeks.map((w) => ({ weekStartMs: w.ms, target: w.target, actual: w.actual }))}
+            rows={s.weeks.map((w) => ({
+              weekStartMs: w.ms,
+              target: w.target,
+              actual: w.actual,
+              // The boolean only — reasons are stripped by toPublicSeries.
+              paused: w.paused,
+            }))}
             currentIndex={s.weeks.findIndex((w) => w.phase === "current")}
             color={s.color}
             unit={s.unit}

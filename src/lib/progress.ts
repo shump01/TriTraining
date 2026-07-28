@@ -20,6 +20,16 @@ export interface ProgressWeekInput {
   target: number;
   /** Effective actual (MANUAL over STRAVA), or null if nothing recorded. */
   actual: number | null;
+  /**
+   * Week marked as time off (ill / injured / away). Excluded from the
+   * cumulative totals and the headline summary: nothing was expected, so
+   * nothing is owed — and nothing is credited either. Without this, an athlete
+   * who marked two weeks ill wore a red "behind" pill for the rest of the
+   * season, directly above a readiness panel (which already excludes pauses)
+   * saying they were on track. Per-week fields are still computed as usual;
+   * the row-level UI renders its own "Paused" pill over them.
+   */
+  paused?: boolean;
 }
 
 export interface ProgressWeek {
@@ -81,8 +91,13 @@ export function computeProgress(
     // Past/current missing data = a real 0 (missed); future = not yet (null).
     const actual = phase === "future" ? null : (w.actual ?? 0);
 
-    cumulativeTarget += w.target;
-    if (actual !== null) cumulativeActual += actual;
+    // Paused weeks sit outside the season's ledger entirely — both sides, so
+    // a synced activity during a rest week can't pad the total the way the
+    // week's absent target can't drag it.
+    if (!w.paused) {
+      cumulativeTarget += w.target;
+      if (actual !== null) cumulativeActual += actual;
+    }
 
     return {
       weekStartDate: w.weekStartDate,

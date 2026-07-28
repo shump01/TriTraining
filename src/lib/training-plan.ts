@@ -272,7 +272,10 @@ export async function listTrainingPlansWithProgress(): Promise<PlanWithProgress[
   const plans = await prisma.trainingPlan.findMany({
     where: { userId },
     orderBy: { eventDate: "asc" },
-    include: { weeklyTargets: true, weeklyActuals: true },
+    // weeklyPauses too: without them the LIST cards' headline % charged paused
+    // weeks that the plan-detail page (which loads pauses) excludes — the two
+    // surfaces disagreed about the same plan.
+    include: { weeklyTargets: true, weeklyActuals: true, weeklyPauses: true },
   });
   const now = new Date();
   return plans.map((p) => {

@@ -66,7 +66,7 @@ export default async function PlansPage() {
           >
             {plans.map((p) => {
               const status = STATUS_META[planStatusKey(p.summary)];
-              const pct = p.summary.pctOfTarget ?? 0;
+              const pct = p.summary.pctOfTarget;
               return (
                 <Link
                   key={p.id}
