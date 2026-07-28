@@ -104,10 +104,14 @@ export async function GET(req: NextRequest) {
         // the readiness chip and the minis, which show the CURRENT week's %.
         const series = buildPlanSeries(full, now);
         readiness = computeReadiness(series).overall;
-        // Every series shares the same week list, so one index fits all.
-        const wi = series[0]!.weeks.findIndex((w) => w.phase === "current");
-        const curIndex =
-          wi >= 0 ? wi : series[0]!.summary.finished ? series[0]!.weeks.length - 1 : 0;
+        // Every series shares the same week list, so one index fits all. The
+        // guard covers a plan with no target rows at all (series === []) —
+        // not producible by today's write paths, which regenerate targets in
+        // the same transaction, but a `!` here turned that data state into a
+        // 500 for the whole dashboard.
+        const first = series[0];
+        const wi = first ? first.weeks.findIndex((w) => w.phase === "current") : -1;
+        const curIndex = wi >= 0 ? wi : first?.summary.finished ? first.weeks.length - 1 : 0;
         minis = series.map((s) => {
           const week = s.weeks[curIndex];
           return {

@@ -78,8 +78,18 @@ export const updateAccountSchema = z
  */
 const weekDateSchema = z.coerce
   .date({ message: "Enter a valid date" })
+  // ±50 years: an ABSURD-VALUE guard only, not a business rule. It was ±5
+  // years once, which quietly outlawed edits the UI still offers: a plan
+  // back-dated near the 5-year creation limit has early weeks that AGE OUT of
+  // a now-relative window, making a stale manual actual on such a week
+  // uneditable and undeletable. The real range rule is per-plan: the actuals
+  // and planner handlers reject weeks outside the plan's own window
+  // (WeekOutOfRangeError in training-plan.ts). Checkin/pause upserts have no
+  // such check — an out-of-window row there is junk, but harmless junk: every
+  // reader matches those rows by exact week against the plan's own week list,
+  // so it can never influence readiness, re-ramps, digests, or rendering.
   .refine(
-    (d) => Math.abs(d.getTime() - Date.now()) <= MAX_PLAN_DATE_SPAN_MS,
+    (d) => Math.abs(d.getTime() - Date.now()) <= 10 * MAX_PLAN_DATE_SPAN_MS,
     "That week is outside the supported range",
   );
 
