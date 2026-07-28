@@ -46,7 +46,7 @@ const SECTIONS: { title: string; paragraphs: string[] }[] = [
     title: "Strava",
     paragraphs: [
       "If you connect Strava, we store the OAuth tokens Strava issues (encrypted at rest) so we can read your activities on your behalf. From each activity we keep only what the plan needs: the sport, the distance, the date it happened, the week it belongs to, and — for training load — the moving time, average heart rate, and Strava's own activity identifier (used so re-syncing can't count the same session twice), where Strava provides them.",
-      "You can disconnect Strava at any time from the dashboard, which deletes the stored tokens and revokes TriTrainer's access on Strava's side. Deleting your account does the same automatically. Your use of Strava itself is governed by Strava's own terms and privacy policy.",
+      "You can disconnect Strava at any time from the dashboard. That revokes TriTrainer's access on Strava's side, deletes the stored tokens, and deletes the per-activity heart-rate data Strava supplied — so your training-load history from Strava goes with it. Your weekly plan totals are kept, as they are your own training record rather than a copy of Strava's data. Deleting your account removes everything automatically. Your use of Strava itself is governed by Strava's own terms and privacy policy.",
     ],
   },
   {
@@ -95,7 +95,7 @@ const SECTIONS: { title: string; paragraphs: string[] }[] = [
     title: "Deleting your data",
     paragraphs: [
       "You can permanently delete your account from the Account page on the web or in the app. Deletion is immediate and removes everything: your plans, targets, actuals (including anything imported from Strava or Apple Health), heart-rate and training-load data, check-ins and pauses, group memberships, groups you own, sessions, and any stored Strava connection — and it revokes TriTrainer's access on Strava's side.",
-      "Short of full deletion: leaving a group removes your progress from it, and disconnecting Strava deletes the stored tokens.",
+      "Short of full deletion: leaving a group removes your progress from it, and disconnecting Strava deletes the stored tokens along with the heart-rate data Strava supplied.",
     ],
   },
   {

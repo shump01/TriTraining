@@ -36,6 +36,17 @@ export function StravaCard({ connection }: { connection: { lastSyncedAt: string 
   }
 
   async function disconnect() {
+    // Disconnecting now also deletes the heart-rate data Strava supplied, so
+    // Fitness/Fatigue/Form is rebuilt from whatever a later reconnect can
+    // re-fetch — which is only the recent sync window, not the full history.
+    // Say so before it happens rather than after.
+    if (
+      !window.confirm(
+        "Disconnect Strava?\n\nThis revokes access on Strava's side and deletes the heart-rate data it supplied, so your Fitness/Fatigue/Form history goes with it. Your weekly plan totals stay.",
+      )
+    ) {
+      return;
+    }
     setBusy("disconnect");
     try {
       await fetch("/api/strava/disconnect", { method: "POST" });

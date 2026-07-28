@@ -54,5 +54,12 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      # Fails the job only on high/critical advisories.
+      # Fails on high/critical advisories in what actually SHIPS (--omit=dev).
+      # Build/lint-only tooling is audited separately below without failing the
+      # job: a DoS in eslint's glob matcher is a nuisance on a developer's
+      # machine, not a hole in the running service, and letting it hold the
+      # gate red is how a red gate stops being read at all.
       - run: npm run audit
+      - name: Dev-tooling advisories (informational)
+        if: always()
+        run: npm audit --audit-level=high || true

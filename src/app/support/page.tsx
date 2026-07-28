@@ -31,7 +31,7 @@ const SECTIONS: {
     title: "Connecting Strava",
     paragraphs: [
       "On the dashboard, use the Strava card to connect. Once linked, TriTrainer reads your recent activities and fills in your weekly actual distances automatically; a Sync button pulls the latest. Only the sport, distance, week, and — where Strava provides it — moving time and average heart rate are used.",
-      "You can disconnect any time from the same card, which deletes the stored tokens and revokes TriTrainer's access on Strava's side.",
+      "You can disconnect any time from the same card. That revokes TriTrainer's access on Strava's side and deletes both the stored tokens and the heart-rate data Strava supplied, so your Fitness/Fatigue/Form history from Strava goes too. Your weekly plan totals stay. Reconnecting rebuilds training load from the recent sync window rather than your whole history.",
     ],
   },
   {

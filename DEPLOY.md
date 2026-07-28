@@ -79,7 +79,7 @@ by `server.js`; or use the host's environment-variable settings). See
 | `MAIL_FROM`                                 | from address, e.g. `TriTrainer <noreply@richysdev.co.uk>`                                                                                                                              |
 | `TRUSTED_PROXY_COUNT`                       | number of reverse proxies that append to `X-Forwarded-For`. Set to `1` behind Passenger/nginx so rate-limit IPs can't be spoofed. Default `0` (throttles fall back to a shared bucket) |
 | `APPLE_TEAM_ID`                             | Apple Developer Team ID (10 chars) — enables `/.well-known/apple-app-site-association` so group-invite links open the iOS app. Optional; the route 404s until set                      |
-| `CRON_SECRET`                               | bearer secret for `POST /api/cron/weekly-digest` (weekly digest emails). Optional — the route answers 503 and no digests are sent until it's set. `openssl rand -base64 32`            |
+| `CRON_SECRET`                               | bearer secret for `POST /api/cron/weekly-digest` (digest emails + the expired-row sweep). Optional — the route answers 503 and neither runs until it's set. `openssl rand -base64 32`  |
 | `NODE_ENV`                                  | `production` (set the host's "Application mode" to production)                                                                                                                         |
 
 ---
@@ -121,13 +121,18 @@ Keep it alive with `pm2` or a `systemd` unit, and put nginx/Apache in front (see
   proxy to the Node process.
 - **Strava app:** set the Authorization Callback Domain to `training.richysdev.co.uk`
   (callback URL `https://training.richysdev.co.uk/api/strava/callback`).
-- **Weekly digest cron (optional):** with `CRON_SECRET` + SMTP set, add a daily cron job
-  (KonsoleH → cron, or any scheduler) so digests go out at the start of each athlete's
-  training week — the route itself decides who is due, so daily is correct:
+- **Daily cron (recommended):** with `CRON_SECRET` set, add a daily cron job (KonsoleH →
+  cron, or any scheduler). It does two things — sends any digests that are due (the route
+  decides who, so daily is correct; needs SMTP too) and prunes expired sessions and
+  password-reset tokens, which nothing else deletes:
 
   ```
   15 6 * * *  curl -s -X POST -H "Authorization: Bearer YOUR_CRON_SECRET" https://training.richysdev.co.uk/api/cron/weekly-digest
   ```
+
+  Worth setting even with SMTP unconfigured: without it, dead session rows accumulate
+  forever, and a database leak then exposes every token ever issued rather than the
+  30 days' worth that are actually live.
 
 ---
 

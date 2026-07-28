@@ -91,7 +91,34 @@ export async function getValidStravaAccessToken(userId: string): Promise<string 
 }
 
 /**
- * Disconnect: best-effort revoke on Strava, then delete the local row.
+ * Everything Strava's sync wrote that is still recognisably THEIR data: the
+ * per-activity heart-rate rows behind training load, each keyed by the Strava
+ * activity id it came from. Revoking the grant has to take these with it —
+ * Strava's API terms require deleting a user's data once they deauthorize, and
+ * keeping a per-activity record of someone's heart rate after they told us to
+ * stop is the wrong answer regardless of what the terms say.
+ *
+ * Scoped to `source: "STRAVA"`. The same table holds Apple Health and Garmin
+ * rows for the same user, and those are none of Strava's business.
+ *
+ * NOT deleted: `WeeklyActual` rows. Those are weekly distance totals against a
+ * training plan — the athlete's own training record, aggregated past the point
+ * of being per-activity Strava data, and visible in the plan they built around
+ * them. Silently blanking a season of progress because someone unlinked an
+ * integration is a bigger harm than the one being fixed. Deleting the account
+ * still removes them, via the cascade.
+ */
+async function deleteStravaDerivedData(userId: string): Promise<void> {
+  await prisma.activityLoad
+    .deleteMany({ where: { userId, source: "STRAVA" } })
+    .catch((error: unknown) => {
+      logger.warn("Failed to clear Strava training-load rows on disconnect", { error });
+    });
+}
+
+/**
+ * Disconnect: best-effort revoke on Strava, then delete the local row and the
+ * data that came from it.
  *
  * The revoke uses a REFRESHED access token, not the stored one: Strava access
  * tokens expire in ~6 hours, so for any user who hasn't synced recently the
@@ -117,9 +144,28 @@ export async function disconnectStrava(userId: string): Promise<void> {
   }
 
   await prisma.stravaConnection.delete({ where: { userId } }).catch(() => {});
+  await deleteStravaDerivedData(userId);
 }
 
-/** Remove a connection by Strava athlete id (used by the deauthorization webhook). */
+/**
+ * Remove a connection by Strava athlete id (used by the deauthorization
+ * webhook — the user revoked us from Strava's side, so there is no grant left
+ * to revoke and nothing to call back about). Clears the same derived data as
+ * `disconnectStrava`: the two paths mean the same thing to the user.
+ *
+ * Only reached when `STRAVA_WEBHOOK_VERIFY_TOKEN` is configured and the
+ * subscription is registered with Strava — which is optional (see DEPLOY.md).
+ * Without it a revoke on Strava's side is silent, so don't promise users
+ * anywhere that it cleans up on its own; the in-app Disconnect is the path
+ * that is always there.
+ */
 export async function deleteStravaConnectionByAthleteId(athleteId: string): Promise<void> {
+  const connections = await prisma.stravaConnection.findMany({
+    where: { athleteId },
+    select: { userId: true },
+  });
   await prisma.stravaConnection.deleteMany({ where: { athleteId } });
+  for (const { userId } of connections) {
+    await deleteStravaDerivedData(userId);
+  }
 }
