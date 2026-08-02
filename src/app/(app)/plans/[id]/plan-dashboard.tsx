@@ -31,6 +31,12 @@ export interface PlanDashboardProps {
   formSignal?: FormReadiness | null;
   /** When the week planner renders below, the static split card stands down. */
   hasPlanner?: boolean;
+  /**
+   * Simple plan view (User.viewMode): the week tables show only the current
+   * week instead of the full past/future list. Charts, readiness and the rest
+   * are untouched — a display filter, not a feature gate.
+   */
+  simpleView?: boolean;
 }
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
@@ -104,6 +110,38 @@ function WeekPill({ w, small }: { w: WeekRow; small?: boolean }) {
   return <StatusPill statusKey={weekStatusKey(w)} small={small} />;
 }
 
+/**
+ * The rows a week table renders. Simple view keeps only the current week —
+ * the athlete asked not to see the whole past/future list — falling back to
+ * the final week once the plan is finished (or week 1 before it starts) so
+ * the table is never empty. Original indices are preserved so week numbering
+ * stays true either way.
+ */
+function visibleWeekRows(
+  weeks: WeekRow[],
+  simple: boolean,
+  currentIndex: number,
+  finished: boolean,
+): { w: WeekRow; i: number }[] {
+  const rows = weeks.map((w, i) => ({ w, i }));
+  if (!simple) return rows;
+  const focus = currentIndex >= 0 ? currentIndex : finished ? weeks.length - 1 : 0;
+  return rows.slice(focus, focus + 1);
+}
+
+/** The reminder under a Simple-view table: why the list is one row. */
+function SimpleViewNote() {
+  return (
+    <p className="m-0 mt-2 text-[12px] text-faint">
+      Simple view — other weeks are hidden. Show them again in{" "}
+      <Link href="/account" className="underline">
+        Account → Display
+      </Link>
+      .
+    </p>
+  );
+}
+
 export function PlanDashboard({
   planId,
   planName,
@@ -114,6 +152,7 @@ export function PlanDashboard({
   readiness,
   formSignal,
   hasPlanner,
+  simpleView,
 }: PlanDashboardProps) {
   const [active, setActive] = useState<SeriesKey>(rawSeries[0]?.key ?? "TOTAL");
   const [variation, setVariation] = useState<"command" | "timeline">("command");
@@ -268,6 +307,7 @@ export function PlanDashboard({
           planId={planId}
           hasPlanner={hasPlanner}
           balanced={pctMode === "balanced"}
+          simpleView={simpleView}
         />
       ) : (
         <TimelineView
@@ -275,6 +315,7 @@ export function PlanDashboard({
           currentIndex={currentIndex}
           weeksToGo={weeksToGo}
           balanced={pctMode === "balanced"}
+          simpleView={simpleView}
         />
       )}
     </div>
@@ -289,6 +330,7 @@ function CommandView({
   planId,
   hasPlanner,
   balanced,
+  simpleView,
 }: {
   series: SeriesData[];
   active: SeriesKey;
@@ -298,9 +340,16 @@ function CommandView({
   hasPlanner?: boolean;
   /** The Total % is in balanced mode — tag its figures so they self-explain. */
   balanced?: boolean;
+  simpleView?: boolean;
 }) {
   const data = series.find((s) => s.key === active) ?? series[0]!;
   const editable = active !== "TOTAL";
+  const tableRows = visibleWeekRows(
+    data.weeks,
+    !!simpleView,
+    data.weeks.findIndex((w) => w.phase === "current"),
+    data.summary.finished,
+  );
   // "This build": the current week's own progress, not the plan-to-date total.
   // Before the plan starts, show week 1 (nothing done yet); once finished, show
   // the final week.
@@ -405,7 +454,7 @@ function CommandView({
             </tr>
           </thead>
           <tbody>
-            {data.weeks.map((w, i) => (
+            {tableRows.map(({ w, i }) => (
               <tr
                 key={w.ms}
                 className="border-t border-border"
@@ -465,7 +514,7 @@ function CommandView({
           </div>
           <div />
         </div>
-        {data.weeks.map((w, i) => {
+        {tableRows.map(({ w, i }) => {
           const open = expanded === w.ms;
           const statusKey = weekStatusKey(w);
           return (
@@ -523,6 +572,7 @@ function CommandView({
           );
         })}
       </div>
+      {simpleView && <SimpleViewNote />}
     </>
   );
 }
@@ -532,14 +582,17 @@ function TimelineView({
   currentIndex,
   weeksToGo,
   balanced,
+  simpleView,
 }: {
   data: SeriesData;
   currentIndex: number;
   weeksToGo: number;
   /** The Total % is in balanced mode — tag its figures so they self-explain. */
   balanced?: boolean;
+  simpleView?: boolean;
 }) {
   const currentWeek = currentIndex >= 0 ? data.weeks[currentIndex] : null;
+  const tableRows = visibleWeekRows(data.weeks, !!simpleView, currentIndex, data.summary.finished);
 
   return (
     <div className="grid gap-[18px] app:grid-cols-[280px_1fr]">
@@ -587,7 +640,7 @@ function TimelineView({
       </div>
 
       <div className="flex flex-col gap-2.5">
-        {data.weeks.map((w, i) => {
+        {tableRows.map(({ w, i }) => {
           const pct = w.pctOfTarget;
           return (
             <div
@@ -624,6 +677,7 @@ function TimelineView({
             </div>
           );
         })}
+        {simpleView && <SimpleViewNote />}
       </div>
     </div>
   );

@@ -32,6 +32,14 @@ export async function updateDigestEnabled(userId: string, enabled: boolean): Pro
   await prisma.user.update({ where: { id: userId }, data: { digestEnabled: enabled } });
 }
 
+/** Set the plan-view display density (SIMPLE = current week only). */
+export async function updateViewMode(
+  userId: string,
+  viewMode: "SIMPLE" | "DETAILED",
+): Promise<void> {
+  await prisma.user.update({ where: { id: userId }, data: { viewMode } });
+}
+
 /**
  * Change the password after verifying the current one.
  *

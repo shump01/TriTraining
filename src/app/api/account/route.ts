@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { updateDigestEnabled, updateScreenName } from "@/lib/account";
+import { updateDigestEnabled, updateScreenName, updateViewMode } from "@/lib/account";
 import { mapKnownApiError } from "@/lib/api";
 import { IDENTIFIER_PREFIX } from "@/lib/password-reset";
 import { prisma } from "@/lib/prisma";
@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 
 /**
  * PATCH /api/account — update account preferences: the screen name (empty
- * string clears it) and/or the weekly-digest switch.
+ * string clears it), the weekly-digest switch, and/or the plan-view density.
  */
 export async function PATCH(req: NextRequest) {
   if (isCrossSiteRequest(req)) {
@@ -50,6 +50,9 @@ export async function PATCH(req: NextRequest) {
     }
     if (parsed.data.digestEnabled !== undefined) {
       await updateDigestEnabled(userId, parsed.data.digestEnabled);
+    }
+    if (parsed.data.viewMode !== undefined) {
+      await updateViewMode(userId, parsed.data.viewMode);
     }
     return NextResponse.json(
       {

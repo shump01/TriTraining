@@ -40,6 +40,12 @@ model User {
   // Week-start of the last digest sent — makes the daily cron idempotent
   // (at most one digest per training week). See src/lib/digest.ts.
   lastDigestWeek   DateTime?         @db.Date
+  // Display density for plan views: SIMPLE shows only the current week's
+  // targets (for athletes who don't want the full past/future week list on
+  // screen every time); DETAILED is the full table. OPT-IN — defaults to the
+  // existing behaviour, and the value doubles as its own usage signal (a
+  // GROUP BY here answers "which mode do people keep" without any analytics).
+  viewMode         ViewMode          @default(DETAILED)
   accounts         Account[]
   sessions         Session[]
   trainingPlans    TrainingPlan[]
@@ -246,6 +252,12 @@ enum ActualSource {
   STRAVA
   APPLE_HEALTH
   GARMIN
+}
+
+// Plan-view display density — see User.viewMode.
+enum ViewMode {
+  SIMPLE
+  DETAILED
 }
 
 enum PauseReason {

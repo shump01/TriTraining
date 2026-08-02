@@ -24,7 +24,12 @@ vi.mock("@/lib/password", () => ({
   verifyPassword: verifyPasswordMock,
 }));
 
-import { WrongPasswordError, changePassword, updateScreenName } from "@/lib/account";
+import {
+  WrongPasswordError,
+  changePassword,
+  updateScreenName,
+  updateViewMode,
+} from "@/lib/account";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -45,6 +50,18 @@ describe("updateScreenName", () => {
     expect(userUpdate).toHaveBeenCalledWith({ where: { id: "u1" }, data: { name: null } });
     await updateScreenName("u1", null);
     expect(userUpdate).toHaveBeenLastCalledWith({ where: { id: "u1" }, data: { name: null } });
+  });
+});
+
+describe("updateViewMode", () => {
+  it("stores the chosen plan-view density", async () => {
+    await updateViewMode("u1", "SIMPLE");
+    expect(userUpdate).toHaveBeenCalledWith({ where: { id: "u1" }, data: { viewMode: "SIMPLE" } });
+    await updateViewMode("u1", "DETAILED");
+    expect(userUpdate).toHaveBeenLastCalledWith({
+      where: { id: "u1" },
+      data: { viewMode: "DETAILED" },
+    });
   });
 });
 

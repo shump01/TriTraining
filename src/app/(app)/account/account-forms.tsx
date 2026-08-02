@@ -264,6 +264,70 @@ export function DigestToggle({ initial }: { initial: boolean }) {
   );
 }
 
+/**
+ * Plan-view density. SIMPLE trims every plan's week table to the current week
+ * — for athletes who don't want the full past/future list on screen each
+ * time. A display filter only: nothing is hidden that can't be brought back
+ * by flipping the toggle, and Detailed remains the default.
+ */
+export function ViewModeToggle({ initial }: { initial: "SIMPLE" | "DETAILED" }) {
+  const id = useId();
+  const [simple, setSimple] = useState(initial === "SIMPLE");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function toggle(next: boolean) {
+    if (busy) return; // rapid re-toggles would race PATCHes out of order
+    setBusy(true);
+    setSimple(next); // optimistic — reverted on failure
+    setError(null);
+    try {
+      const res = await fetch("/api/account", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ viewMode: next ? "SIMPLE" : "DETAILED" }),
+      });
+      if (!res.ok) {
+        setSimple(!next);
+        setError(await readError(res));
+      }
+    } catch {
+      setSimple(!next);
+      setError("Something went wrong.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div>
+      <label htmlFor={id} className="flex cursor-pointer items-start gap-3">
+        <input
+          id={id}
+          type="checkbox"
+          checked={simple}
+          disabled={busy}
+          onChange={(e) => void toggle(e.target.checked)}
+          className="mt-[3px] h-4 w-4 accent-[var(--brand)]"
+        />
+        <span>
+          <span className="block text-[14px] font-bold text-text">Simple plan view</span>
+          <span className="mt-0.5 block max-w-[52ch] text-[12.5px] leading-[1.5] text-muted">
+            Show only the current week&apos;s targets on plan pages, instead of the full
+            week-by-week list. The charts and everything else stay; flip this off any time to see
+            the whole season again. Applies on the web and in the app.
+          </span>
+        </span>
+      </label>
+      {error && (
+        <p role="alert" className="mt-2 mb-0 text-[12.5px] text-behind">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function SignOutButton() {
   const [busy, setBusy] = useState(false);
   async function signOut() {

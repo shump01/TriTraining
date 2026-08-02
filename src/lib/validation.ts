@@ -64,10 +64,17 @@ export const updateAccountSchema = z
   .object({
     name: z.string().trim().max(40, "Keep the name under 40 characters").optional(),
     digestEnabled: z.boolean().optional(),
+    // Plan-view display density: SIMPLE = current week only, DETAILED = the
+    // full week list. Opt-in preference, stored on the user so it follows
+    // across web and mobile.
+    viewMode: z.enum(["SIMPLE", "DETAILED"]).optional(),
   })
-  .refine((v) => v.name !== undefined || v.digestEnabled !== undefined, {
-    message: "Nothing to update",
-  });
+  .refine(
+    (v) => v.name !== undefined || v.digestEnabled !== undefined || v.viewMode !== undefined,
+    {
+      message: "Nothing to update",
+    },
+  );
 
 /**
  * A week identifier from a client. Bounded like the plan dates: an extreme but

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { actualEntrySchema, createPlanSchema } from "./validation";
+import { actualEntrySchema, createPlanSchema, updateAccountSchema } from "./validation";
 
 /**
  * Date bounds on plan creation are a RESOURCE control, not just input hygiene:
@@ -112,5 +112,21 @@ describe("weekStartDate bounds", () => {
   it("rejects a week far outside the plan window in either direction", () => {
     expect(actualEntrySchema.safeParse(entry("1500-01-01")).success).toBe(false);
     expect(actualEntrySchema.safeParse(entry("2200-01-01")).success).toBe(false);
+  });
+});
+
+describe("updateAccountSchema — viewMode", () => {
+  it("accepts a viewMode-only update (the refine counts it as a change)", () => {
+    expect(updateAccountSchema.safeParse({ viewMode: "SIMPLE" }).success).toBe(true);
+    expect(updateAccountSchema.safeParse({ viewMode: "DETAILED" }).success).toBe(true);
+  });
+
+  it("rejects values outside the enum", () => {
+    expect(updateAccountSchema.safeParse({ viewMode: "COMPACT" }).success).toBe(false);
+    expect(updateAccountSchema.safeParse({ viewMode: true }).success).toBe(false);
+  });
+
+  it("still rejects an empty update", () => {
+    expect(updateAccountSchema.safeParse({}).success).toBe(false);
   });
 });

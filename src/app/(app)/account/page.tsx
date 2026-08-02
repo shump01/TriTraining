@@ -10,6 +10,7 @@ import {
   DigestToggle,
   ScreenNameForm,
   SignOutButton,
+  ViewModeToggle,
 } from "./account-forms";
 
 import "../surface.css";
@@ -24,7 +25,7 @@ export default async function AccountPage() {
   const prefs = session?.user?.id
     ? await prisma.user.findUnique({
         where: { id: session.user.id },
-        select: { digestEnabled: true },
+        select: { digestEnabled: true, viewMode: true },
       })
     : null;
 
@@ -61,6 +62,13 @@ export default async function AccountPage() {
           <h2 className="section-label">Security</h2>
           <div className="rounded-[18px] border border-border bg-card p-6">
             <ChangePasswordForm />
+          </div>
+        </div>
+
+        <div className="rise" style={{ animationDelay: "0.24s" }}>
+          <h2 className="section-label">Display</h2>
+          <div className="rounded-[18px] border border-border bg-card p-6">
+            <ViewModeToggle initial={prefs?.viewMode ?? "DETAILED"} />
           </div>
         </div>
 

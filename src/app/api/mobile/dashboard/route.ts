@@ -37,7 +37,10 @@ export async function GET(req: NextRequest) {
     const now = new Date();
 
     const [user, plans, strava, recent] = await Promise.all([
-      prisma.user.findUnique({ where: { id: userId }, select: { email: true, name: true } }),
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: { email: true, name: true, viewMode: true },
+      }),
       listTrainingPlans(),
       getStravaConnectionSummary(userId),
       listRecentActuals(4),
@@ -149,7 +152,13 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(
       {
-        user: { email: user?.email ?? null, name: user?.name ?? null },
+        user: {
+          email: user?.email ?? null,
+          name: user?.name ?? null,
+          // Plan-view density preference; the app gates its Settings toggle on
+          // this field's presence (old-server BC pattern).
+          viewMode: user?.viewMode ?? "DETAILED",
+        },
         activePlan,
         strava: strava
           ? { connected: true, lastSyncedAt: strava.lastSyncedAt }

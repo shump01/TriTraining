@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { getTrainingLoad } from "@/lib/load-data";
+import { prisma } from "@/lib/prisma";
 import { buildPlanSeries } from "@/lib/plan-series";
 import { currentWeekPlanner } from "@/lib/planner-data";
 import { computeFormReadiness, computeReadiness } from "@/lib/readiness";
@@ -45,6 +46,14 @@ export default async function PlanPage({ params }: { params: Promise<{ id: strin
   );
   const currentPause = plan.weeklyPauses.find((p) => p.weekStartDate.getTime() === currentWeekMs);
 
+  // Display density preference — Simple trims the week tables to this week.
+  const userId = await requireUserId();
+  const prefs = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { viewMode: true },
+  });
+  const simpleView = prefs?.viewMode === "SIMPLE";
+
   // Objective Form (TSB) from HR training load, cross-checked against this week's
   // check-in. Null until the athlete has set an LTHR and synced HR activities.
   const load = await getTrainingLoad();
@@ -54,9 +63,7 @@ export default async function PlanPage({ params }: { params: Promise<{ id: strin
 
   // The week board — only meaningful during an active, unpaused week.
   const planner =
-    isActiveWeek && !currentPause
-      ? await currentWeekPlanner(await requireUserId(), plan, now)
-      : null;
+    isActiveWeek && !currentPause ? await currentWeekPlanner(userId, plan, now) : null;
 
   return (
     <div className="mkpage">
@@ -74,6 +81,7 @@ export default async function PlanPage({ params }: { params: Promise<{ id: strin
           readiness={readiness}
           formSignal={formSignal}
           hasPlanner={!!planner && planner.sessions.length > 0}
+          simpleView={simpleView}
         />
 
         {planner && planner.sessions.length > 0 && (
