@@ -5,6 +5,7 @@ import type { CSSProperties } from "react";
 
 import { auth } from "@/auth";
 
+import { AppStoreBadge } from "./app-store-badge";
 import { HeroCurve } from "./hero-curve";
 import "./landing.css";
 import { LandingEffects } from "./landing-effects";
@@ -108,6 +109,7 @@ export default async function Home() {
                 <a href="#build" className="btn ghost">
                   <span>See how it works</span>
                 </a>
+                <AppStoreBadge />
               </div>
             </div>
 
@@ -347,10 +349,11 @@ export default async function Home() {
           <p className="mono sub reveal" data-d="1">
             Free to start · swim · bike · run
           </p>
-          <div className="reveal" data-d="2">
+          <div className="reveal cta-row" data-d="2" style={{ justifyContent: "center" }}>
             <Link href="/signup" className="btn">
               <span>Build my plan</span> <span>→</span>
             </Link>
+            <AppStoreBadge />
           </div>
         </div>
       </div>

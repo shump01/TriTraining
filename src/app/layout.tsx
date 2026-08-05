@@ -61,6 +61,9 @@ const ibmPlexMono = IBM_Plex_Mono({
 export const metadata: Metadata = {
   title: "TriTrainer",
   description: "Plan your build, sync from Strava, and see exactly where you stand.",
+  // iOS Safari's native install banner (renders <meta name="apple-itunes-app">)
+  // on every page — the lightest possible "get the app" surface.
+  itunes: { appId: "6791479511" },
 };
 
 // Applies the saved theme before first paint to avoid a flash. Dark is the

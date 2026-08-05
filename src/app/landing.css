@@ -669,3 +669,20 @@
     transform: none;
   }
 }
+
+/* Official App Store badge — Apple's artwork scales but is never restyled;
+   the anchor matches the .btn row height and lifts gently on hover. */
+.landing .store-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 44px;
+  transition: transform 0.25s var(--lp-ease);
+}
+.landing .store-badge:hover {
+  transform: translateY(-2px);
+}
+.landing .store-badge svg {
+  height: 100%;
+  width: auto;
+  display: block;
+}
