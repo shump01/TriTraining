@@ -189,11 +189,11 @@ export function ChangePasswordForm() {
       </div>
       <p id={`${id}-hint`} className="mt-2 mb-0 text-[12px] leading-[1.5] text-faint">
         At least 12 characters, with an uppercase letter, a lowercase letter, a number and a symbol.
-        Changing it signs out your other devices.
+        Changing it signs out every other device; you&apos;ll stay signed in here.
       </p>
       {done && (
         <p className="mt-2.5 mb-0 text-[12.5px] font-bold" style={{ color: "var(--on-track)" }}>
-          Password updated — other devices have been signed out.
+          Password updated — every other device has been signed out.
         </p>
       )}
       {error && (

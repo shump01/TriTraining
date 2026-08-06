@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { IDENTIFIER_PREFIX } from "@/lib/password-reset";
+import { newSessionData } from "@/lib/session";
 
 /**
  * User-account self-service: screen name, password change. Deletion lives in
@@ -43,11 +44,24 @@ export async function updateViewMode(
 /**
  * Change the password after verifying the current one.
  *
- * On success every OTHER session is revoked — a password change is exactly the
- * moment to evict anyone else holding a session — while the session performing
- * the change stays signed in (`keepSessionToken`). Password policy is enforced
- * at the route boundary via passwordSchema; this layer assumes a valid new
- * password and owns the argon2 verify/hash and the session sweep.
+ * On success EVERY session is revoked — including the one making the change —
+ * and a fresh one is minted in the same transaction. Two reasons to rotate
+ * rather than keep the caller's token:
+ *
+ *  - A password change is the moment to evict anyone else holding a session,
+ *    and the caller's own token may itself be the compromised one (stolen
+ *    cookie, shared device) — keeping it would leave the attacker signed in
+ *    on the very account the user just tried to secure.
+ *  - It's the standard post-privilege-change hygiene: no credential that
+ *    existed before the change survives it.
+ *
+ * The new token is RETURNED rather than applied here: the route owns the
+ * transport (a cookie for web, the JSON body for the mobile bearer client), so
+ * the caller stays signed in seamlessly instead of being bounced to login.
+ *
+ * Password policy is enforced at the route boundary via passwordSchema; this
+ * layer assumes a valid new password and owns the argon2 verify/hash, the
+ * session sweep, and the rotation.
  *
  * The wrong-password failure is deliberately indistinguishable for an account
  * with no password set (OAuth-only): probing which accounts have passwords is
@@ -57,8 +71,7 @@ export async function changePassword(
   userId: string,
   currentPassword: string,
   newPassword: string,
-  keepSessionToken: string | null,
-): Promise<void> {
+): Promise<{ sessionToken: string; expires: Date }> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: { passwordHash: true, email: true },
@@ -68,11 +81,15 @@ export async function changePassword(
   if (!ok) throw new WrongPasswordError();
 
   const passwordHash = await hashPassword(newPassword);
+  const session = newSessionData(userId);
+
   await prisma.$transaction(async (tx) => {
     await tx.user.update({ where: { id: userId }, data: { passwordHash } });
-    await tx.session.deleteMany({
-      where: keepSessionToken ? { userId, sessionToken: { not: keepSessionToken } } : { userId },
-    });
+    // Every session, no exception — then immediately replace the caller's.
+    // Same transaction, so there is never a window with a stale token still
+    // valid, nor one where the user is left with no session at all.
+    await tx.session.deleteMany({ where: { userId } });
+    await tx.session.create({ data: session });
     // Any reset link already in the athlete's inbox is now stale. Someone who
     // obtained one before the change (old mailbox, forwarded mail) must not be
     // able to walk it in afterwards and take the account straight back.
@@ -82,4 +99,6 @@ export async function changePassword(
       });
     }
   });
+
+  return { sessionToken: session.sessionToken, expires: session.expires };
 }

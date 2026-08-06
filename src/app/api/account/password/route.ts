@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { WrongPasswordError, changePassword } from "@/lib/account";
 import { mapKnownApiError } from "@/lib/api";
 import { enforceRateLimit, isCrossSiteRequest } from "@/lib/security";
-import { SESSION_COOKIE_NAME } from "@/lib/session-cookie";
+import { SESSION_COOKIE_NAME, sessionCookieOptions } from "@/lib/session-cookie";
 import { requireUserId } from "@/lib/training-plan";
 import { changePasswordSchema } from "@/lib/validation";
 
@@ -14,10 +14,15 @@ export const dynamic = "force-dynamic";
  * POST /api/account/password — change the password while signed in.
  *
  * Requires the current password (so a walk-up attacker with an unlocked device
- * can't silently take the account), enforces the sign-up password policy on the
- * new one, and revokes every OTHER session on success — the session performing
- * the change stays signed in, whichever transport carried it (cookie or the
- * mobile bearer token).
+ * can't silently take the account) and enforces the sign-up password policy on
+ * the new one. On success EVERY session is revoked and the caller's is rotated
+ * to a fresh token, so no credential that existed before the change survives
+ * it — including the caller's own, which may itself be the compromised one.
+ *
+ * The rotated token is delivered the same way login delivers it: a refreshed
+ * cookie for web, plus the token in the JSON body for the mobile client
+ * (`X-Client: mobile`), which stores it and sends it as a Bearer header. Both
+ * therefore stay signed in across the change.
  */
 export async function POST(req: NextRequest) {
   if (isCrossSiteRequest(req)) {
@@ -49,15 +54,24 @@ export async function POST(req: NextRequest) {
   try {
     const userId = await requireUserId();
 
-    // The session to KEEP: the cookie session, or the mobile bearer token.
-    const bearer = req.headers.get("authorization");
-    const bearerToken = bearer?.toLowerCase().startsWith("bearer ")
-      ? bearer.slice("bearer ".length).trim()
-      : null;
-    const keepToken = req.cookies.get(SESSION_COOKIE_NAME)?.value ?? bearerToken ?? null;
+    const { sessionToken, expires } = await changePassword(
+      userId,
+      parsed.data.currentPassword,
+      parsed.data.newPassword,
+    );
 
-    await changePassword(userId, parsed.data.currentPassword, parsed.data.newPassword, keepToken);
-    return NextResponse.json({ ok: true }, { status: 200 });
+    // Mirror the login route: the mobile client can't use the httpOnly cookie,
+    // so it needs the rotated token in the body or it would be signed out.
+    const isMobileClient = req.headers.get("x-client") === "mobile";
+    const res = NextResponse.json(
+      isMobileClient ? { ok: true, sessionToken, expires: expires.toISOString() } : { ok: true },
+      { status: 200 },
+    );
+    res.cookies.set(SESSION_COOKIE_NAME, sessionToken, {
+      ...sessionCookieOptions,
+      expires,
+    });
+    return res;
   } catch (error) {
     if (error instanceof WrongPasswordError) {
       return NextResponse.json({ error: error.message }, { status: 400 });

@@ -13,14 +13,29 @@ export async function createDatabaseSession(userId: string): Promise<{
   sessionToken: string;
   expires: Date;
 }> {
-  const sessionToken = randomBytes(32).toString("hex");
-  const expires = new Date(Date.now() + SESSION_MAX_AGE_SECONDS * 1000);
+  const data = newSessionData(userId);
+  await prisma.session.create({ data });
+  return { sessionToken: data.sessionToken, expires: data.expires };
+}
 
-  await prisma.session.create({
-    data: { sessionToken, userId, expires },
-  });
-
-  return { sessionToken, expires };
+/**
+ * The row values for a fresh session, without writing them.
+ *
+ * Lets a caller create the session on a TRANSACTION client instead of the
+ * global one — password change rotates the token in the same transaction that
+ * revokes the old sessions, so there is never a moment where the account has
+ * no valid session (or two valid sets).
+ */
+export function newSessionData(userId: string): {
+  sessionToken: string;
+  userId: string;
+  expires: Date;
+} {
+  return {
+    sessionToken: randomBytes(32).toString("hex"),
+    userId,
+    expires: new Date(Date.now() + SESSION_MAX_AGE_SECONDS * 1000),
+  };
 }
 
 /** Delete a session by its token (used by sign-out). Safe if it doesn't exist. */
