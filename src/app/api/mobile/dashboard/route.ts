@@ -68,12 +68,20 @@ export async function GET(req: NextRequest) {
       targetMeters: number;
     };
     type TodaySession = { discipline: string; label: string; meters: number; done: boolean };
+    type UpcomingWeek = {
+      /** YYYY-MM-DD UTC week start — same convention as the series' dateStr. */
+      weekStart: string;
+      paused: boolean;
+      minis: { key: string; label: string; targetMeters: number }[];
+    };
     let activePlan: {
       id: string;
       name: string;
       eventDate: Date;
       weeksToGo: number;
       minis: Mini[];
+      /** Week-brief feed: the current week plus up to the next three. */
+      upcomingWeeks: UpcomingWeek[];
       readiness: SeriesReadiness | null;
       /** Today's sessions from the week planner (empty outside plan weeks). */
       today: TodaySession[];
@@ -87,6 +95,7 @@ export async function GET(req: NextRequest) {
       await maybeRecalculatePlan(active.id);
       const full = await getTrainingPlan(active.id);
       let minis: Mini[] = [];
+      let upcomingWeeks: UpcomingWeek[] = [];
       let readiness: SeriesReadiness | null = null;
       let today: TodaySession[] = [];
       let todayRestDay = false;
@@ -137,6 +146,28 @@ export async function GET(req: NextRequest) {
             targetMeters: week?.target ?? 0,
           };
         });
+        // Week-brief feed: the current week plus the next three, targets only.
+        // The current week is INCLUDED so the app can keep a brief scheduled
+        // whose fire time is still ahead — a pre-dawn background sync on brief
+        // day must not cancel that morning's notification. When the plan
+        // hasn't started yet there is no "current" row, so start at week 1;
+        // a finished plan feeds nothing.
+        const rows = first ? first.weeks : [];
+        const upcomingStart = wi >= 0 ? wi : first?.summary.finished ? rows.length : 0;
+        upcomingWeeks = rows.slice(upcomingStart, upcomingStart + 4).map((row, i) => {
+          const idx = upcomingStart + i;
+          return {
+            weekStart: row.dateStr,
+            paused: row.paused,
+            minis: series
+              .filter((s) => s.key !== "TOTAL")
+              .map((s) => ({
+                key: s.key,
+                label: s.label,
+                targetMeters: s.weeks[idx]?.target ?? 0,
+              })),
+          };
+        });
       }
       activePlan = {
         id: active.id,
@@ -144,6 +175,7 @@ export async function GET(req: NextRequest) {
         eventDate: active.eventDate,
         weeksToGo: Math.max(0, Math.ceil((active.eventDate.getTime() - now.getTime()) / WEEK_MS)),
         minis,
+        upcomingWeeks,
         readiness,
         today,
         todayRestDay,
