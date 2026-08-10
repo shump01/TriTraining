@@ -37,8 +37,15 @@ From the app directory (the Passenger **working directory**, e.g. `~/Node`):
 
 ```bash
 npm ci             # installs deps (incl. dev — needed to build) + prisma generate
-npm run build      # produces .next/  (server.js serves this)
+npm run build      # prisma generate + next build -> .next/  (server.js serves this)
 ```
+
+> `npm run build` regenerates the Prisma client itself, so a schema change can never be
+> built against a stale one. Worth knowing what that used to look like, because the error
+> points away from the cause: the build compiles, then the **typecheck** fails on a line
+> that is perfectly correct — `'viewMode' does not exist in type 'UserSelect'`. The column
+> exists and the schema declares it; only the generated client (`src/generated/`, never
+> committed) was old.
 
 > `next build` can exceed 256 MB of memory. If it OOMs, raise the app's memory limit for
 > the build (≈1 GB), then lower it again for runtime if desired.
@@ -149,5 +156,15 @@ Keep it alive with `pm2` or a `systemd` unit, and put nginx/Apache in front (see
 
 ## Redeploys
 
-Repeat: upload new source → `npm ci` (if deps changed) → `npm run build` →
-`npx prisma migrate deploy` (if new migrations) → **Restart**.
+Repeat: upload new source → `npm ci` (if deps changed) → `npx prisma migrate deploy`
+(if new migrations) → `npm run build` → **Restart**.
+
+Migrations run **before** the build, not after: new code that selects a column the
+database doesn't have yet compiles fine and then 500s at runtime, so the window between
+build and migrate is a window of live errors.
+
+`npm run build` covers `prisma generate`, so a `prisma/schema.prisma` change needs no
+separate step. Before that was wired in, skipping `npm ci` on a deploy whose
+dependencies hadn't changed left the generated client stale and broke the build's
+typecheck — the trap being that a schema change is neither a dependency change nor
+necessarily a migration.
