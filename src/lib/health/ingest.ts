@@ -3,6 +3,7 @@ import { buildActivityLoadRows } from "@/lib/strava/sync-core";
 import { planStartWeek, startOfWeek } from "@/lib/weekly-targets";
 
 import { buildAppleHealthRows, toActivityHrInputs, type HealthWorkoutInput } from "./core";
+import { dedupeHealthWorkouts } from "./dedupe";
 
 export interface HealthIngestResult {
   ok: true;
@@ -10,6 +11,8 @@ export interface HealthIngestResult {
   weeksWritten: number;
   /** ActivityLoad rows written (workouts that carried id + duration + HR). */
   loadWritten: number;
+  /** Same-session copies collapsed before counting (see ./dedupe). */
+  duplicatesDropped: number;
 }
 
 /**
@@ -53,10 +56,16 @@ export async function ingestHealthWorkouts(
   // the /load page kept charting workouts from a plan that no longer exists.
   // Only the plan-scoped weekly-actual write is skipped below (mirrors
   // recomputeGarminDerivedRows).
-  const rows = buildAppleHealthRows(planRanges, workouts);
+  // One physical session can sit in HealthKit several times over, written by
+  // each app that saw it. Collapse before ANY counting so weekly distance and
+  // training load are both spared the double — a duplicated ride would
+  // otherwise inflate the week AND score its load twice.
+  const deduped = dedupeHealthWorkouts(workouts);
+
+  const rows = buildAppleHealthRows(planRanges, deduped);
   // Per-workout HR data → training load, reusing the exact builder the Strava
   // path uses (sport mapping, positive-value rules, local-day dating).
-  const loadRows = buildActivityLoadRows(toActivityHrInputs(workouts));
+  const loadRows = buildActivityLoadRows(toActivityHrInputs(deduped));
   const planIds = planRanges.map((r) => r.id);
 
   await prisma.$transaction(async (tx) => {
@@ -85,8 +94,11 @@ export async function ingestHealthWorkouts(
 
   return {
     ok: true,
-    workouts: workouts.length,
+    // The count that was actually used, so "42 workouts" never disagrees with
+    // the distances beside it.
+    workouts: deduped.length,
     weeksWritten: rows.length,
     loadWritten: loadRows.length,
+    duplicatesDropped: workouts.length - deduped.length,
   };
 }
