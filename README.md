@@ -72,6 +72,16 @@ OAuth 2.0 link to Strava, **separate from login** (see [src/lib/strava](src/lib/
   covering plan. **Idempotent**: it replaces STRAVA actuals in a transaction
   (MANUAL ones untouched), keyed on `(planId, discipline, weekStartDate, source)`.
   `StravaConnection.lastSyncedAt` records the last run.
+- **Scheduled sync** — [src/lib/strava/cron-sync.ts](src/lib/strava/cron-sync.ts),
+  run from the daily cron tick. Without it the only sync path is the button, so
+  an athlete who stops pressing it silently stops having Strava data — which
+  matters because STRAVA outranks GARMIN and APPLE_HEALTH, so their numbers
+  change with no visible cause. The batch is bounded (50 athletes per run,
+  stalest first, nobody re-synced inside 6 hours, only athletes with a plan
+  within a week of race day) because Strava's rate limit is charged to the
+  **application**, not the athlete: an unbounded run spends one shared quota and
+  the person who pays is whoever presses "Sync now" next. A 429 stops the whole
+  batch for the same reason; the unreached sort to the front of tomorrow's run.
 
 ### Configuring the Strava API application
 
@@ -359,7 +369,9 @@ last week's actual vs target per sport, this week's freshly re-ramped targets
 (the digest triggers the same roll-forward the first dashboard view would),
 Form, streak, and the race countdown — for the featured plan. Driven by a
 daily scheduler hitting `POST /api/cron/weekly-digest` (bearer `CRON_SECRET`;
-503 when unset). Idempotent via `User.lastDigestWeek` — at most one digest per
+503 when unset) — the daily maintenance tick, which also runs the scheduled
+Strava sync and the retention sweep ahead of the emails, so the numbers quoted
+are today's. Idempotent via `User.lastDigestWeek` — at most one digest per
 training week, with a one-day catch-up window for a missed cron run. On by
 default; off via the Account-page toggle or the signed, session-free
 unsubscribe link (RFC 8058 one-click headers) in every email. Requires SMTP.

@@ -72,22 +72,22 @@ with a clear message. Set these on the server (a `.env` in the working directory
 by `server.js`; or use the host's environment-variable settings). See
 [`.env.example`](.env.example).
 
-| Variable                                    | Notes                                                                                                                                                                                  |
-| ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`                              | Postgres connection (Supabase pooler)                                                                                                                                                  |
-| `DIRECT_URL`                                | Direct (non-pooled) connection — used by `migrate deploy`                                                                                                                              |
-| `AUTH_SECRET`                               | `openssl rand -base64 32`                                                                                                                                                              |
-| `NEXTAUTH_URL`                              | `https://training.richysdev.co.uk`                                                                                                                                                     |
-| `ENCRYPTION_KEY`                            | base64 32 bytes. **Must be the same key** that encrypted existing Strava tokens, or they can't be decrypted                                                                            |
-| `STRAVA_CLIENT_ID` / `STRAVA_CLIENT_SECRET` | from the Strava API application                                                                                                                                                        |
-| `STRAVA_WEBHOOK_VERIFY_TOKEN`               | only if using Strava webhooks                                                                                                                                                          |
-| `SMTP_HOST` / `SMTP_PORT`                   | mail server for password-reset emails (port 587 STARTTLS). Optional — reset emails are skipped if unset                                                                                |
-| `SMTP_USER` / `SMTP_PASS`                   | mailbox credentials. On Hetzner, create a mailbox (e.g. `noreply@richysdev.co.uk`) in KonsoleH                                                                                         |
-| `MAIL_FROM`                                 | from address, e.g. `TriTrainer <noreply@richysdev.co.uk>`                                                                                                                              |
-| `TRUSTED_PROXY_COUNT`                       | number of reverse proxies that append to `X-Forwarded-For`. Set to `1` behind Passenger/nginx so rate-limit IPs can't be spoofed. Default `0` (throttles fall back to a shared bucket) |
-| `APPLE_TEAM_ID`                             | Apple Developer Team ID (10 chars) — enables `/.well-known/apple-app-site-association` so group-invite links open the iOS app. Optional; the route 404s until set                      |
-| `CRON_SECRET`                               | bearer secret for `POST /api/cron/weekly-digest` (digest emails + the expired-row sweep). Optional — the route answers 503 and neither runs until it's set. `openssl rand -base64 32`  |
-| `NODE_ENV`                                  | `production` (set the host's "Application mode" to production)                                                                                                                         |
+| Variable                                    | Notes                                                                                                                                                                                                                |
+| ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                              | Postgres connection (Supabase pooler)                                                                                                                                                                                |
+| `DIRECT_URL`                                | Direct (non-pooled) connection — used by `migrate deploy`                                                                                                                                                            |
+| `AUTH_SECRET`                               | `openssl rand -base64 32`                                                                                                                                                                                            |
+| `NEXTAUTH_URL`                              | `https://training.richysdev.co.uk`                                                                                                                                                                                   |
+| `ENCRYPTION_KEY`                            | base64 32 bytes. **Must be the same key** that encrypted existing Strava tokens, or they can't be decrypted                                                                                                          |
+| `STRAVA_CLIENT_ID` / `STRAVA_CLIENT_SECRET` | from the Strava API application                                                                                                                                                                                      |
+| `STRAVA_WEBHOOK_VERIFY_TOKEN`               | only if using Strava webhooks                                                                                                                                                                                        |
+| `SMTP_HOST` / `SMTP_PORT`                   | mail server for password-reset emails (port 587 STARTTLS). Optional — reset emails are skipped if unset                                                                                                              |
+| `SMTP_USER` / `SMTP_PASS`                   | mailbox credentials. On Hetzner, create a mailbox (e.g. `noreply@richysdev.co.uk`) in KonsoleH                                                                                                                       |
+| `MAIL_FROM`                                 | from address, e.g. `TriTrainer <noreply@richysdev.co.uk>`                                                                                                                                                            |
+| `TRUSTED_PROXY_COUNT`                       | number of reverse proxies that append to `X-Forwarded-For`. Set to `1` behind Passenger/nginx so rate-limit IPs can't be spoofed. Default `0` (throttles fall back to a shared bucket)                               |
+| `APPLE_TEAM_ID`                             | Apple Developer Team ID (10 chars) — enables `/.well-known/apple-app-site-association` so group-invite links open the iOS app. Optional; the route 404s until set                                                    |
+| `CRON_SECRET`                               | bearer secret for `POST /api/cron/weekly-digest` — the daily tick: digest emails, scheduled Strava sync, expired-row sweep. Optional; the route answers 503 and none of it runs until set. `openssl rand -base64 32` |
+| `NODE_ENV`                                  | `production` (set the host's "Application mode" to production)                                                                                                                                                       |
 
 ---
 
@@ -128,18 +128,28 @@ Keep it alive with `pm2` or a `systemd` unit, and put nginx/Apache in front (see
   proxy to the Node process.
 - **Strava app:** set the Authorization Callback Domain to `training.richysdev.co.uk`
   (callback URL `https://training.richysdev.co.uk/api/strava/callback`).
-- **Daily cron (recommended):** with `CRON_SECRET` set, add a daily cron job (KonsoleH →
-  cron, or any scheduler). It does two things — sends any digests that are due (the route
-  decides who, so daily is correct; needs SMTP too) and prunes expired sessions and
-  password-reset tokens, which nothing else deletes:
+- **Daily cron (strongly recommended):** with `CRON_SECRET` set, add a daily cron job
+  (KonsoleH → cron, or any scheduler). Despite the route's name it is the daily
+  maintenance tick and does three things:
 
   ```
   15 6 * * *  curl -s -X POST -H "Authorization: Bearer YOUR_CRON_SECRET" https://training.richysdev.co.uk/api/cron/weekly-digest
   ```
 
-  Worth setting even with SMTP unconfigured: without it, dead session rows accumulate
-  forever, and a database leak then exposes every token ever issued rather than the
-  30 days' worth that are actually live.
+  1. **Prunes expired sessions and password-reset tokens**, which nothing else deletes.
+     Without it dead rows accumulate forever, and a database leak then exposes every
+     token ever issued rather than the 30 days' worth that are actually live.
+  2. **Syncs connected Strava accounts.** This is the only unattended path there is —
+     otherwise activities arrive only when an athlete presses "Sync now", and the
+     webhook covers deauthorization only. An athlete who stops pressing the button
+     silently stops having Strava data, and because Strava outranks Apple Health and
+     Garmin, that quietly changes the numbers they see.
+  3. **Sends any digests that are due** (the route decides who, so daily is correct;
+     needs SMTP too), after the sync so the emails quote today's distances.
+
+  Nothing here needs a second cron entry, and none of it is safe to skip. Daily is the
+  right cadence: the sync batch declines to re-sync anyone touched in the last 6 hours,
+  so scheduling it more often costs Strava API quota without gaining freshness.
 
 ---
 

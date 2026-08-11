@@ -8,6 +8,7 @@ import { sendWeeklyDigests } from "@/lib/digest";
 import { logger } from "@/lib/logger";
 import { pruneExpiredAuthRows } from "@/lib/retention";
 import { enforceRateLimit } from "@/lib/security";
+import { syncAllStravaConnections } from "@/lib/strava/cron-sync";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,12 +30,20 @@ function bearerMatches(req: NextRequest, secret: string): boolean {
  * sends nothing twice. 503 when CRON_SECRET is unset — the feature is off
  * until deployment opts in.
  *
- * The retention sweep (src/lib/retention.ts) rides along on this one daily
- * request rather than getting a route of its own: a second cron entry is a
- * second thing to remember on every deploy, and a prune nobody schedules
- * prunes nothing. It runs FIRST but never blocks the emails — a sweep that
- * throws is logged and stepped over, because deleting yesterday's dead
- * sessions is not worth losing a day of digests.
+ * Despite the name this is the daily maintenance tick, and two other jobs ride
+ * along on it rather than taking routes of their own: a second cron entry is a
+ * second thing to remember on every deploy, and a job nobody schedules does
+ * nothing. Both run BEFORE the digest and neither can block it — whatever they
+ * throw is logged and stepped over, because no amount of housekeeping is worth
+ * losing a day of emails.
+ *
+ * - The retention sweep (src/lib/retention.ts) deletes expired auth rows.
+ * - The Strava sync (src/lib/strava/cron-sync.ts) is what keeps connected
+ *   athletes' data current at all: syncStravaActivities otherwise runs only
+ *   when somebody presses "Sync now", and the Strava webhook covers
+ *   deauthorization only. Ordered before the digest deliberately — the emails
+ *   quote this week's distances, so syncing after them would post numbers a
+ *   day stale.
  */
 export async function POST(req: NextRequest) {
   if (!env.CRON_SECRET) {
@@ -57,9 +66,14 @@ export async function POST(req: NextRequest) {
     return null;
   });
 
+  const strava = await syncAllStravaConnections().catch((error: unknown) => {
+    logger.warn("Strava sync batch failed; continuing with the digest batch", { error });
+    return null;
+  });
+
   try {
     const result = await sendWeeklyDigests();
-    return NextResponse.json({ ok: true, ...result, pruned }, { status: 200 });
+    return NextResponse.json({ ok: true, ...result, pruned, strava }, { status: 200 });
   } catch (error) {
     return handleApiError(error, { route: "POST /api/cron/weekly-digest" });
   }
