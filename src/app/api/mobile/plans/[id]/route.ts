@@ -3,10 +3,11 @@ import { NextResponse, type NextRequest } from "next/server";
 import { mapKnownApiError } from "@/lib/api";
 import { getTrainingLoad } from "@/lib/load-data";
 import { buildPlanSeries } from "@/lib/plan-series";
+import { allWeeksPlanner } from "@/lib/planner-data";
 import { computeFormReadiness, computeReadiness } from "@/lib/readiness";
 import { enforceRateLimit } from "@/lib/security";
-import { getTrainingPlan, maybeRecalculatePlan } from "@/lib/training-plan";
-import { planStartWeek, startOfWeek } from "@/lib/weekly-targets";
+import { getTrainingPlan, maybeRecalculatePlan, requireUserId } from "@/lib/training-plan";
+import { planStartWeek, startOfWeek, trainingPhaseForWeek } from "@/lib/weekly-targets";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,6 +24,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const { id } = await params;
 
   try {
+    const userId = await requireUserId();
     await maybeRecalculatePlan(id);
 
     const plan = await getTrainingPlan(id);
@@ -33,6 +35,19 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const now = new Date();
     const series = buildPlanSeries(plan, now);
     const currentWeekMs = startOfWeek(now, plan.weekStartDay).getTime();
+
+    // Week-pager feed: a structural phase label per week (index-aligned with
+    // every series' weeks) and each week's prescribed sessions. Both additive —
+    // old app binaries parse them away via `.optional()`.
+    const weeks = series[0]?.weeks ?? [];
+    const weekPhases = weeks.map((_, i) =>
+      trainingPhaseForWeek(i, weeks.length, plan.taperWeeks),
+    );
+    const weekSessions = await allWeeksPlanner(
+      userId,
+      plan,
+      weeks.map((w) => new Date(w.ms)),
+    );
     // The current week's wellness check-in (if any) — same lookup as the page.
     const checkin =
       plan.weeklyCheckins.find((c) => c.weekStartDate.getTime() === currentWeekMs) ?? null;
@@ -61,6 +76,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
           })),
         },
         series,
+        weekPhases,
+        weekSessions,
         readiness: computeReadiness(series),
         form: form && {
           tsb: form.tsb,

@@ -86,3 +86,48 @@ export async function currentWeekPlanner(
 
   return { ...base, paused: false, sessions, activityCounts };
 }
+
+/** One plan week's prescribed sessions, for surfaces that page across weeks. */
+export interface PlanWeekSessions {
+  /** ISO date (YYYY-MM-DD) of the week's first day. */
+  weekStart: string;
+  /** Paused weeks prescribe nothing — same doctrine as the current-week view. */
+  paused: boolean;
+  sessions: PlannerSessionView[];
+}
+
+/**
+ * The planner view for EVERY week of a plan — the app's week pager shows
+ * session chips on any paged week, not just the current one. Same assembly as
+ * currentWeekPlanner per week (stored rows win, defaults otherwise, auto-ticks
+ * from synced activities); the load rows are fetched once for the whole span
+ * (getLoadRows is unwindowed and request-cached, so a route that already
+ * computed training load pays nothing extra here).
+ */
+export async function allWeeksPlanner(
+  userId: string,
+  plan: PlanForPlanner,
+  weekStarts: Date[],
+): Promise<PlanWeekSessions[]> {
+  const pausedMs = new Set(plan.weeklyPauses.map((p) => p.weekStartDate.getTime()));
+  const user = await getLoadUser(userId);
+  const loadRows = user ? await getLoadRows(userId, pickLoadSource(user)) : [];
+
+  return weekStarts.map((weekStart) => {
+    const weekMs = weekStart.getTime();
+    const weekStartDate = weekStart.toISOString().slice(0, 10);
+    if (pausedMs.has(weekMs)) {
+      return { weekStart: weekStartDate, paused: true, sessions: [] };
+    }
+    const sessions = assembleWeekView({
+      weekStartMs: weekMs,
+      weekStartDay: plan.weekStartDay,
+      stored: plan.plannedSessions.filter((s) => s.weekStartDate.getTime() === weekMs),
+      targets: plan.weeklyTargets
+        .filter((t) => t.weekStartDate.getTime() === weekMs)
+        .map((t) => ({ discipline: t.discipline, weekMeters: t.targetMeters })),
+      loadRows,
+    });
+    return { weekStart: weekStartDate, paused: false, sessions };
+  });
+}

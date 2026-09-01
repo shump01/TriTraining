@@ -14,6 +14,7 @@ import {
   planStartWeek,
   returnToTrainingFactor,
   startOfWeek,
+  trainingPhaseForWeek,
   type WeeklyTargetInput,
 } from "./weekly-targets";
 
@@ -1084,5 +1085,60 @@ describe("computeAdaptedFutureTargets — the compliance floor", () => {
     });
     expect(over).toEqual(control);
     expect(over[0]!.targetMeters).toBeGreaterThan(15_000);
+  });
+});
+
+describe("trainingPhaseForWeek", () => {
+  const phases = (weekCount: number, taperWeeks: number) =>
+    Array.from({ length: weekCount }, (_, i) => trainingPhaseForWeek(i, weekCount, taperWeeks));
+
+  it("labels a 16-week taper-2 plan the way the builder shapes it", () => {
+    // Peak = last build week (index 13); race week is the taper's final step
+    // but reads RACE; de-loads at every 4th week; the first block is BASE.
+    expect(phases(16, 2)).toEqual([
+      "BASE", "BASE", "BASE", "RECOVERY",
+      "BUILD", "BUILD", "BUILD", "RECOVERY",
+      "BUILD", "BUILD", "BUILD", "RECOVERY",
+      "BUILD", "PEAK", "TAPER", "RACE",
+    ]);
+  });
+
+  it("keeps de-loads on the builder's cadence (every BLOCK_WEEKSth week)", () => {
+    const p = phases(12, 0);
+    for (let i = 0; i < 12; i++) {
+      const isDeload = i % BLOCK_WEEKS === BLOCK_WEEKS - 1;
+      if (isDeload && i !== 11) expect(p[i]).toBe("RECOVERY");
+    }
+  });
+
+  it("with no taper the race week IS the peak — RACE wins the label", () => {
+    const p = phases(10, 0);
+    expect(p[9]).toBe("RACE");
+    expect(p).not.toContain("PEAK");
+    expect(p[8]).toBe("BUILD");
+  });
+
+  it("clamps an oversized taper the way computeWeeklyTargets does", () => {
+    // 5 weeks, taper 10 → effective taper 3 (always two build weeks kept):
+    // W1 BASE, W2 PEAK, W3-4 TAPER, W5 RACE.
+    expect(phases(5, 10)).toEqual(["BASE", "PEAK", "TAPER", "TAPER", "RACE"]);
+  });
+
+  it("degenerate spans stay sane", () => {
+    expect(phases(1, 2)).toEqual(["RACE"]);
+    expect(phases(2, 2)).toEqual(["BASE", "RACE"]);
+  });
+
+  it("agrees with computeWeeklyTargets about which weeks de-load", () => {
+    // Structural label vs the actual curve: every RECOVERY week's target must
+    // equal its block's 2nd-week target (the builder's de-load rule).
+    const targets = computeWeeklyTargets(baseInput({ eventDate: mondayPlusWeeks(15) }));
+    const p = phases(targets.length, 0);
+    p.forEach((phase, i) => {
+      if (phase === "RECOVERY") {
+        expect(targets[i]!.targetMeters).toBe(targets[i - 2]!.targetMeters);
+      }
+    });
+    expect(p).toContain("RECOVERY");
   });
 });

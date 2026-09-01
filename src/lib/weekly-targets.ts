@@ -31,6 +31,40 @@ export const TAPER_FLOOR = 0.5;
 /** Default number of taper weeks for a plan (the schema/validation default). */
 export const DEFAULT_TAPER_WEEKS = 2;
 
+/**
+ * The training phase a week belongs to, derived purely from the plan's
+ * STRUCTURE (week count, taper length, de-load cadence) — never from target
+ * values, so adaptive re-ramps can't relabel a week. Labels power the app's
+ * week pager ("W10 · BUILD").
+ */
+export type TrainingPhase = "BASE" | "BUILD" | "RECOVERY" | "PEAK" | "TAPER" | "RACE";
+
+/**
+ * Phase label for week `index` (0-based) of a `weekCount`-week plan with
+ * `taperWeeks` requested taper weeks. Mirrors computeWeeklyTargets exactly:
+ * same taper clamp, same de-load cadence, same peak index. Precedence when a
+ * week qualifies twice: RACE > TAPER > PEAK > RECOVERY > BASE/BUILD — the
+ * race week is a taper step mathematically, but "RACE" is what the athlete
+ * needs to read; and de-loads never occur inside the taper because the
+ * builder stops applying them there.
+ */
+export function trainingPhaseForWeek(
+  index: number,
+  weekCount: number,
+  taperWeeks: number,
+): TrainingPhase {
+  // Same clamp as computeWeeklyTargets: always keep at least two build weeks.
+  const effectiveTaper = Math.max(0, Math.min(Math.floor(taperWeeks), weekCount - 2));
+  const peakIndex = weekCount - 1 - effectiveTaper;
+  if (index === weekCount - 1) return "RACE";
+  if (index > peakIndex) return "TAPER";
+  if (index === peakIndex) return "PEAK";
+  if (index % BLOCK_WEEKS === BLOCK_WEEKS - 1) return "RECOVERY";
+  // The first block (before any de-load has happened) reads as base building.
+  if (index < BLOCK_WEEKS - 1) return "BASE";
+  return "BUILD";
+}
+
 const MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000;
 
 /**
