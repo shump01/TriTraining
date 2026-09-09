@@ -2,7 +2,11 @@ import { randomBytes } from "crypto";
 
 import { displayNameFor } from "@/lib/display-name";
 import { pickFeaturedPlan } from "@/lib/featured-plan";
-import { buildMemberDisciplineStats } from "@/lib/group-stats";
+import {
+  buildMemberDisciplineStats,
+  buildMemberWeekStats,
+  rankByWeekPct,
+} from "@/lib/group-stats";
 import { prisma } from "@/lib/prisma";
 import { NotFoundError, requireUserId } from "@/lib/training-plan";
 import { planStartWeek } from "@/lib/weekly-targets";
@@ -132,6 +136,12 @@ export interface MemberStat {
    */
   hasActivePlan: boolean;
   disciplines: ReturnType<typeof buildMemberDisciplineStats>;
+  /** Weekly standing (whole-plan %) — see buildMemberWeekStats. Null without a plan. */
+  weekPct: number | null;
+  lastWeekPct: number | null;
+  streak: number;
+  /** This week's rank within the group (competition ranking); null when unranked. */
+  rank: number | null;
 }
 
 /**
@@ -182,7 +192,7 @@ export async function getGroupMemberStats(groupId: string): Promise<MemberStat[]
     },
   });
 
-  return members.map((m) => {
+  const stats = members.map((m) => {
     // The same featured-plan rule the dashboard uses, from the shared module —
     // this used to carry its own copy of the retired "nearest upcoming event"
     // logic, so a group could show a member training for a C-race tune-up while
@@ -195,14 +205,21 @@ export async function getGroupMemberStats(groupId: string): Promise<MemberStat[]
       })),
       now.getTime(),
     );
+    const week = active ? buildMemberWeekStats(active, now) : null;
     return {
       userId: m.userId,
       name: displayNameFor(m.user),
       isOwner: m.userId === group.ownerId,
       hasActivePlan: Boolean(active),
       disciplines: active ? buildMemberDisciplineStats(active, now) : [],
+      weekPct: week?.weekPct ?? null,
+      lastWeekPct: week?.lastWeekPct ?? null,
+      streak: week?.streak ?? 0,
     };
   });
+  // This week's standings: rank across the whole group, ties shared.
+  const ranks = rankByWeekPct(stats);
+  return stats.map((s) => ({ ...s, rank: ranks.get(s) ?? null }));
 }
 
 /** Group name + member count for the join-confirmation page (auth required). */

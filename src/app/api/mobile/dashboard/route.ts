@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { mapKnownApiError } from "@/lib/api";
 import { pickFeaturedPlan } from "@/lib/featured-plan";
+import { getGroupMemberStats, listMyGroups } from "@/lib/groups";
 import { buildPlanSeries } from "@/lib/plan-series";
 import { currentWeekPlanner } from "@/lib/planner-data";
 import { prisma } from "@/lib/prisma";
@@ -88,6 +89,10 @@ export async function GET(req: NextRequest) {
       /** True when today is an in-plan, unpaused day with no sessions. */
       todayRestDay: boolean;
     } | null = null;
+    // The current week's start, in the same YYYY-MM-DD form as the
+    // upcomingWeeks feed — the group standings below are stamped with it so
+    // the app can match "the week this rank describes" by identity.
+    let currentWeekStart: string | null = null;
 
     if (active) {
       // Roll the week forward first (same as the plan page), so today's
@@ -154,6 +159,7 @@ export async function GET(req: NextRequest) {
         // a finished plan feeds nothing.
         const rows = first ? first.weeks : [];
         const upcomingStart = wi >= 0 ? wi : first?.summary.finished ? rows.length : 0;
+        currentWeekStart = wi >= 0 ? (rows[wi]?.dateStr ?? null) : null;
         upcomingWeeks = rows.slice(upcomingStart, upcomingStart + 4).map((row, i) => {
           const idx = upcomingStart + i;
           return {
@@ -182,6 +188,37 @@ export async function GET(req: NextRequest) {
       };
     }
 
+    // The requester's standing in each of their groups this week — the week
+    // brief's closing line ("You finished 2nd of 6 in Dawn Patrol."). The
+    // rank describes the week starting `weekStart`; `rankedCount` counts the
+    // members who HAVE a current week (the "of N"), not the roster.
+    // Best-effort: a group that fails to compute must never sink the dashboard.
+    const groupStandings: {
+      groupId: string;
+      name: string;
+      weekStart: string | null;
+      rank: number | null;
+      rankedCount: number;
+      pct: number | null;
+    }[] = [];
+    try {
+      for (const g of await listMyGroups()) {
+        const stats = await getGroupMemberStats(g.id);
+        const me = stats.find((s) => s.userId === userId);
+        if (!me) continue;
+        groupStandings.push({
+          groupId: g.id,
+          name: g.name,
+          weekStart: me.rank == null ? null : currentWeekStart,
+          rank: me.rank,
+          rankedCount: stats.filter((s) => s.weekPct != null).length,
+          pct: me.weekPct,
+        });
+      }
+    } catch {
+      // Standings are a garnish on the dashboard, never a reason to 500 it.
+    }
+
     return NextResponse.json(
       {
         user: {
@@ -202,6 +239,7 @@ export async function GET(req: NextRequest) {
           source: a.source,
           planName: a.plan.name,
         })),
+        groupStandings,
       },
       { status: 200 },
     );

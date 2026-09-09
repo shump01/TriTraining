@@ -1,4 +1,5 @@
 import { type ActualRow } from "@/lib/actuals";
+import { buildHeatmap } from "@/lib/heatmap";
 import { buildPlanProgressInputs } from "@/lib/plan-progress";
 import { computeProgress } from "@/lib/progress";
 import { DEFAULT_WEEK_START_DAY } from "@/lib/weekly-targets";
@@ -40,4 +41,62 @@ export function buildMemberDisciplineStats(plan: PlanForStats, now: Date): Membe
     const meta = DISCIPLINE_META[d];
     return { key: d, label: meta.label, color: meta.color, pct: current?.pctOfTarget ?? null };
   });
+}
+
+/**
+ * The whole-plan weekly standing a group shares — the basis of the group's
+ * weekly ranking. Percentages only, like the per-sport stats: never targets
+ * or actuals, and never a pause reason.
+ */
+export interface MemberWeekStat {
+  /** Current week's % of the combined target; null with no current week or when it's time off. */
+  weekPct: number | null;
+  /** The completed week before it; null when it doesn't exist or was time off. */
+  lastWeekPct: number | null;
+  /** Consecutive completed, non-paused weeks on target, ending last week. */
+  streak: number;
+}
+
+export function buildMemberWeekStats(plan: PlanForStats, now: Date): MemberWeekStat {
+  const inputs = buildPlanProgressInputs(plan);
+  const weekStartDay = plan.weekStartDay ?? DEFAULT_WEEK_START_DAY;
+  const prog = computeProgress(inputs.total, now, weekStartDay);
+  const paused = (i: number) => Boolean(inputs.total[i]?.paused);
+  const currentIdx = prog.weeks.findIndex((w) => w.phase === "current");
+  const current = currentIdx >= 0 ? prog.weeks[currentIdx] : undefined;
+  const last = currentIdx > 0 ? prog.weeks[currentIdx - 1] : undefined;
+  const heat = buildHeatmap(
+    prog.weeks.map((w, i) => ({
+      ms: w.weekStartDate.getTime(),
+      phase: w.phase,
+      pctOfTarget: w.pctOfTarget,
+      status: w.status,
+      paused: paused(i),
+    })),
+  );
+  return {
+    weekPct: current && !paused(currentIdx) ? current.pctOfTarget : null,
+    lastWeekPct: last && !paused(currentIdx - 1) ? last.pctOfTarget : null,
+    streak: heat.currentStreak,
+  };
+}
+
+/**
+ * Competition ranking by current-week % (1, 2, 2, 4): members at the same
+ * percent share a rank. Members without a current week are unranked (null).
+ * Returns a map keyed by the input objects so callers can attach the rank
+ * without caring about ordering.
+ */
+export function rankByWeekPct<T extends { weekPct: number | null }>(members: T[]): Map<T, number | null> {
+  const ranks = new Map<T, number | null>();
+  for (const m of members) ranks.set(m, null);
+  const ranked = members
+    .filter((m) => m.weekPct != null)
+    .sort((a, b) => (b.weekPct ?? 0) - (a.weekPct ?? 0));
+  ranked.forEach((m, i) => {
+    const prev = ranked[i - 1];
+    const tied = prev !== undefined && prev.weekPct === m.weekPct;
+    ranks.set(m, tied ? (ranks.get(prev) ?? i + 1) : i + 1);
+  });
+  return ranks;
 }

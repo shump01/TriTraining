@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { buildMemberDisciplineStats, type PlanForStats } from "./group-stats";
+import {
+  buildMemberDisciplineStats,
+  buildMemberWeekStats,
+  rankByWeekPct,
+  type PlanForStats,
+} from "./group-stats";
 
 const MONDAY = new Date("2026-01-05T00:00:00.000Z"); // week +0
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
@@ -104,5 +109,63 @@ describe("buildMemberDisciplineStats", () => {
       NOW,
     );
     expect(stats.find((s) => s.key === "RUN")?.pct).toBe(50);
+  });
+});
+
+describe("buildMemberWeekStats", () => {
+  const actuals = (rows: [string, number, number][]) =>
+    rows.map(([discipline, week, meters]) => ({
+      discipline,
+      weekStartDate: mondayPlus(week),
+      actualMeters: meters,
+      source: "MANUAL" as const,
+    }));
+
+  it("reports this week, last week, and the on-target streak from the combined series", () => {
+    const stats = buildMemberWeekStats(
+      plan({
+        weeklyActuals: actuals([
+          ["RUN", 0, 10000],
+          ["SWIM", 0, 2000], // last week: 12,000 of 12,000 → 100%, on target
+          ["RUN", 1, 6000],
+          ["SWIM", 1, 1250], // this week: 7,250 of 14,500 → 50%
+        ]),
+      }),
+      NOW,
+    );
+    expect(stats.lastWeekPct).toBe(100);
+    expect(stats.weekPct).toBe(50);
+    expect(stats.streak).toBe(1);
+  });
+
+  it("treats a paused last week as no score and breaks the streak", () => {
+    const stats = buildMemberWeekStats(
+      plan({
+        weeklyActuals: actuals([["RUN", 0, 10000], ["SWIM", 0, 2000]]),
+        weeklyPauses: [{ weekStartDate: mondayPlus(0) }],
+      }),
+      NOW,
+    );
+    expect(stats.lastWeekPct).toBeNull();
+    expect(stats.streak).toBe(0);
+  });
+
+  it("has no standing without a current week", () => {
+    const stats = buildMemberWeekStats(plan(), new Date("2026-03-01T00:00:00.000Z"));
+    expect(stats.weekPct).toBeNull();
+  });
+});
+
+describe("rankByWeekPct", () => {
+  it("ranks by percent, shares ranks on ties, and leaves plan-less members unranked", () => {
+    const members = [
+      { name: "a", weekPct: 80 },
+      { name: "b", weekPct: 95 },
+      { name: "c", weekPct: 95 },
+      { name: "d", weekPct: null },
+      { name: "e", weekPct: 20 },
+    ];
+    const ranks = rankByWeekPct(members);
+    expect(members.map((m) => ranks.get(m))).toEqual([3, 1, 1, null, 4]);
   });
 });
