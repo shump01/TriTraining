@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildMemberDisciplineStats,
   buildMemberWeekStats,
-  rankByWeekPct,
+  rankByPct,
   type PlanForStats,
 } from "./group-stats";
 
@@ -156,7 +156,7 @@ describe("buildMemberWeekStats", () => {
   });
 });
 
-describe("rankByWeekPct", () => {
+describe("rankByPct", () => {
   it("ranks by percent, shares ranks on ties, and leaves plan-less members unranked", () => {
     const members = [
       { name: "a", weekPct: 80 },
@@ -165,7 +165,7 @@ describe("rankByWeekPct", () => {
       { name: "d", weekPct: null },
       { name: "e", weekPct: 20 },
     ];
-    const ranks = rankByWeekPct(members);
+    const ranks = rankByPct(members, (m) => m.weekPct);
     expect(members.map((m) => ranks.get(m))).toEqual([3, 1, 1, null, 4]);
   });
 });

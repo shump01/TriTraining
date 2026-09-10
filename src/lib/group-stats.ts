@@ -82,20 +82,18 @@ export function buildMemberWeekStats(plan: PlanForStats, now: Date): MemberWeekS
 }
 
 /**
- * Competition ranking by current-week % (1, 2, 2, 4): members at the same
- * percent share a rank. Members without a current week are unranked (null).
- * Returns a map keyed by the input objects so callers can attach the rank
- * without caring about ordering.
+ * Competition ranking by a percent (1, 2, 2, 4): members at the same percent
+ * share a rank; members without one (null — no such week, or time off) are
+ * unranked. Returns a map keyed by the input objects so callers can attach
+ * the rank without caring about ordering.
  */
-export function rankByWeekPct<T extends { weekPct: number | null }>(members: T[]): Map<T, number | null> {
+export function rankByPct<T>(members: T[], pct: (m: T) => number | null): Map<T, number | null> {
   const ranks = new Map<T, number | null>();
   for (const m of members) ranks.set(m, null);
-  const ranked = members
-    .filter((m) => m.weekPct != null)
-    .sort((a, b) => (b.weekPct ?? 0) - (a.weekPct ?? 0));
+  const ranked = members.filter((m) => pct(m) != null).sort((a, b) => (pct(b) ?? 0) - (pct(a) ?? 0));
   ranked.forEach((m, i) => {
     const prev = ranked[i - 1];
-    const tied = prev !== undefined && prev.weekPct === m.weekPct;
+    const tied = prev !== undefined && pct(prev) === pct(m);
     ranks.set(m, tied ? (ranks.get(prev) ?? i + 1) : i + 1);
   });
   return ranks;

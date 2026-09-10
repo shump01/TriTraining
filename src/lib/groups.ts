@@ -2,11 +2,7 @@ import { randomBytes } from "crypto";
 
 import { displayNameFor } from "@/lib/display-name";
 import { pickFeaturedPlan } from "@/lib/featured-plan";
-import {
-  buildMemberDisciplineStats,
-  buildMemberWeekStats,
-  rankByWeekPct,
-} from "@/lib/group-stats";
+import { buildMemberDisciplineStats, buildMemberWeekStats, rankByPct } from "@/lib/group-stats";
 import { prisma } from "@/lib/prisma";
 import { NotFoundError, requireUserId } from "@/lib/training-plan";
 import { planStartWeek } from "@/lib/weekly-targets";
@@ -142,6 +138,8 @@ export interface MemberStat {
   streak: number;
   /** This week's rank within the group (competition ranking); null when unranked. */
   rank: number | null;
+  /** The finished week's FINAL rank — what the Monday brief quotes once the week has rolled. */
+  lastRank: number | null;
 }
 
 /**
@@ -217,9 +215,15 @@ export async function getGroupMemberStats(groupId: string): Promise<MemberStat[]
       streak: week?.streak ?? 0,
     };
   });
-  // This week's standings: rank across the whole group, ties shared.
-  const ranks = rankByWeekPct(stats);
-  return stats.map((s) => ({ ...s, rank: ranks.get(s) ?? null }));
+  // Two standings across the whole group, ties shared: this week's (live)
+  // and the finished week's (final).
+  const ranks = rankByPct(stats, (s) => s.weekPct);
+  const lastRanks = rankByPct(stats, (s) => s.lastWeekPct);
+  return stats.map((s) => ({
+    ...s,
+    rank: ranks.get(s) ?? null,
+    lastRank: lastRanks.get(s) ?? null,
+  }));
 }
 
 /** Group name + member count for the join-confirmation page (auth required). */

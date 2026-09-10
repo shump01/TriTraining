@@ -89,10 +89,11 @@ export async function GET(req: NextRequest) {
       /** True when today is an in-plan, unpaused day with no sessions. */
       todayRestDay: boolean;
     } | null = null;
-    // The current week's start, in the same YYYY-MM-DD form as the
-    // upcomingWeeks feed — the group standings below are stamped with it so
-    // the app can match "the week this rank describes" by identity.
+    // The current and the finished week's starts, in the same YYYY-MM-DD form
+    // as the upcomingWeeks feed — the group standings below are stamped with
+    // them so the app can match "the week this rank describes" by identity.
     let currentWeekStart: string | null = null;
+    let lastWeekStart: string | null = null;
 
     if (active) {
       // Roll the week forward first (same as the plan page), so today's
@@ -160,6 +161,7 @@ export async function GET(req: NextRequest) {
         const rows = first ? first.weeks : [];
         const upcomingStart = wi >= 0 ? wi : first?.summary.finished ? rows.length : 0;
         currentWeekStart = wi >= 0 ? (rows[wi]?.dateStr ?? null) : null;
+        lastWeekStart = wi > 0 ? (rows[wi - 1]?.dateStr ?? null) : null;
         upcomingWeeks = rows.slice(upcomingStart, upcomingStart + 4).map((row, i) => {
           const idx = upcomingStart + i;
           return {
@@ -188,16 +190,20 @@ export async function GET(req: NextRequest) {
       };
     }
 
-    // The requester's standing in each of their groups this week — the week
-    // brief's closing line ("You finished 2nd of 6 in Dawn Patrol."). The
-    // rank describes the week starting `weekStart`; `rankedCount` counts the
-    // members who HAVE a current week (the "of N"), not the roster.
-    // Best-effort: a group that fails to compute must never sink the dashboard.
+    // The requester's standing in each of their groups — the week brief's
+    // closing line ("You finished 2nd of 6 in Dawn Patrol."). One entry per
+    // group per week that can be ranked: the CURRENT week (near-final by
+    // Sunday evening) and the FINISHED week (final). The app matches by
+    // weekStart, so it finds a line whichever side of the rollover a re-lay
+    // lands on — the server's week rolls at UTC midnight, hours before or
+    // after the athlete's own Monday. `rankedCount` counts the members ranked
+    // THAT week, not the roster. Best-effort: a group that fails to compute
+    // must never sink the dashboard.
     const groupStandings: {
       groupId: string;
       name: string;
-      weekStart: string | null;
-      rank: number | null;
+      weekStart: string;
+      rank: number;
       rankedCount: number;
       pct: number | null;
     }[] = [];
@@ -206,14 +212,26 @@ export async function GET(req: NextRequest) {
         const stats = await getGroupMemberStats(g.id);
         const me = stats.find((s) => s.userId === userId);
         if (!me) continue;
-        groupStandings.push({
-          groupId: g.id,
-          name: g.name,
-          weekStart: me.rank == null ? null : currentWeekStart,
-          rank: me.rank,
-          rankedCount: stats.filter((s) => s.weekPct != null).length,
-          pct: me.weekPct,
-        });
+        if (currentWeekStart && me.rank != null) {
+          groupStandings.push({
+            groupId: g.id,
+            name: g.name,
+            weekStart: currentWeekStart,
+            rank: me.rank,
+            rankedCount: stats.filter((s) => s.weekPct != null).length,
+            pct: me.weekPct,
+          });
+        }
+        if (lastWeekStart && me.lastRank != null) {
+          groupStandings.push({
+            groupId: g.id,
+            name: g.name,
+            weekStart: lastWeekStart,
+            rank: me.lastRank,
+            rankedCount: stats.filter((s) => s.lastWeekPct != null).length,
+            pct: me.lastWeekPct,
+          });
+        }
       }
     } catch {
       // Standings are a garnish on the dashboard, never a reason to 500 it.
