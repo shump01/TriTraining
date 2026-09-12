@@ -368,3 +368,14 @@ export const removeMemberSchema = z.object({
 });
 
 export type CreateGroupInput = z.infer<typeof createGroupSchema>;
+
+/** POST /api/auth/oauth: the mobile app trading a provider ID token for a session. */
+export const oauthSignInSchema = z.object({
+  provider: z.enum(["apple", "google"]),
+  // Provider ID tokens are about 1 KB; the cap only bounds abuse.
+  idToken: z.string().min(1).max(8192),
+  // Apple hands the app the person's name once, on first authorization.
+  name: z.string().trim().max(40, "Keep the name under 40 characters").optional(),
+});
+
+export type OAuthSignInInput = z.infer<typeof oauthSignInSchema>;
