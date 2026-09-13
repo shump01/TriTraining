@@ -21,13 +21,26 @@ export default async function AccountPage() {
   const session = await auth();
   const email = session?.user?.email ?? "";
   const screenName = session?.user?.name ?? null;
-  // The digest preference lives on the User row, not in the session.
+  // The digest preference lives on the User row, not in the session — as do
+  // the sign-in facts: whether a password exists (a provider-only account has
+  // none, so the change-password form would only ever fail) and which
+  // providers are linked.
   const prefs = session?.user?.id
     ? await prisma.user.findUnique({
         where: { id: session.user.id },
-        select: { digestEnabled: true, viewMode: true },
+        select: {
+          digestEnabled: true,
+          viewMode: true,
+          passwordHash: true,
+          accounts: { select: { provider: true } },
+        },
       })
     : null;
+  const hasPassword = Boolean(prefs?.passwordHash);
+  const PROVIDER_NAMES: Record<string, string> = { apple: "Apple", google: "Google" };
+  const providerNames = (prefs?.accounts ?? [])
+    .map((a) => PROVIDER_NAMES[a.provider])
+    .filter((p): p is string => p !== undefined);
 
   return (
     <div className="mkpage">
@@ -61,7 +74,15 @@ export default async function AccountPage() {
         <div className="rise" style={{ animationDelay: "0.22s" }}>
           <h2 className="section-label">Security</h2>
           <div className="rounded-[18px] border border-border bg-card p-6">
-            <ChangePasswordForm />
+            {hasPassword ? (
+              <ChangePasswordForm />
+            ) : (
+              <p className="text-sm text-muted">
+                You sign in with {providerNames.join(" and ") || "a linked account"}, so there is no
+                password to change. To add one, use &ldquo;Forgot your password?&rdquo; on the
+                sign-in page and set a password from the link we email you.
+              </p>
+            )}
           </div>
         </div>
 

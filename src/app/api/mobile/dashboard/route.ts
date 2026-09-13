@@ -40,7 +40,14 @@ export async function GET(req: NextRequest) {
     const [user, plans, strava, recent] = await Promise.all([
       prisma.user.findUnique({
         where: { id: userId },
-        select: { email: true, name: true, viewMode: true },
+        select: {
+          email: true,
+          name: true,
+          viewMode: true,
+          // Only their presence is reported — never the hash itself.
+          passwordHash: true,
+          accounts: { select: { provider: true } },
+        },
       }),
       listTrainingPlans(),
       getStravaConnectionSummary(userId),
@@ -245,6 +252,10 @@ export async function GET(req: NextRequest) {
           // Plan-view density preference; the app gates its Settings toggle on
           // this field's presence (old-server BC pattern).
           viewMode: user?.viewMode ?? "DETAILED",
+          // How this account signs in: Settings hides "change password" for a
+          // provider-only account and names the provider instead.
+          hasPassword: Boolean(user?.passwordHash),
+          providers: user?.accounts.map((a) => a.provider) ?? [],
         },
         activePlan,
         strava: strava

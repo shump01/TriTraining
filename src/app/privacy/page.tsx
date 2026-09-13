@@ -25,7 +25,7 @@ const SECTIONS: { title: string; paragraphs: string[] }[] = [
   {
     title: "What we collect",
     paragraphs: [
-      "Account: your email address, a password, and an optional screen name. The password is stored only as a secure hash — we cannot read it.",
+      "Account: your email address, a password, and an optional screen name. The password is stored only as a secure hash — we cannot read it. If you sign in with Apple or Google instead, we receive your email address (or, with Apple's Hide My Email, a relay address), a stable identifier for your account with that provider, and — from Apple, once — your name. We never see your Apple or Google password.",
       "Training data: the plans you create (race date, sports, distances, settings), the weekly targets TriTrainer computes, and your weekly actual distances — entered manually or imported from Strava or Apple Health.",
       "Heart rate & training load: if you set a threshold heart rate, or your imported activities include heart-rate data, we store per-activity summaries (duration and average heart rate) and the fitness, fatigue, and form scores computed from them. This exists solely to power the training-load page and readiness guidance.",
       "Wellbeing check-ins & time off: if you use the weekly check-in, we store your self-reported fatigue, sleep, and soreness ratings and any note you add. If you pause a plan, we store the pause and the reason you select (such as illness, injury, or travel) and any note. You choose whether to provide any of this.",
@@ -75,7 +75,7 @@ const SECTIONS: { title: string; paragraphs: string[] }[] = [
     title: "Where your data lives & who processes it",
     paragraphs: [
       "TriTrainer runs on our own server in the EU, with data stored in a Postgres database hosted by Supabase on AWS infrastructure in Frankfurt, Germany (eu-central-1). Traffic between your device and TriTrainer is encrypted with HTTPS.",
-      "We use a small number of processors to run the service: our hosting provider, Supabase (database hosting), and an email provider used only to send the emails you request. Your data is not transferred outside the UK or the European Economic Area in normal operation.",
+      "We use a small number of processors to run the service: our hosting provider, Supabase (database hosting), and an email provider used only to send the emails you request. If you choose to sign in with Apple or Google, that provider acts as an independent identity provider under its own privacy policy; we only verify the sign-in token it issues. Your data is not transferred outside the UK or the European Economic Area in normal operation.",
     ],
   },
   {
