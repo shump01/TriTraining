@@ -88,11 +88,11 @@ OAuth 2.0 link to Strava, **separate from login** (see [src/lib/strava](src/lib/
 Create an app at <https://www.strava.com/settings/api> and copy its **Client ID**
 and **Client Secret** into `STRAVA_CLIENT_ID` / `STRAVA_CLIENT_SECRET`.
 
-- **Authorization Callback Domain**: your bare host — `training.richysdev.co.uk`
+- **Authorization Callback Domain**: your bare host — `www.richysdev.co.uk`
   in production, or `localhost` for local dev. Strava validates the redirect URI
   against this domain.
 - **OAuth redirect URI** (where Strava sends the user back): `${NEXTAUTH_URL}/api/strava/callback`
-  — e.g. `https://training.richysdev.co.uk/api/strava/callback`. It is derived from
+  — e.g. `https://www.richysdev.co.uk/api/strava/callback`. It is derived from
   `NEXTAUTH_URL`, so set that to your public origin.
 - **Scopes**: the connect flow requests `read,activity:read`.
 - **Webhook (optional)**: point a Strava push subscription at
