@@ -141,7 +141,10 @@ describe("buildMemberWeekStats", () => {
   it("treats a paused last week as no score and breaks the streak", () => {
     const stats = buildMemberWeekStats(
       plan({
-        weeklyActuals: actuals([["RUN", 0, 10000], ["SWIM", 0, 2000]]),
+        weeklyActuals: actuals([
+          ["RUN", 0, 10000],
+          ["SWIM", 0, 2000],
+        ]),
         weeklyPauses: [{ weekStartDate: mondayPlus(0) }],
       }),
       NOW,

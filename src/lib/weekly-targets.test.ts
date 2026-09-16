@@ -1095,6 +1095,8 @@ describe("trainingPhaseForWeek", () => {
   it("labels a 16-week taper-2 plan the way the builder shapes it", () => {
     // Peak = last build week (index 13); race week is the taper's final step
     // but reads RACE; de-loads at every 4th week; the first block is BASE.
+    // Laid out one row per 4-week block so the de-load cadence is visible.
+    // prettier-ignore
     expect(phases(16, 2)).toEqual([
       "BASE", "BASE", "BASE", "RECOVERY",
       "BUILD", "BUILD", "BUILD", "RECOVERY",

@@ -40,9 +40,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     // every series' weeks) and each week's prescribed sessions. Both additive —
     // old app binaries parse them away via `.optional()`.
     const weeks = series[0]?.weeks ?? [];
-    const weekPhases = weeks.map((_, i) =>
-      trainingPhaseForWeek(i, weeks.length, plan.taperWeeks),
-    );
+    const weekPhases = weeks.map((_, i) => trainingPhaseForWeek(i, weeks.length, plan.taperWeeks));
     const weekSessions = await allWeeksPlanner(
       userId,
       plan,

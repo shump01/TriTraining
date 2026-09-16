@@ -90,7 +90,9 @@ export function buildMemberWeekStats(plan: PlanForStats, now: Date): MemberWeekS
 export function rankByPct<T>(members: T[], pct: (m: T) => number | null): Map<T, number | null> {
   const ranks = new Map<T, number | null>();
   for (const m of members) ranks.set(m, null);
-  const ranked = members.filter((m) => pct(m) != null).sort((a, b) => (pct(b) ?? 0) - (pct(a) ?? 0));
+  const ranked = members
+    .filter((m) => pct(m) != null)
+    .sort((a, b) => (pct(b) ?? 0) - (pct(a) ?? 0));
   ranked.forEach((m, i) => {
     const prev = ranked[i - 1];
     const tied = prev !== undefined && pct(prev) === pct(m);
