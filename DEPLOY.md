@@ -77,7 +77,7 @@ by `server.js`; or use the host's environment-variable settings). See
 | `DATABASE_URL`                              | Postgres connection (Supabase pooler)                                                                                                                                                                                |
 | `DIRECT_URL`                                | Direct (non-pooled) connection — used by `migrate deploy`                                                                                                                                                            |
 | `AUTH_SECRET`                               | `openssl rand -base64 32`                                                                                                                                                                                            |
-| `NEXTAUTH_URL`                              | `https://training.richysdev.co.uk`                                                                                                                                                                                   |
+| `NEXTAUTH_URL`                              | `https://www.richysdev.co.uk`                                                                                                                                                                                        |
 | `ENCRYPTION_KEY`                            | base64 32 bytes. **Must be the same key** that encrypted existing Strava tokens, or they can't be decrypted                                                                                                          |
 | `STRAVA_CLIENT_ID` / `STRAVA_CLIENT_SECRET` | from the Strava API application                                                                                                                                                                                      |
 | `STRAVA_WEBHOOK_VERIFY_TOKEN`               | only if using Strava webhooks                                                                                                                                                                                        |
@@ -123,17 +123,41 @@ Keep it alive with `pm2` or a `systemd` unit, and put nginx/Apache in front (see
 ## 6. HTTPS, domain, Strava
 
 - **HTTPS is mandatory.** The app emits HSTS, `upgrade-insecure-requests`, and secure
-  auth cookies — it will not work over plain HTTP. On managed hosting, enable the panel's
-  Let's Encrypt cert for `training.richysdev.co.uk`. On a VPS, terminate TLS at nginx and
+  auth cookies — it will not work over plain HTTP. On a VPS, terminate TLS at nginx and
   proxy to the Node process.
-- **Strava app:** set the Authorization Callback Domain to `training.richysdev.co.uk`
-  (callback URL `https://training.richysdev.co.uk/api/strava/callback`).
+
+  On the Hetzner host, TLS terminates at the panel's front proxy (not in Passenger, so a
+  certificate change never needs an app restart). The live certificate is a **Let's
+  Encrypt wildcard** (`*.richysdev.co.uk` + apex) issued from KonsoleH → SSL. Two things
+  about it that are not obvious from the panel:
+
+  - **Renewal is manual.** A wildcard can only be validated by DNS-01, and the domain's
+    DNS is hosted at **IONOS**, not Hetzner — so the panel cannot publish the challenge
+    itself. When the order sits at _Authentication needed_, click its key icon for the
+    `_acme-challenge.richysdev.co.uk` TXT values (there are two — one for the wildcard,
+    one for the apex), add both at IONOS, then re-trigger. Certificates last 90 days;
+    the first one was issued 2026-09-16.
+  - **Issued is not served.** After the panel shows the certificate active, the proxy can
+    take several minutes to swap it in. Confirm from outside rather than trusting green:
+
+    ```bash
+    openssl s_client -connect www.richysdev.co.uk:443 -servername www.richysdev.co.uk </dev/null 2>/dev/null | openssl x509 -noout -issuer -dates
+    ```
+
+  A lapse here takes down the website, every mobile client (the app's origin is this
+  host and iOS rejects an expired certificate before any request is made), the daily
+  cron, and Strava's webhook deliveries — all at once, with no error in the app's own
+  logs. Set an external expiry monitor; the cron cannot watch this because it fails
+  with it.
+
+- **Strava app:** set the Authorization Callback Domain to `www.richysdev.co.uk`
+  (callback URL `https://www.richysdev.co.uk/api/strava/callback`).
 - **Daily cron (strongly recommended):** with `CRON_SECRET` set, add a daily cron job
   (KonsoleH → cron, or any scheduler). Despite the route's name it is the daily
   maintenance tick and does three things:
 
   ```
-  15 6 * * *  curl -s -X POST -H "Authorization: Bearer YOUR_CRON_SECRET" https://training.richysdev.co.uk/api/cron/weekly-digest
+  15 6 * * *  curl -s -X POST -H "Authorization: Bearer YOUR_CRON_SECRET" https://www.richysdev.co.uk/api/cron/weekly-digest
   ```
 
   1. **Prunes expired sessions and password-reset tokens**, which nothing else deletes.
