@@ -1,11 +1,19 @@
 import Link from "next/link";
 
+import { oauthProviders } from "@/auth";
+import { authErrorMessage } from "@/lib/auth-error-message";
+
 import { AuthLayout } from "../auth-layout";
 import { SignupForm } from "./signup-form";
 
 export const dynamic = "force-dynamic";
 
-export default function SignupPage() {
+export default async function SignupPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const { error } = await searchParams;
   return (
     <AuthLayout
       eyebrow="Start free"
@@ -31,7 +39,7 @@ export default function SignupPage() {
         </>
       }
     >
-      <SignupForm />
+      <SignupForm providers={oauthProviders()} providerError={authErrorMessage(error)} />
     </AuthLayout>
   );
 }

@@ -15,6 +15,15 @@ const envSchema = z.object({
       "DATABASE_URL must be a valid connection URL, e.g. postgresql://user:pass@host:5432/db",
   }),
   AUTH_SECRET: z.string().min(1, "AUTH_SECRET is required"),
+  // Sign in with Apple / Google Sign-In — all optional; a provider whose
+  // credentials are absent is simply not offered (see src/auth.ts) and its
+  // mobile tokens answer 503 (see src/lib/oauth-identity.ts).
+  AUTH_APPLE_ID: z.string().optional(),
+  AUTH_APPLE_SECRET: z.string().optional(),
+  AUTH_GOOGLE_ID: z.string().optional(),
+  AUTH_GOOGLE_SECRET: z.string().optional(),
+  APPLE_BUNDLE_ID: z.string().optional(),
+  GOOGLE_IOS_CLIENT_ID: z.string().optional(),
   STRAVA_CLIENT_ID: z.string().min(1, "STRAVA_CLIENT_ID is required"),
   STRAVA_CLIENT_SECRET: z.string().min(1, "STRAVA_CLIENT_SECRET is required"),
   NEXTAUTH_URL: z.url({ message: "NEXTAUTH_URL must be a valid URL, e.g. http://localhost:3000" }),

@@ -1,5 +1,7 @@
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import NextAuth from "next-auth";
+import Apple from "next-auth/providers/apple";
+import Google from "next-auth/providers/google";
 
 import { prisma } from "@/lib/prisma";
 import {
@@ -17,9 +19,39 @@ import {
  * how we get credentials login + database sessions, which the built-in
  * Credentials provider alone does not support.
  *
- * `signIn` / additional OAuth providers can be added to `providers` later; the
- * adapter and database-session plumbing are already in place.
+ * OAuth providers (Apple, Google) sit beside the credentials login. Each is
+ * registered only when its credentials are in the environment, and the
+ * sign-in pages show a button only for registered providers — a deployment
+ * that has one and not the other never offers a sign-in that can only fail.
+ * `allowDangerousEmailAccountLinking` is on for both: Apple and Google both
+ * verify the address they send, so an existing password account gets the
+ * provider attached rather than an "account not linked" dead end — the same
+ * rule the mobile endpoint applies (src/lib/oauth-account.ts).
+ *
+ * Apple answers with a cross-site form POST (response_mode form_post), and a
+ * SameSite=Lax cookie is not sent on one: Auth.js's state and nonce cookies
+ * would go missing and every Apple sign-in would fail its state check. Those
+ * two cookies are therefore SameSite=None; they are short-lived and
+ * CSRF-bound, so the relaxation costs nothing.
  */
+
+/** Which OAuth providers this deployment can actually offer. */
+export function oauthProviders(): { apple: boolean; google: boolean } {
+  return {
+    apple: Boolean(process.env.AUTH_APPLE_ID && process.env.AUTH_APPLE_SECRET),
+    google: Boolean(process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET),
+  };
+}
+
+const enabled = oauthProviders();
+
+const crossSiteCookie = {
+  httpOnly: true,
+  sameSite: "none" as const,
+  path: "/",
+  secure: true,
+};
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   // The Prisma 7 generated client is structurally compatible with the adapter.
   adapter: PrismaAdapter(prisma as never),
@@ -34,9 +66,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       name: SESSION_COOKIE_NAME,
       options: sessionCookieOptions,
     },
+    state: { name: "__Secure-authjs.state", options: crossSiteCookie },
+    nonce: { name: "__Secure-authjs.nonce", options: crossSiteCookie },
+    // Same reason: the post-sign-in destination rides in this cookie, and an
+    // Apple sign-in that lost it would land on the site root, not the page
+    // the athlete asked for.
+    callbackUrl: { name: "__Secure-authjs.callback-url", options: crossSiteCookie },
   },
   pages: {
     signIn: "/login",
+    error: "/login",
   },
-  providers: [],
+  providers: [
+    ...(enabled.apple ? [Apple({ allowDangerousEmailAccountLinking: true })] : []),
+    ...(enabled.google ? [Google({ allowDangerousEmailAccountLinking: true })] : []),
+  ],
 });

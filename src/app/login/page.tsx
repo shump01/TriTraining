@@ -1,5 +1,8 @@
 import Link from "next/link";
 
+import { oauthProviders } from "@/auth";
+import { authErrorMessage } from "@/lib/auth-error-message";
+
 import { AuthLayout } from "../auth-layout";
 import { LoginForm } from "./login-form";
 import { LoginJourney } from "./login-journey";
@@ -9,9 +12,12 @@ export const dynamic = "force-dynamic";
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ callbackUrl?: string }>;
+  searchParams: Promise<{ callbackUrl?: string; error?: string }>;
 }) {
-  const { callbackUrl } = await searchParams;
+  const { callbackUrl, error } = await searchParams;
+  const providers = oauthProviders();
+  // Auth.js bounces OAuth failures back here as ?error=<code>.
+  const providerError = authErrorMessage(error);
 
   return (
     <AuthLayout
@@ -33,7 +39,11 @@ export default async function LoginPage({
         </p>
       }
     >
-      <LoginForm callbackUrl={callbackUrl ?? "/dashboard"} />
+      <LoginForm
+        callbackUrl={callbackUrl ?? "/dashboard"}
+        providers={providers}
+        providerError={providerError}
+      />
     </AuthLayout>
   );
 }

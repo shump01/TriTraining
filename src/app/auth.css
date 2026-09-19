@@ -441,3 +441,55 @@
     opacity: 1;
   }
 }
+
+/* ── Third-party sign-in (Apple / Google) under the password form ── */
+.authpage .auth-providers {
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.authpage .auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 4px;
+  color: var(--ink-faint);
+  font-family: var(--font-jetbrains), monospace;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.authpage .auth-divider::before,
+.authpage .auth-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+.authpage .auth-provider {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 22px;
+  border: 1px solid rgba(243, 237, 225, 0.22);
+  border-radius: 100px;
+  background: transparent;
+  color: var(--paper);
+  font-weight: 700;
+  font-size: 15px;
+  cursor: pointer;
+  transition:
+    border-color 0.3s var(--ap-ease),
+    transform 0.3s var(--ap-ease);
+}
+.authpage .auth-provider:hover:not(:disabled) {
+  border-color: var(--paper);
+  transform: translateY(-2px);
+}
+.authpage .auth-provider:disabled {
+  opacity: 0.7;
+  cursor: default;
+}

@@ -3,10 +3,19 @@
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
 
-export function SignupForm() {
+import { ProviderButtons, type OAuthProviderFlags } from "../provider-buttons";
+
+export function SignupForm({
+  providers,
+  providerError,
+}: {
+  providers: OAuthProviderFlags;
+  /** A message from a failed Apple/Google round trip, shown until the next attempt. */
+  providerError: string | null;
+}) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(providerError);
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -83,6 +92,9 @@ export function SignupForm() {
       <button type="submit" disabled={loading} className="btn auth-submit">
         <span>{loading ? "Creating account…" : "Create account"}</span>
       </button>
+      {/* A provider sign-up lands straight on the dashboard: Auth.js creates
+          the account and the session in one round trip. */}
+      <ProviderButtons providers={providers} redirectTo="/dashboard" intent="sign-up" />
     </form>
   );
 }

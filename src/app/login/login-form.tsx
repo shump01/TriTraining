@@ -5,10 +5,21 @@ import { useState, type FormEvent } from "react";
 
 import { safeCallbackPath } from "@/lib/safe-redirect";
 
-export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
+import { ProviderButtons, type OAuthProviderFlags } from "../provider-buttons";
+
+export function LoginForm({
+  callbackUrl,
+  providers,
+  providerError,
+}: {
+  callbackUrl: string;
+  providers: OAuthProviderFlags;
+  /** A message from a failed Apple/Google round trip, shown until the next attempt. */
+  providerError: string | null;
+}) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(providerError);
   const [loading, setLoading] = useState(false);
 
   async function onSubmit(event: FormEvent) {
@@ -74,6 +85,7 @@ export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
       <button type="submit" disabled={loading} className="btn auth-submit">
         <span>{loading ? "Signing in…" : "Sign in"}</span>
       </button>
+      <ProviderButtons providers={providers} redirectTo={callbackUrl} intent="sign-in" />
     </form>
   );
 }
