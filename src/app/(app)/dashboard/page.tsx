@@ -27,6 +27,7 @@ import {
 } from "@/lib/ui/theme";
 
 import { OtherPlans } from "./other-plans";
+import { RaceCountdownHero } from "./race-countdown";
 import { StravaCard } from "./strava-card";
 import "./home.css";
 
@@ -196,10 +197,10 @@ export default async function DashboardPage() {
                   )}
                 </div>
                 <div className="shrink-0 text-right">
-                  <div className="hero-count">{active.weeksToGo}</div>
-                  <div className="mono" style={{ fontSize: 10, letterSpacing: "0.14em" }}>
-                    weeks to go
-                  </div>
+                  <RaceCountdownHero
+                    eventDate={active.eventDate.toISOString()}
+                    weeksToGo={active.weeksToGo}
+                  />
                 </div>
               </div>
               <div

@@ -60,6 +60,14 @@ describe("pickFeaturedPlan", () => {
     expect(pickFeaturedPlan([notStarted], NOW)?.id).toBe("soon");
   });
 
+  it("stays live until race day has ended in the westernmost zone", () => {
+    const HOUR = 60 * 60 * 1000;
+    const justRaced = { ...plan("just-raced", "A", 0), eventMs: NOW - 35 * HOUR };
+    expect(pickFeaturedPlan([justRaced], NOW)?.id).toBe("just-raced");
+    const longGone = { ...plan("long-gone", "A", 0), eventMs: NOW - 37 * HOUR };
+    expect(pickFeaturedPlan([longGone], NOW)).toBeNull();
+  });
+
   it("keeps a plan live through its event day", () => {
     expect(pickFeaturedPlan([{ ...plan("today", "A", 0), eventMs: NOW }], NOW)?.id).toBe("today");
   });

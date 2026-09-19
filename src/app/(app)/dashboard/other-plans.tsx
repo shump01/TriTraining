@@ -3,6 +3,8 @@ import Link from "next/link";
 import type { PlanWithProgress } from "@/lib/training-plan";
 import { STATUS_META, planStatusKey } from "@/lib/ui/theme";
 
+import { RaceCountdownLabel } from "./race-countdown";
+
 function eventLabel(date: Date): string {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
@@ -43,7 +45,8 @@ export function OtherPlans({ plans }: { plans: PlanWithProgress[] }) {
                 <span className="min-w-0 flex-1 truncate text-[13.5px] font-bold">{p.name}</span>
               </div>
               <div className="font-mono text-[11.5px] text-faint">
-                {p.weeksToGo} wk{p.weeksToGo === 1 ? "" : "s"} · {eventLabel(p.eventDate)}
+                <RaceCountdownLabel eventDate={p.eventDate.toISOString()} weeksToGo={p.weeksToGo} />{" "}
+                · {eventLabel(p.eventDate)}
               </div>
             </Link>
           );
