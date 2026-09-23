@@ -24,6 +24,9 @@ yarn-error.log*
 .env.*
 !.env.example
 
+# local scratch for credentials, keys, cert material — never commit
+/Secrets/
+
 # typescript build info
 *.tsbuildinfo
 
