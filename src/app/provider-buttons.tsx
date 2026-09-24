@@ -1,7 +1,7 @@
 "use client";
 
 import { signIn } from "next-auth/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { safeCallbackPath } from "@/lib/safe-redirect";
 
@@ -30,6 +30,23 @@ export function ProviderButtons({
 }) {
   const [busy, setBusy] = useState<"apple" | "google" | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // signIn resolves the instant it hands the browser to the provider, and
+  // `busy` deliberately stays set so a double tap can't start two flows. But
+  // the Back button can restore this page from the back/forward cache with
+  // that state intact — both buttons disabled, "Opening Google…" forever.
+  // A restored page fires pageshow with `persisted`; reset there.
+  useEffect(() => {
+    const onShow = (e: PageTransitionEvent) => {
+      if (e.persisted) {
+        setBusy(null);
+        setError(null);
+      }
+    };
+    window.addEventListener("pageshow", onShow);
+    return () => window.removeEventListener("pageshow", onShow);
+  }, []);
+
   if (!providers.apple && !providers.google) return null;
 
   const verb = intent === "sign-up" ? "Sign up" : "Continue";

@@ -3,6 +3,8 @@ import NextAuth from "next-auth";
 import Apple from "next-auth/providers/apple";
 import Google from "next-auth/providers/google";
 
+import { hardenLinkedAccount } from "@/lib/oauth-account";
+import { isProviderEmailVerified } from "@/lib/oauth-link-policy";
 import { prisma } from "@/lib/prisma";
 import {
   SESSION_COOKIE_NAME,
@@ -23,10 +25,13 @@ import {
  * registered only when its credentials are in the environment, and the
  * sign-in pages show a button only for registered providers — a deployment
  * that has one and not the other never offers a sign-in that can only fail.
- * `allowDangerousEmailAccountLinking` is on for both: Apple and Google both
- * verify the address they send, so an existing password account gets the
- * provider attached rather than an "account not linked" dead end — the same
- * rule the mobile endpoint applies (src/lib/oauth-account.ts).
+ * `allowDangerousEmailAccountLinking` is on for both, under the two rules of
+ * src/lib/oauth-link-policy.ts that the mobile endpoint applies too: only a
+ * VERIFIED provider email may match an existing account (callbacks.signIn),
+ * and linking into an account whose email we never verified removes its
+ * password and sessions (events.linkAccount) — so an existing password
+ * account gets the provider attached rather than an "account not linked"
+ * dead end, without a squatter's pre-registered password surviving.
  *
  * Apple answers with a cross-site form POST (response_mode form_post), and a
  * SameSite=Lax cookie is not sent on one: Auth.js's state and nonce cookies
@@ -76,6 +81,25 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   pages: {
     signIn: "/login",
     error: "/login",
+  },
+  callbacks: {
+    // Rule 1: an unverified provider email must never reach the email match.
+    signIn({ account, profile }) {
+      if (account?.type !== "oidc" && account?.type !== "oauth") return true;
+      return isProviderEmailVerified(profile as Record<string, unknown> | undefined);
+    },
+  },
+  events: {
+    // Rule 2, after Auth.js has attached the provider and before it mints
+    // the session. Fires for brand-new users too, where it is a no-op.
+    async linkAccount({ user }) {
+      if (!user.id) return;
+      const row = await prisma.user.findUnique({
+        where: { id: user.id },
+        select: { passwordHash: true, emailVerified: true },
+      });
+      if (row) await hardenLinkedAccount(prisma, { id: user.id, ...row });
+    },
   },
   providers: [
     ...(enabled.apple ? [Apple({ allowDangerousEmailAccountLinking: true })] : []),

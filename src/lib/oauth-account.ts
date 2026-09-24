@@ -1,4 +1,6 @@
+import type { Prisma } from "@/generated/prisma/client";
 import type { ProviderIdentity } from "@/lib/oauth-identity";
+import { linkRevokesPassword } from "@/lib/oauth-link-policy";
 import { prisma } from "@/lib/prisma";
 
 /**
@@ -7,7 +9,10 @@ import { prisma } from "@/lib/prisma";
  * 1. An Account row for (provider, subject) already exists → that user.
  * 2. Else a user with the same VERIFIED email exists → link: add the Account
  *    row to them. Verified is the whole safety argument — an unverified email
- *    claim must never open someone else's account.
+ *    claim must never open someone else's account. And because sign-up never
+ *    verified THEIR email, a password on that row proved nothing: it is
+ *    removed and their sessions revoked (oauth-link-policy.ts, Rule 2), so a
+ *    squatter who pre-registered the address can't ride in behind the owner.
  * 3. Else create the user (no password; they sign in with the provider) with
  *    the Account row attached.
  *
@@ -44,6 +49,31 @@ export class EmailInUseError extends Error {
   }
 }
 
+type LinkDb = Prisma.TransactionClient | typeof prisma;
+
+/**
+ * What happens to an existing account once a provider identity is linked to
+ * it — shared with the website's Auth.js `linkAccount` event so both doors
+ * enforce the same rule. The provider has just vouched for the email, so the
+ * row becomes verified; and if the row's password predates any verification,
+ * it goes, along with every session it opened (oauth-link-policy.ts, Rule 2).
+ * Callers create the NEW session after this runs.
+ */
+export async function hardenLinkedAccount(
+  db: LinkDb,
+  user: { id: string; passwordHash: string | null; emailVerified: Date | null },
+): Promise<void> {
+  const patch: { passwordHash?: null; emailVerified?: Date } = {};
+  if (linkRevokesPassword(user)) {
+    patch.passwordHash = null;
+    await db.session.deleteMany({ where: { userId: user.id } });
+  }
+  if (!user.emailVerified) patch.emailVerified = new Date();
+  if (Object.keys(patch).length) {
+    await db.user.update({ where: { id: user.id }, data: patch });
+  }
+}
+
 const DISPLAY_NAME_MAX = 40;
 
 function cleanName(...candidates: (string | null | undefined)[]): string | null {
@@ -77,17 +107,15 @@ export async function signInWithProviderIdentity(
 
     const byEmail = await tx.user.findUnique({
       where: { email: identity.email },
-      select: { id: true, name: true, emailVerified: true },
+      select: { id: true, name: true, emailVerified: true, passwordHash: true },
     });
     if (byEmail) {
       if (!identity.emailVerified) throw new EmailInUseError();
       await tx.account.create({ data: { ...account, type: "oidc", userId: byEmail.id } });
-      const patch: { name?: string; emailVerified?: Date } = {};
-      if (!byEmail.name && name) patch.name = name;
-      if (!byEmail.emailVerified) patch.emailVerified = new Date();
-      if (Object.keys(patch).length) {
-        await tx.user.update({ where: { id: byEmail.id }, data: patch });
+      if (!byEmail.name && name) {
+        await tx.user.update({ where: { id: byEmail.id }, data: { name } });
       }
+      await hardenLinkedAccount(tx, byEmail);
       return { userId: byEmail.id, created: false, linked: true };
     }
 

@@ -2,20 +2,27 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ProviderIdentity } from "./oauth-identity";
 
-const { accountFindUnique, accountCreate, userFindUnique, userCreate, userUpdate } = vi.hoisted(
-  () => ({
-    accountFindUnique: vi.fn(),
-    accountCreate: vi.fn(),
-    userFindUnique: vi.fn(),
-    userCreate: vi.fn(),
-    userUpdate: vi.fn(),
-  }),
-);
+const {
+  accountFindUnique,
+  accountCreate,
+  userFindUnique,
+  userCreate,
+  userUpdate,
+  sessionDeleteMany,
+} = vi.hoisted(() => ({
+  accountFindUnique: vi.fn(),
+  accountCreate: vi.fn(),
+  userFindUnique: vi.fn(),
+  userCreate: vi.fn(),
+  userUpdate: vi.fn(),
+  sessionDeleteMany: vi.fn(),
+}));
 
 vi.mock("@/lib/prisma", () => {
   const tx = {
     account: { findUnique: accountFindUnique, create: accountCreate },
     user: { findUnique: userFindUnique, create: userCreate, update: userUpdate },
+    session: { deleteMany: sessionDeleteMany },
   };
   return { prisma: { $transaction: (fn: (t: typeof tx) => unknown) => fn(tx) } };
 });
@@ -67,7 +74,12 @@ describe("signInWithProviderIdentity", () => {
   });
 
   it("links to the existing account with the same VERIFIED email", async () => {
-    userFindUnique.mockResolvedValue({ id: "u2", name: "Alex", emailVerified: null });
+    userFindUnique.mockResolvedValue({
+      id: "u2",
+      name: "Alex",
+      emailVerified: null,
+      passwordHash: null,
+    });
 
     const result = await signInWithProviderIdentity(apple());
 
@@ -80,11 +92,50 @@ describe("signInWithProviderIdentity", () => {
       where: { id: "u2" },
       data: { emailVerified: expect.any(Date) },
     });
+    expect(sessionDeleteMany).not.toHaveBeenCalled();
     expect(userCreate).not.toHaveBeenCalled();
   });
 
+  it("drops a never-verified password, and its sessions, when a provider takes the row", async () => {
+    // A squatter registered the owner's address with a password; the owner
+    // now arrives through Apple. The squatter's password must not survive.
+    userFindUnique.mockResolvedValue({
+      id: "u2",
+      name: "Alex",
+      emailVerified: null,
+      passwordHash: "argon2-of-the-squatters-password",
+    });
+
+    await signInWithProviderIdentity(apple());
+
+    expect(sessionDeleteMany).toHaveBeenCalledWith({ where: { userId: "u2" } });
+    expect(userUpdate).toHaveBeenCalledWith({
+      where: { id: "u2" },
+      data: { passwordHash: null, emailVerified: expect.any(Date) },
+    });
+  });
+
+  it("keeps the password of an account whose email was verified", async () => {
+    userFindUnique.mockResolvedValue({
+      id: "u2",
+      name: "Alex",
+      emailVerified: new Date("2026-01-01T00:00:00.000Z"),
+      passwordHash: "argon2-of-the-owners-password",
+    });
+
+    await signInWithProviderIdentity(apple());
+
+    expect(sessionDeleteMany).not.toHaveBeenCalled();
+    expect(userUpdate).not.toHaveBeenCalled();
+  });
+
   it("never links on an UNVERIFIED email that matches an account", async () => {
-    userFindUnique.mockResolvedValue({ id: "u2", name: "Alex", emailVerified: new Date() });
+    userFindUnique.mockResolvedValue({
+      id: "u2",
+      name: "Alex",
+      emailVerified: new Date(),
+      passwordHash: null,
+    });
 
     await expect(
       signInWithProviderIdentity(apple({ emailVerified: false })),
