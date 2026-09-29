@@ -34,8 +34,9 @@ export function ForgotPasswordForm() {
   if (sent) {
     return (
       <p className="auth-note auth-note-ok" role="status">
-        If an account exists for <b>{email}</b>, we&apos;ve sent a link to reset your password.
-        Check your inbox (and spam) — the link is valid for 60 minutes.
+        If <b>{email}</b> has an account, we&apos;ve sent a link to reset your password (valid for
+        60 minutes). If it has a sign-up that was never confirmed, we&apos;ve sent a fresh
+        confirmation link instead. Check your inbox (and spam).
       </p>
     );
   }

@@ -7,7 +7,7 @@ export const metadata: Metadata = {
     "What TriTrainer collects, how it's used, and how to delete it. No ads, no trackers, no selling data — your training data exists only to power your plan.",
 };
 
-const EFFECTIVE_DATE = "July 19, 2026";
+const EFFECTIVE_DATE = "September 29, 2026";
 
 const SECTIONS: { title: string; paragraphs: string[] }[] = [
   {
@@ -25,7 +25,7 @@ const SECTIONS: { title: string; paragraphs: string[] }[] = [
   {
     title: "What we collect",
     paragraphs: [
-      "Account: your email address, a password, and an optional screen name. The password is stored only as a secure hash — we cannot read it. If you sign in with Apple or Google instead, we receive your email address (or, with Apple's Hide My Email, a relay address), a stable identifier for your account with that provider, and — from Apple, once — your name. We never see your Apple or Google password.",
+      "Account: your email address, a password, and an optional screen name. The password is stored only as a secure hash — we cannot read it. When you sign up with an email and password, we hold that address and the hash for up to 24 hours while we wait for you to confirm the address. If it isn't confirmed in that time, no account is created, and both — along with the confirmation links we emailed — are deleted in our routine clean-up. If you sign in with Apple or Google instead, we receive your email address (or, with Apple's Hide My Email, a relay address), a stable identifier for your account with that provider, and — from Apple, once — your name. We never see your Apple or Google password.",
       "Training data: the plans you create (race date, sports, distances, settings), the weekly targets TriTrainer computes, and your weekly actual distances — entered manually or imported from Strava or Apple Health.",
       "Heart rate & training load: if you set a threshold heart rate, or your imported activities include heart-rate data, we store per-activity summaries (duration and average heart rate) and the fitness, fatigue, and form scores computed from them. This exists solely to power the training-load page and readiness guidance.",
       "Wellbeing check-ins & time off: if you use the weekly check-in, we store your self-reported fatigue, sleep, and soreness ratings and any note you add. If you pause a plan, we store the pause and the reason you select (such as illness, injury, or travel) and any note. You choose whether to provide any of this.",
@@ -60,7 +60,7 @@ const SECTIONS: { title: string; paragraphs: string[] }[] = [
     title: "How your data is used",
     paragraphs: [
       "Exclusively to provide TriTrainer's features: generating and adapting weekly targets, tracking actual vs target volume, computing training load and readiness, and sharing weekly progress inside groups you chose to join.",
-      "We send email in two cases: messages the service requires (such as a password-reset link you requested), and — if you keep it on — a weekly digest summarising your own training week. Every digest carries an unsubscribe link, and the switch lives on the Account page. There are no marketing emails.",
+      "We send email in two cases: messages the service requires (confirming your address when you sign up, telling you an address already has an account if someone tries to sign up with it again, and password-reset links you request), and — if you keep it on — a weekly digest summarising your own training week. Every digest carries an unsubscribe link, and the switch lives on the Account page. There are no marketing emails.",
       "We do not run ads, we do not use third-party analytics or tracking, we make no automated decisions with legal or similarly significant effects, and we never sell or rent your data.",
     ],
   },

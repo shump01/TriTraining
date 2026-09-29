@@ -1,14 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { sessionDeleteMany, vtDeleteMany } = vi.hoisted(() => ({
+const { sessionDeleteMany, vtDeleteMany, pendingDeleteMany } = vi.hoisted(() => ({
   sessionDeleteMany: vi.fn(),
   vtDeleteMany: vi.fn(),
+  pendingDeleteMany: vi.fn(),
 }));
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     session: { deleteMany: sessionDeleteMany },
     verificationToken: { deleteMany: vtDeleteMany },
+    pendingSignup: { deleteMany: pendingDeleteMany },
   },
 }));
 vi.mock("@/lib/logger", () => ({
@@ -23,6 +25,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   sessionDeleteMany.mockResolvedValue({ count: 0 });
   vtDeleteMany.mockResolvedValue({ count: 0 });
+  pendingDeleteMany.mockResolvedValue({ count: 0 });
 });
 
 describe("pruneExpiredAuthRows", () => {
@@ -33,26 +36,31 @@ describe("pruneExpiredAuthRows", () => {
     // filter must never be inverted — that would delete every VALID session.
     expect(sessionDeleteMany).toHaveBeenCalledWith({ where: { expires: { lt: NOW } } });
     expect(vtDeleteMany).toHaveBeenCalledWith({ where: { expires: { lt: NOW } } });
+    expect(pendingDeleteMany).toHaveBeenCalledWith({ where: { expires: { lt: NOW } } });
   });
 
   it("reports what it removed", async () => {
     sessionDeleteMany.mockResolvedValue({ count: 12 });
     vtDeleteMany.mockResolvedValue({ count: 3 });
+    pendingDeleteMany.mockResolvedValue({ count: 2 });
 
     await expect(pruneExpiredAuthRows(NOW)).resolves.toEqual({
       sessions: 12,
       verificationTokens: 3,
+      pendingSignups: 2,
     });
   });
 
-  it("sweeps both tables even when one of them is already clean", async () => {
+  it("sweeps every table even when some are already clean", async () => {
     vtDeleteMany.mockResolvedValue({ count: 7 });
 
     await expect(pruneExpiredAuthRows(NOW)).resolves.toEqual({
       sessions: 0,
       verificationTokens: 7,
+      pendingSignups: 0,
     });
     expect(sessionDeleteMany).toHaveBeenCalledOnce();
+    expect(pendingDeleteMany).toHaveBeenCalledOnce();
   });
 
   it("defaults to the current time when no clock is passed", async () => {

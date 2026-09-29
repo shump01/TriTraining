@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState, type FormEvent } from "react";
 
 import { ProviderButtons, type OAuthProviderFlags } from "../provider-buttons";
+import { ResendConfirmation } from "../resend-confirmation";
 
 export function SignupForm({
   providers,
@@ -16,7 +17,10 @@ export function SignupForm({
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(providerError);
-  const [success, setSuccess] = useState(false);
+  // The address the confirmation went to — set once the server has accepted
+  // the sign-up. Kept apart from `email` so editing the field can't change
+  // which address the check-your-inbox panel names.
+  const [sentTo, setSentTo] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function onSubmit(event: FormEvent) {
@@ -31,7 +35,8 @@ export function SignupForm({
       });
 
       if (res.ok) {
-        setSuccess(true);
+        // No account exists yet — it will once the emailed link is confirmed.
+        setSentTo(email.trim().toLowerCase());
         return;
       }
 
@@ -44,12 +49,32 @@ export function SignupForm({
     }
   }
 
-  if (success) {
+  if (sentTo) {
     return (
       <div role="status">
-        <p className="auth-note auth-note-ok">Your account is ready — you can sign in now.</p>
+        <p className="auth-note auth-note-ok">
+          Check your inbox. We&apos;ve sent a link to <b>{sentTo}</b> — open it and enter the
+          password you just chose to finish creating your account. The link works for 24 hours.
+        </p>
+        <p className="auth-hint" style={{ margin: "0 0 14px" }}>
+          Nothing there after a few minutes? Check your spam folder. Not confirmed within 24 hours,
+          the sign-up is discarded — just sign up again.
+        </p>
+        <div className="auth-actions">
+          <ResendConfirmation email={sentTo} />
+          <button
+            type="button"
+            className="auth-forgot"
+            onClick={() => {
+              setSentTo(null);
+              setPassword("");
+            }}
+          >
+            Use a different address
+          </button>
+        </div>
         <Link href="/login" className="btn auth-submit">
-          <span>Sign in →</span>
+          <span>Back to sign in →</span>
         </Link>
       </div>
     );

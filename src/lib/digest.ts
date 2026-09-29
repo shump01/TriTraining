@@ -428,6 +428,7 @@ export async function sendWeeklyDigests(now: Date = new Date()): Promise<DigestB
         unsubscribeUrl: `${env.NEXTAUTH_URL}/api/email/unsubscribe?token=${createUnsubscribeToken(user.id)}`,
       });
       const sent = await sendEmail({
+        kind: "digest",
         to: user.email,
         subject: rendered.subject,
         text: rendered.text,

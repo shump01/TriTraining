@@ -349,6 +349,24 @@
 .authpage .auth-forgot:hover {
   color: var(--ink);
 }
+/* The same quiet link look on a <button> (resend confirmation, use a
+   different address): actions, not navigation, so they must be buttons. */
+.authpage button.auth-forgot {
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+.authpage button.auth-forgot:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+.authpage .auth-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  margin: 0 0 18px;
+}
 .authpage .auth-error {
   color: var(--run);
   font-size: 13.5px;

@@ -144,9 +144,36 @@ Prisma adapter and a **database session strategy**.
 - **Models** ([prisma/schema.prisma](prisma/schema.prisma)): `User`, `Account`,
   `Session`, `VerificationToken` per the Auth.js adapter spec, plus
   `User.passwordHash` (argon2id — plaintext is never stored).
-- **Endpoints**: `POST /api/auth/signup`, `POST /api/auth/login`,
-  `POST /api/auth/logout`, `POST /api/auth/forgot-password`,
-  `POST /api/auth/reset-password`. Auth.js's own handlers live at `/api/auth/[...nextauth]`.
+- **Endpoints**: `POST /api/auth/signup`, `POST /api/auth/verify-email`,
+  `POST /api/auth/resend-verification`, `POST /api/auth/login`, `POST /api/auth/logout`,
+  `POST /api/auth/forgot-password`, `POST /api/auth/reset-password`. Auth.js's own handlers
+  live at `/api/auth/[...nextauth]`.
+- **Email verification at sign-up** ([src/lib/signup-verification.ts](src/lib/signup-verification.ts)):
+  a password sign-up creates **no account**. It records a `PendingSignup` (the chosen
+  password's hash, 24h) and emails a link to `/verify-email/[token]`; the account exists only
+  once someone confirms with **both the link and that password**, which also signs them in.
+  The link alone is deliberately not enough: confirming sets `emailVerified`, which is the
+  flag that switches off the anti-squatting rule for Apple/Google linking
+  ([src/lib/oauth-link-policy.ts](src/lib/oauth-link-policy.ts)) — so if a click sufficed,
+  anyone could sign up with someone else's address and their password would become a
+  verified credential on that person's account the moment the owner clicked. Each attempt is
+  its own row (never overwritten) and links are stored apart from attempts (hashed, under
+  `signup:<email>`), so re-sending never kills an earlier link and nobody can swap their
+  password into someone else's sign-up. Login answers **403 `EMAIL_UNVERIFIED`** — only to
+  someone who typed the chosen password — with a resend option; forgot-password re-sends the
+  confirmation for an address that never finished signing up. The sign-up **response** never
+  says whether an address has an account: it emails **both** a new address (confirm) and a
+  known one ("you already have an account"), hashes on both branches, and answers — or fails
+  — identically. Not claimed: that nothing else can tell them apart. Timing differs (only the
+  new-address branch writes), and signing up then logging in answers 403 for a new address
+  but 401 for a known one; closing that would cost two argon2 verifications per login, so it
+  is left noisy (each probe emails the owner) and bounded by the mail budget. One per-recipient mail budget is
+  shared by sign-up, resend and forgot-password, keyed on the canonical **inbox** (+tags and
+  Gmail dots stripped) so address variants can't multiply it
+  ([src/lib/mail-budget.ts](src/lib/mail-budget.ts)). Re-sent links expire with the sign-up
+  they confirm, never extending it. **Requires SMTP in production**: with
+  no mailer, or on a failed send, sign-up answers 503 rather than claim to have sent
+  anything. Accounts created before this feature are untouched (and stay unverified).
 - **Password reset** (`/forgot-password` → email link → `/reset-password/[token]`):
   the raw token is emailed but only its **SHA-256 hash** is stored (in the Auth.js
   `VerificationToken` table under a `pwreset:` identifier), so a DB leak yields no usable

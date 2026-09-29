@@ -63,6 +63,23 @@ npx prisma migrate deploy
 No-op if production already points at a database that's up to date. `migrate deploy` uses
 `DIRECT_URL` when set (a direct, non-pooled connection — required for migrations).
 
+> Development points at this same database, so **never run `npm run db:migrate` or
+> `db:push` against it** — both can rewrite or reset production. Generate new migrations
+> offline (no database or shadow DB involved), review the SQL, then apply it once with
+> `migrate deploy`:
+
+```bash
+npx prisma migrate diff --from-schema <old-schema> --to-schema prisma/schema.prisma --script
+```
+
+> **Before shipping anything that makes mail load-bearing** (password sign-up is, since
+> email verification): prove production SMTP end to end. Request a password reset for your
+> own account on the live site and check the email arrives with a working
+> `https://www.richysdev.co.uk/reset-password/…` link — that one round trip proves the
+> credentials, the STARTTLS handshake, SPF and the link host together. `GET /api/health`
+> reports `"mail": "configured"` or `"unconfigured"`, but only whether the variables are
+> set, not whether mail gets through.
+
 ---
 
 ## 4. Environment variables
@@ -81,7 +98,7 @@ by `server.js`; or use the host's environment-variable settings). See
 | `ENCRYPTION_KEY`                            | base64 32 bytes. **Must be the same key** that encrypted existing Strava tokens, or they can't be decrypted                                                                                                          |
 | `STRAVA_CLIENT_ID` / `STRAVA_CLIENT_SECRET` | from the Strava API application                                                                                                                                                                                      |
 | `STRAVA_WEBHOOK_VERIFY_TOKEN`               | only if using Strava webhooks                                                                                                                                                                                        |
-| `SMTP_HOST` / `SMTP_PORT`                   | mail server for password-reset emails (port 587 STARTTLS). Optional — reset emails are skipped if unset                                                                                                              |
+| `SMTP_HOST` / `SMTP_PORT`                   | mail server (port 587 STARTTLS). **Required for password sign-up** — sign-up is completed by an emailed link, so without a working mailer it answers 503. Also carries reset and digest mail                         |
 | `SMTP_USER` / `SMTP_PASS`                   | mailbox credentials. On Hetzner, create a mailbox (e.g. `noreply@richysdev.co.uk`) in KonsoleH                                                                                                                       |
 | `MAIL_FROM`                                 | from address, e.g. `TriTrainer <noreply@richysdev.co.uk>`                                                                                                                                                            |
 | `TRUSTED_PROXY_COUNT`                       | number of reverse proxies that append to `X-Forwarded-For`. Set to `1` behind Passenger/nginx so rate-limit IPs can't be spoofed. Default `0` (throttles fall back to a shared bucket)                               |

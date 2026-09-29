@@ -3,10 +3,15 @@ import { NextResponse, type NextRequest } from "next/server";
 import { env } from "@/env";
 import { handleApiError } from "@/lib/api";
 import { logger } from "@/lib/logger";
-import { isMailerConfigured, sendPasswordResetEmail } from "@/lib/mailer";
+import { spendMailBudget } from "@/lib/mail-budget";
+import {
+  isMailerConfigured,
+  sendPasswordResetEmail,
+  sendSignupConfirmationEmail,
+} from "@/lib/mailer";
 import { createPasswordResetToken } from "@/lib/password-reset";
-import { rateLimit } from "@/lib/rate-limit";
 import { enforceRateLimit, isCrossSiteRequest } from "@/lib/security";
+import { issueSignupToken } from "@/lib/signup-verification";
 import { forgotPasswordSchema } from "@/lib/validation";
 
 export const runtime = "nodejs";
@@ -15,9 +20,12 @@ export const dynamic = "force-dynamic";
 const WINDOW_MS = 15 * 60_000; // 15 minutes
 const MAX_PER_WINDOW = 3;
 
-// Deliberately identical for every request — never reveals whether an account exists.
+// Deliberately identical for every request — never reveals whether an account
+// exists. It must also cover the address that only has an unfinished sign-up:
+// that person gets a CONFIRMATION link, not a reset link, and a message
+// promising a reset would convince them nothing was sent.
 const GENERIC_MESSAGE =
-  "If an account exists for that address, we've sent a link to reset your password.";
+  "If that address has an account — or a sign-up waiting to be confirmed — we've emailed it a link. Check your inbox (and spam).";
 
 /** POST /api/auth/forgot-password — email a reset link (no user enumeration). */
 export async function POST(req: NextRequest) {
@@ -47,15 +55,11 @@ export async function POST(req: NextRequest) {
 
   const email = parsed.data.email.toLowerCase();
 
-  // Per-email limit — same behavior whether or not the account exists, so it
-  // can't be used to enumerate, while still stopping reset-email bombing.
-  const emailLimit = rateLimit(`auth:forgot:email:${email}`, MAX_PER_WINDOW, WINDOW_MS);
-  if (!emailLimit.ok) {
-    return NextResponse.json(
-      { error: "Too many requests. Please try again later." },
-      { status: 429, headers: { "Retry-After": String(emailLimit.retryAfterSeconds) } },
-    );
-  }
+  // Per-recipient budget, shared with sign-up and resend so no combination of
+  // them can bomb one inbox — and spent whether or not the account exists, so
+  // the 429 can't be used to enumerate.
+  const overBudget = spendMailBudget(email);
+  if (overBudget) return overBudget;
 
   try {
     const rawToken = await createPasswordResetToken(email);
@@ -73,6 +77,25 @@ export async function POST(req: NextRequest) {
           logger.info("Password-reset link (dev; mailer not configured)", { resetUrl });
         } else {
           logger.warn("Password-reset email not sent");
+        }
+      }
+    } else {
+      // No account — but perhaps a sign-up that was never confirmed. Someone
+      // who lost the confirmation email lands here: "Forgot password?" is the
+      // obvious button, and in the App Store build that predates email
+      // verification it is the ONLY recovery path. Re-send the confirmation
+      // instead of silently doing nothing. Same response either way.
+      const issued = await issueSignupToken(email);
+      if (issued) {
+        const confirmUrl = `${env.NEXTAUTH_URL}/verify-email/${issued.rawToken}`;
+        const outcome = await sendSignupConfirmationEmail(
+          email,
+          confirmUrl,
+          issued.expires,
+          "recovery",
+        );
+        if (outcome !== "sent" && env.NODE_ENV === "development" && !isMailerConfigured()) {
+          logger.info("Sign-up confirmation link (dev; mailer not configured)", { confirmUrl });
         }
       }
     }

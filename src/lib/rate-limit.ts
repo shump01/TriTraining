@@ -49,6 +49,23 @@ export function rateLimit(key: string, limit: number, windowMs: number): RateLim
 }
 
 /**
+ * Give back one unit spent by `rateLimit` on this key (never below zero, and
+ * a no-op once the window has closed).
+ *
+ * For limiters that count only FAILURES but guard EXPENSIVE work: spend a
+ * unit up front with `rateLimit`, do the work, and refund it if the attempt
+ * succeeded. The obvious alternative — check the budget, work, and spend only
+ * on failure — has a gap: concurrent requests all pass the check before any of
+ * them has failed, so a burst of hundreds buys hundreds of argon2
+ * verifications before the first one is counted. Reserving first is
+ * synchronous, so the cap holds however many requests are in flight.
+ */
+export function refundRateLimit(key: string): void {
+  const bucket = buckets.get(key);
+  if (bucket && bucket.resetAt > Date.now() && bucket.count > 0) bucket.count -= 1;
+}
+
+/**
  * Called on every `rateLimit`, but does real work at most once a minute — the
  * sweep is O(buckets) and the whole point is to stay cheap during the traffic
  * spike that makes the map big in the first place.

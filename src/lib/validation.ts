@@ -54,6 +54,18 @@ export const resetPasswordSchema = z.object({
   password: passwordSchema, // reuse the same strength policy as sign-up
 });
 
+// Confirming a sign-up takes the password chosen at sign-up, not a new one, so
+// no strength policy here — it is checked against the stored hash. The caps
+// only keep a hostile body from feeding argon2 a megabyte.
+export const verifyEmailSchema = z.object({
+  token: z.string().min(1, "Missing confirmation link").max(200),
+  password: z.string().min(1, "Enter the password you chose").max(128),
+});
+
+export const resendVerificationSchema = z.object({
+  email: z.email("Enter a valid email address"),
+});
+
 // ── Account self-service ─────────────────────────────────────────────────────
 
 /**

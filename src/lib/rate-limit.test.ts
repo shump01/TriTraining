@@ -4,6 +4,7 @@ import {
   __resetRateLimiterForTests,
   rateLimit,
   rateLimiterSize,
+  refundRateLimit,
   sweepRateLimiter,
 } from "@/lib/rate-limit";
 
@@ -84,5 +85,38 @@ describe("memory bounds", () => {
     expect(rateLimiterSize()).toBe(1);
     sweepRateLimiter(T0 + 10_001); // expired
     expect(rateLimiterSize()).toBe(0);
+  });
+});
+
+describe("refundRateLimit", () => {
+  it("gives back exactly one reserved unit", () => {
+    rateLimit("k", 2, 60_000);
+    rateLimit("k", 2, 60_000);
+    expect(rateLimit("k", 2, 60_000).ok).toBe(false);
+
+    refundRateLimit("k");
+    expect(rateLimit("k", 2, 60_000).ok).toBe(true);
+    expect(rateLimit("k", 2, 60_000).ok).toBe(false);
+  });
+
+  it("never drives a bucket below zero, so refunds can't bank credit", () => {
+    rateLimit("k", 1, 60_000);
+    refundRateLimit("k");
+    refundRateLimit("k");
+    refundRateLimit("k");
+
+    expect(rateLimit("k", 1, 60_000).ok).toBe(true);
+    expect(rateLimit("k", 1, 60_000).ok).toBe(false);
+  });
+
+  it("is a no-op for an unknown key or a closed window", () => {
+    refundRateLimit("never-seen");
+    expect(rateLimiterSize()).toBe(0);
+
+    rateLimit("k", 1, 60_000);
+    vi.setSystemTime(T0 + 60_000);
+    refundRateLimit("k");
+    // The window closed; the next call opens a fresh one at count 1.
+    expect(rateLimit("k", 1, 60_000)).toMatchObject({ ok: true, remaining: 0 });
   });
 });

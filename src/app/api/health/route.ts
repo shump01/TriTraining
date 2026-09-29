@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { probeDatabase } from "@/lib/health-probe";
+import { isMailerConfigured } from "@/lib/mailer";
 
 // Always evaluate at request time — a health check must never be cached.
 export const dynamic = "force-dynamic";
@@ -34,6 +35,11 @@ export async function GET() {
       // Healthy path only. How long a FAILING probe took is a timing detail
       // about the internals; it belongs in the log, not in a public response.
       ...(probe.healthy ? { latencyMs: probe.latencyMs } : {}),
+      // Whether SMTP credentials are PRESENT — not whether mail gets through.
+      // Password sign-up can't complete without mail, and nothing else in
+      // production would tell an operator it is missing: this is the one
+      // outside-visible signal. Not a secret; the sign-up form reveals it too.
+      mail: isMailerConfigured() ? "configured" : "unconfigured",
       timestamp: new Date().toISOString(),
     },
     { status: probe.healthy ? 200 : 503 },

@@ -26,16 +26,23 @@ import { prisma } from "@/lib/prisma";
 export interface PruneResult {
   sessions: number;
   verificationTokens: number;
+  /** Unconfirmed sign-ups: an address plus a password hash, possibly not the address owner's. */
+  pendingSignups: number;
 }
 
 export async function pruneExpiredAuthRows(now: Date = new Date()): Promise<PruneResult> {
-  const [sessions, verificationTokens] = await Promise.all([
+  const [sessions, verificationTokens, pendingSignups] = await Promise.all([
     prisma.session.deleteMany({ where: { expires: { lt: now } } }),
     prisma.verificationToken.deleteMany({ where: { expires: { lt: now } } }),
+    prisma.pendingSignup.deleteMany({ where: { expires: { lt: now } } }),
   ]);
 
-  const result = { sessions: sessions.count, verificationTokens: verificationTokens.count };
-  if (result.sessions > 0 || result.verificationTokens > 0) {
+  const result = {
+    sessions: sessions.count,
+    verificationTokens: verificationTokens.count,
+    pendingSignups: pendingSignups.count,
+  };
+  if (result.sessions > 0 || result.verificationTokens > 0 || result.pendingSignups > 0) {
     logger.info("Retention sweep removed expired auth rows", result);
   }
   return result;

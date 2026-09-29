@@ -6,6 +6,7 @@ import { IDENTIFIER_PREFIX } from "@/lib/password-reset";
 import { prisma } from "@/lib/prisma";
 import { enforceRateLimit, isCrossSiteRequest } from "@/lib/security";
 import { SESSION_COOKIE_NAME, sessionCookieOptions } from "@/lib/session-cookie";
+import { clearPendingSignups } from "@/lib/signup-verification";
 import { disconnectStrava } from "@/lib/strava/connection";
 import { requireUserId } from "@/lib/training-plan";
 import { updateAccountSchema } from "@/lib/validation";
@@ -103,6 +104,10 @@ export async function DELETE(req: NextRequest) {
       await prisma.verificationToken
         .deleteMany({ where: { identifier: `${IDENTIFIER_PREFIX}${deleted.email.toLowerCase()}` } })
         .catch(() => {});
+      // Same reasoning for unconfirmed sign-ups keyed by the address: none
+      // should exist alongside an account, but a leftover link must never be
+      // able to bring an erased address back as a new account.
+      await clearPendingSignups(deleted.email).catch(() => {});
     }
     // The session rows are gone with the user; clear the now-dead cookie too so
     // the web client lands cleanly on the public pages. No-op for bearer clients.

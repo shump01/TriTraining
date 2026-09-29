@@ -78,7 +78,9 @@ const SECTIONS: {
     title: "Signing in and passwords",
     paragraphs: [
       "If you've forgotten your password, use the “Forgot password?” link on the sign-in page — we'll email a reset link that's valid for 60 minutes. For security the link can be used once, and resetting signs out your other devices.",
-      "If a reset email doesn't arrive, check your spam folder and confirm you're using the address you signed up with. Password-reset emails are the only automatic email we send unless you've opted into the weekly digest.",
+      "If a reset email doesn't arrive, check your spam folder and confirm you're using the address you signed up with.",
+      "Signing up with an email and password sends a confirmation link first — your account is created when you open it and enter the password you chose. If it hasn't arrived, check your spam folder, then use “Resend confirmation email” on the sign-up or sign-in page; earlier links keep working. Lost it entirely? “Forgot password?” with the same address sends a fresh confirmation link too. A sign-up that isn't confirmed within 24 hours is discarded — just sign up again.",
+      "Apart from the weekly digest (only if you turn it on), we only email you about your account: confirming your address when you sign up, password-reset links you ask for, and a short notice if someone tries to sign up with an address that already has an account.",
     ],
   },
   {

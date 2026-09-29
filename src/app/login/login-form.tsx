@@ -6,6 +6,7 @@ import { useState, type FormEvent } from "react";
 import { safeCallbackPath } from "@/lib/safe-redirect";
 
 import { ProviderButtons, type OAuthProviderFlags } from "../provider-buttons";
+import { ResendConfirmation } from "../resend-confirmation";
 
 export function LoginForm({
   callbackUrl,
@@ -21,10 +22,14 @@ export function LoginForm({
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(providerError);
   const [loading, setLoading] = useState(false);
+  // Set when the credentials were right but the sign-up was never confirmed:
+  // the address to offer a fresh confirmation link for.
+  const [unconfirmed, setUnconfirmed] = useState<string | null>(null);
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     setError(null);
+    setUnconfirmed(null);
     setLoading(true);
     try {
       const res = await fetch("/api/auth/login", {
@@ -39,7 +44,10 @@ export function LoginForm({
         return;
       }
 
-      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      const data = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
+      // Branch on the code, not the status: login also answers 403 to a
+      // cross-site request, which is not this.
+      if (data.code === "EMAIL_UNVERIFIED") setUnconfirmed(email.trim().toLowerCase());
       setError(data.error ?? "Something went wrong. Please try again.");
     } catch {
       setError("Something went wrong. Please try again.");
@@ -78,9 +86,14 @@ export function LoginForm({
         </Link>
       </div>
       {error && (
-        <p role="alert" className="auth-error">
+        <p role="alert" className={unconfirmed ? "auth-note" : "auth-error"}>
           {error}
         </p>
+      )}
+      {unconfirmed && (
+        <div className="auth-actions">
+          <ResendConfirmation email={unconfirmed} />
+        </div>
       )}
       <button type="submit" disabled={loading} className="btn auth-submit">
         <span>{loading ? "Signing in…" : "Sign in"}</span>

@@ -31,11 +31,12 @@ model User {
   // Lactate-threshold heart rate (bpm) — required to compute HR-based training
   // load (hrTSS). Null until the athlete sets it. See src/lib/training-load.ts.
   thresholdHr      Int?
-  // Weekly digest email: OPT-IN. Sign-up doesn't verify the address, so
-  // anyone could register someone else's email; defaulting on would then send
-  // that person recurring mail they never asked for. Enabling it is therefore
-  // a deliberate act by someone who can sign in (Account page), and every
-  // digest still carries a one-click unsubscribe.
+  // Weekly digest email: OPT-IN. Password sign-ups now confirm the address
+  // before an account exists, but every account created before that — and so
+  // any address someone registered that wasn't theirs — never proved it;
+  // defaulting on would send those people recurring mail they never asked
+  // for. Enabling it stays a deliberate act by someone who can sign in
+  // (Account page), and every digest still carries a one-click unsubscribe.
   digestEnabled    Boolean           @default(false)
   // Week-start of the last digest sent — makes the daily cron idempotent
   // (at most one digest per training week). See src/lib/digest.ts.
@@ -222,12 +223,37 @@ model Session {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+// A sign-up that has not been confirmed yet (src/lib/signup-verification.ts).
+// No User row exists until the owner of the inbox proves it AND proves they
+// chose this password: confirming takes the emailed token plus the password.
+// One row per attempt — a re-signup never overwrites another row's password,
+// so nobody can swap their own password into someone else's pending sign-up.
+// The emailed tokens live in VerificationToken under "signup:<email>", apart
+// from these rows, so re-sending a link never invalidates an earlier one.
+// Short-lived (24h) and swept on expiry: this holds an email address and a
+// password hash for someone who may never become a user.
+model PendingSignup {
+  id           String   @id @default(cuid())
+  email        String
+  passwordHash String
+  expires      DateTime
+  createdAt    DateTime @default(now())
+
+  @@index([email])
+  @@index([expires])
+}
+
 model VerificationToken {
   identifier String
   token      String
   expires    DateTime
 
   @@unique([identifier, token])
+  // Every expiry sweep filters on this — the daily retention sweep, and the
+  // sign-up sweep that runs on every anonymous sign-up, resend and confirm
+  // request (src/lib/signup-verification.ts). Without it each of those is a
+  // sequential scan of the whole table.
+  @@index([expires])
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
