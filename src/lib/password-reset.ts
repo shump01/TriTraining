@@ -15,6 +15,12 @@ import { prisma } from "@/lib/prisma";
  * - No user enumeration: `createPasswordResetToken` returns null (silently) for
  *   an unknown email; the caller responds identically either way.
  * - A successful reset revokes ALL of the user's sessions.
+ * - A successful reset marks the email verified — the link reached the inbox
+ *   and the resetter chose the password, which is exactly what emailVerified
+ *   means. On a row that was never verified, it also removes every Apple/Google
+ *   link: those were attached before anyone proved the inbox, possibly by a
+ *   squatter, and must not survive the owner reclaiming the account (the same
+ *   reasoning as Rule 3 in src/lib/oauth-link-policy.ts).
  */
 
 /**
@@ -76,22 +82,33 @@ export async function consumePasswordResetToken(rawToken: string): Promise<strin
 }
 
 /**
- * Complete a reset: consume the token, set the new (argon2-hashed) password, and
- * revoke every session for the account. Returns whether it succeeded — callers
- * surface only a generic message on failure.
+ * Complete a reset: consume the token, set the new (argon2-hashed) password,
+ * mark the email verified, and revoke every session for the account (and, for
+ * a never-verified row, every provider link). Returns whether it succeeded —
+ * callers surface only a generic message on failure.
  */
 export async function resetPassword(rawToken: string, newPassword: string): Promise<boolean> {
   const email = await consumePasswordResetToken(rawToken);
   if (!email) return false;
 
-  const user = await prisma.user.findUnique({ where: { email }, select: { id: true } });
+  const user = await prisma.user.findUnique({
+    where: { email },
+    select: { id: true, emailVerified: true },
+  });
   if (!user) return false; // token existed but account since deleted
 
   const passwordHash = await hashPassword(newPassword);
   await prisma.$transaction([
-    prisma.user.update({ where: { id: user.id }, data: { passwordHash } }),
+    prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash, emailVerified: new Date() },
+    }),
     // Evict any existing sessions — anyone logged in must re-authenticate.
     prisma.session.deleteMany({ where: { userId: user.id } }),
+    // First proof of the inbox: links from before it go. (emailVerified only
+    // ever goes from null to set, so a stale read can at worst remove a link
+    // the owner added a moment ago — they sign in with the provider again.)
+    ...(user.emailVerified ? [] : [prisma.account.deleteMany({ where: { userId: user.id } })]),
   ]);
 
   return true;

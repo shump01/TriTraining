@@ -17,7 +17,7 @@ export interface ProviderIdentity {
   /** The provider's stable subject for this person — Account.providerAccountId. */
   subject: string;
   email: string | null;
-  /** Only a verified email may link to an existing account (see oauth-account.ts). */
+  /** Only a verified email may link to an existing account, or create one (see oauth-account.ts). */
   emailVerified: boolean;
   /** Google puts a display name in the token; Apple never does (the app sends it once). */
   name: string | null;

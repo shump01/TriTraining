@@ -20,7 +20,7 @@ vi.mock("@/lib/session", () => ({ createDatabaseSession: createSessionMock }));
 vi.mock("@/lib/prisma", () => ({ prisma: {} }));
 vi.mock("@/lib/rate-limit", () => ({ rateLimit: () => ({ ok: true }) }));
 
-import { MissingEmailError } from "@/lib/oauth-account";
+import { MissingEmailError, UnverifiedEmailError } from "@/lib/oauth-account";
 import { OAuthNotConfiguredError, OAuthTokenError } from "@/lib/oauth-identity";
 
 import { POST } from "./route";
@@ -113,5 +113,16 @@ describe("POST /api/auth/oauth", () => {
     expect(res.status).toBe(409);
     expect((await res.json()).error).toContain("Sign in with Apple");
     expect(createSessionMock).not.toHaveBeenCalled();
+  });
+
+  it("409s, and signs nobody in, when there'd be an account for an unverified email", async () => {
+    signInMock.mockRejectedValue(new UnverifiedEmailError("google"));
+
+    const res = await POST(post({ provider: "google", idToken: "jwt" }, { "x-client": "mobile" }));
+
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toContain("Google hasn't verified this email");
+    expect(createSessionMock).not.toHaveBeenCalled();
+    expect(res.headers.get("set-cookie")).toBeNull();
   });
 });

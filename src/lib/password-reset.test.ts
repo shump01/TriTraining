@@ -10,6 +10,7 @@ const {
   vtCreate,
   vtFindFirst,
   sessionDeleteMany,
+  accountDeleteMany,
   txn,
   hashPasswordMock,
 } = vi.hoisted(() => ({
@@ -19,6 +20,7 @@ const {
   vtCreate: vi.fn(),
   vtFindFirst: vi.fn(),
   sessionDeleteMany: vi.fn(),
+  accountDeleteMany: vi.fn(),
   txn: vi.fn(),
   hashPasswordMock: vi.fn(),
 }));
@@ -28,6 +30,7 @@ vi.mock("@/lib/prisma", () => ({
     user: { findUnique: userFindUnique, update: userUpdate },
     verificationToken: { deleteMany: vtDeleteMany, create: vtCreate, findFirst: vtFindFirst },
     session: { deleteMany: sessionDeleteMany },
+    account: { deleteMany: accountDeleteMany },
     $transaction: txn,
   },
 }));
@@ -105,23 +108,51 @@ describe("resetPassword", () => {
     expect(sessionDeleteMany).not.toHaveBeenCalled();
   });
 
-  it("sets the new hash AND revokes every session for the account", async () => {
+  it("sets the new hash, marks the email verified AND revokes every session", async () => {
     vtFindFirst.mockResolvedValue({
       identifier: "pwreset:rider@test.dev",
       token: sha256hex("good"),
     });
-    userFindUnique.mockResolvedValue({ id: "u1" });
+    userFindUnique.mockResolvedValue({
+      id: "u1",
+      emailVerified: new Date("2026-01-01T00:00:00.000Z"),
+    });
 
     const ok = await resetPassword("good", "New-Password-123!");
 
     expect(ok).toBe(true);
     expect(hashPasswordMock).toHaveBeenCalledWith("New-Password-123!");
+    // The link reached the inbox and the resetter chose the password.
     expect(userUpdate).toHaveBeenCalledWith({
       where: { id: "u1" },
-      data: { passwordHash: "argon2-hash" },
+      data: { passwordHash: "argon2-hash", emailVerified: expect.any(Date) },
     });
     expect(sessionDeleteMany).toHaveBeenCalledWith({ where: { userId: "u1" } });
+    // Already verified: its Apple/Google links were attached by a proven owner.
+    expect(accountDeleteMany).not.toHaveBeenCalled();
     expect(txn).toHaveBeenCalledTimes(1); // password change + session eviction are atomic
+  });
+
+  it("on a never-verified row, also removes every provider link, in the same transaction", async () => {
+    // A squatter registered the address and attached their own Google login;
+    // the inbox owner now resets. The squatter's way back in must go too.
+    vtFindFirst.mockResolvedValue({
+      identifier: "pwreset:rider@test.dev",
+      token: sha256hex("good"),
+    });
+    userFindUnique.mockResolvedValue({ id: "u1", emailVerified: null });
+    accountDeleteMany.mockReturnValue("delete-accounts-op");
+
+    expect(await resetPassword("good", "New-Password-123!")).toBe(true);
+
+    expect(userUpdate).toHaveBeenCalledWith({
+      where: { id: "u1" },
+      data: { passwordHash: "argon2-hash", emailVerified: expect.any(Date) },
+    });
+    expect(sessionDeleteMany).toHaveBeenCalledWith({ where: { userId: "u1" } });
+    expect(accountDeleteMany).toHaveBeenCalledWith({ where: { userId: "u1" } });
+    expect(txn).toHaveBeenCalledTimes(1);
+    expect(txn.mock.calls[0]![0]).toContain("delete-accounts-op");
   });
 
   it("fails cleanly if the account was deleted after the token was issued", async () => {

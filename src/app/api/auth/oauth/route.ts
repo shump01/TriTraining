@@ -2,9 +2,9 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { handleApiError } from "@/lib/api";
 import {
-  EmailInUseError,
   MissingEmailError,
   signInWithProviderIdentity,
+  UnverifiedEmailError,
 } from "@/lib/oauth-account";
 import {
   OAuthNotConfiguredError,
@@ -30,6 +30,10 @@ const WINDOW_MS = 60_000;
  * keys, find-or-link-or-create the user, and mint the same database session
  * the password login does (token in the body for X-Client: mobile, cookie for
  * everyone). `created` tells the app whether this is a brand-new athlete.
+ *
+ * An identity we can't use — no email, an unverified email that is already an
+ * account, an unverified email we won't make an account of — is a 409 with a
+ * sentence the app shows as-is; the website refuses the same identities.
  */
 export async function POST(req: NextRequest) {
   if (isCrossSiteRequest(req)) {
@@ -80,7 +84,7 @@ export async function POST(req: NextRequest) {
         { status: 503 },
       );
     }
-    if (error instanceof MissingEmailError || error instanceof EmailInUseError) {
+    if (error instanceof MissingEmailError || error instanceof UnverifiedEmailError) {
       return NextResponse.json({ error: error.message }, { status: 409 });
     }
     return handleApiError(error, { route: "POST /api/auth/oauth", provider });
